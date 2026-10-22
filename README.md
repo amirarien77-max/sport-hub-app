@@ -38,9 +38,13 @@ Routes live in `src/app/` (Expo Router).
 
 ## Supabase
 
-1. Create a project, set `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
-2. Set `EXPO_PUBLIC_DEMO_MODE=false`.
-3. Apply migrations in order under `supabase/migrations/`.
+See **[docs/supabase-setup.md](docs/supabase-setup.md)** for live wiring:
+
+1. Copy `.env.example` → `.env` and set URL, anon key, `EXPO_PUBLIC_DEMO_MODE=false`.
+2. In the Supabase SQL Editor, run migrations `001`–`005` then `seed.sql` (in order).
+3. Restart Expo (`npx expo start`).
+
+Never commit `.env` or service-role keys.
 
 ## Scripts
 

@@ -22,23 +22,27 @@ export default function ProfileRoute() {
         Consent: {user?.consentStatus} · Mode: {isDemoMode ? 'demo' : 'supabase'}
       </Text>
 
-      <Text style={styles.label}>Switch demo role</Text>
-      <View style={styles.row}>
-        {(['player', 'parent', 'head_coach'] as Role[]).map((role) => (
-          <Pressable
-            key={role}
-            onPress={() => switchDemoRole(role)}
-            style={[styles.chip, { borderColor: colors.primary }]}
-          >
-            <Text style={{ color: colors.primary, fontWeight: '700' }}>{role}</Text>
-          </Pressable>
-        ))}
-      </View>
+      {isDemoMode ? (
+        <>
+          <Text style={styles.label}>Switch demo role</Text>
+          <View style={styles.row}>
+            {(['player', 'parent', 'head_coach'] as Role[]).map((role) => (
+              <Pressable
+                key={role}
+                onPress={() => switchDemoRole(role)}
+                style={[styles.chip, { borderColor: colors.primary }]}
+              >
+                <Text style={{ color: colors.primary, fontWeight: '700' }}>{role}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : null}
 
       <Pressable
         onPress={() => {
           signOut();
-          router.replace('/onboarding/invite');
+          router.replace(isDemoMode ? '/onboarding/invite' : '/onboarding/auth');
         }}
         style={[layout.button, { backgroundColor: colors.danger, marginTop: 24 }]}
       >

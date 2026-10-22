@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,6 +10,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import type { Role } from '@/types';
+import { isDemoMode } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
 import { layout, useTheme } from '@/theme/ThemeContext';
 
@@ -27,14 +29,18 @@ export function ProfileSetupScreen() {
   const [dob, setDob] = useState('2012-04-12');
   const [parentPhone, setParentPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const onSubmit = () => {
-    const result = completeOnboarding({
+  const onSubmit = async () => {
+    setBusy(true);
+    setError(null);
+    const result = await completeOnboarding({
       fullName,
       role,
       dateOfBirth: role === 'player' ? dob : undefined,
       parentPhone: role === 'player' ? parentPhone : undefined,
     });
+    setBusy(false);
     if (!result.ok) {
       setError(result.error);
       return;
@@ -99,28 +105,36 @@ export function ProfileSetupScreen() {
 
       {error ? <Text style={{ color: colors.danger, marginTop: 8 }}>{error}</Text> : null}
 
-      <Pressable
-        onPress={onSubmit}
-        style={[layout.button, { backgroundColor: colors.secondary, marginTop: 20 }]}
-      >
-        <Text style={[layout.buttonText, { color: colors.primary }]}>Enter hub</Text>
-      </Pressable>
+      {busy ? (
+        <ActivityIndicator style={{ marginTop: 20 }} color={colors.primary} />
+      ) : (
+        <Pressable
+          onPress={onSubmit}
+          style={[layout.button, { backgroundColor: colors.secondary, marginTop: 20 }]}
+        >
+          <Text style={[layout.buttonText, { color: colors.primary }]}>Enter hub</Text>
+        </Pressable>
+      )}
 
-      <Text style={[styles.label, { marginTop: 28 }]}>Quick demo personas</Text>
-      <View style={styles.row}>
-        {(['player', 'parent', 'head_coach'] as Role[]).map((r) => (
-          <Pressable
-            key={r}
-            onPress={() => {
-              switchDemoRole(r);
-              router.replace('/(tabs)/schedule');
-            }}
-            style={[styles.chip, { borderColor: colors.accent }]}
-          >
-            <Text style={{ color: colors.accent, fontWeight: '700' }}>{r}</Text>
-          </Pressable>
-        ))}
-      </View>
+      {isDemoMode ? (
+        <>
+          <Text style={[styles.label, { marginTop: 28 }]}>Quick demo personas</Text>
+          <View style={styles.row}>
+            {(['player', 'parent', 'head_coach'] as Role[]).map((r) => (
+              <Pressable
+                key={r}
+                onPress={() => {
+                  switchDemoRole(r);
+                  router.replace('/(tabs)/schedule');
+                }}
+                style={[styles.chip, { borderColor: colors.accent }]}
+              >
+                <Text style={{ color: colors.accent, fontWeight: '700' }}>{r}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : null}
     </ScrollView>
   );
 }

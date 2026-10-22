@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
@@ -8,6 +9,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { DEMO_INVITE_CODE } from '@/lib/demo-data';
+import { isDemoMode } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
 import { layout, useTheme } from '@/theme/ThemeContext';
 
@@ -16,14 +18,17 @@ export function InviteCodeScreen() {
   const { redeemInvite } = useSession();
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const onSubmit = () => {
-    const result = redeemInvite(code);
+  const onSubmit = async () => {
+    setBusy(true);
+    setError(null);
+    const result = await redeemInvite(code);
+    setBusy(false);
     if (!result.ok) {
       setError(result.error);
       return;
     }
-    setError(null);
     router.push('/onboarding/profile');
   };
 
@@ -46,17 +51,27 @@ export function InviteCodeScreen() {
 
       {error ? <Text style={{ color: colors.danger, marginTop: 8 }}>{error}</Text> : null}
 
-      <Pressable
-        accessibilityRole="button"
-        onPress={onSubmit}
-        style={[layout.button, styles.cta, { backgroundColor: colors.secondary }]}
-      >
-        <Text style={[layout.buttonText, { color: colors.primary }]}>Continue</Text>
-      </Pressable>
+      {busy ? (
+        <ActivityIndicator style={{ marginTop: 16 }} color={colors.primary} />
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onSubmit}
+          style={[layout.button, styles.cta, { backgroundColor: colors.secondary }]}
+        >
+          <Text style={[layout.buttonText, { color: colors.primary }]}>Continue</Text>
+        </Pressable>
+      )}
 
-      <Pressable onPress={() => setCode(DEMO_INVITE_CODE)} style={styles.hint}>
-        <Text style={{ color: colors.muted }}>Demo code: {DEMO_INVITE_CODE}</Text>
-      </Pressable>
+      {isDemoMode ? (
+        <Pressable onPress={() => setCode(DEMO_INVITE_CODE)} style={styles.hint}>
+          <Text style={{ color: colors.muted }}>Demo code: {DEMO_INVITE_CODE}</Text>
+        </Pressable>
+      ) : (
+        <Text style={[styles.hint, { color: colors.muted }]}>
+          After seed.sql, try invite {DEMO_INVITE_CODE}.
+        </Text>
+      )}
     </View>
   );
 }
