@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { t, translateAbsenceReason, translateRsvp } from '@/i18n';
 import { dualAckConflict } from '@/lib/demo-data';
 import { useSession } from '@/session/SessionContext';
 import { layout, useTheme } from '@/theme/ThemeContext';
@@ -24,29 +25,29 @@ export function ScheduleScreen() {
     <ScrollView contentContainerStyle={[layout.screen, { backgroundColor: colors.background }]}>
       {pendingBanner ? (
         <View style={[styles.banner, { backgroundColor: colors.accent }]}>
-          <Text style={styles.bannerTitle}>Urgent</Text>
+          <Text style={styles.bannerTitle}>{t('schedule.urgent')}</Text>
           <Text style={styles.bannerBody}>{banner.message}</Text>
           <Pressable
             onPress={acknowledgeBanner}
             style={[layout.button, { backgroundColor: '#fff', marginTop: 10 }]}
           >
-            <Text style={[layout.buttonText, { color: colors.accent }]}>I acknowledge</Text>
+            <Text style={[layout.buttonText, { color: colors.accent }]}>
+              {t('schedule.acknowledge')}
+            </Text>
           </Pressable>
         </View>
       ) : null}
 
-      <Text style={[layout.title, { color: colors.primary }]}>Schedule</Text>
-      <Text style={[layout.subtitle, { color: colors.muted }]}>
-        Dual-Ack: player and parent RSVPs. Conflicts highlight yellow.
-      </Text>
+      <Text style={[layout.title, { color: colors.primary }]}>{t('schedule.title')}</Text>
+      <Text style={[layout.subtitle, { color: colors.muted }]}>{t('schedule.subtitle')}</Text>
 
       {events.map((event) => {
         const related = acks.filter((a) => a.eventId === event.id);
         return (
           <View key={event.id} style={[styles.card, { borderColor: colors.primary }]}>
             <Text style={styles.eventTitle}>{event.title}</Text>
-            <Text style={{ color: colors.muted }}>
-              {new Date(event.startsAt).toLocaleString()} · {event.location}
+            <Text style={{ color: colors.muted, textAlign: 'right' }}>
+              {new Date(event.startsAt).toLocaleString('he-IL')} · {event.location}
             </Text>
 
             <View style={styles.row}>
@@ -54,13 +55,15 @@ export function ScheduleScreen() {
                 onPress={() => setRsvp(event.id, 'attending', undefined, user?.role === 'parent')}
                 style={[layout.button, styles.half, { backgroundColor: colors.success }]}
               >
-                <Text style={[layout.buttonText, { color: '#fff' }]}>Attending</Text>
+                <Text style={[layout.buttonText, { color: '#fff' }]}>{t('schedule.attending')}</Text>
               </Pressable>
               <Pressable
                 onPress={() => setSheetEventId(event.id)}
                 style={[layout.button, styles.half, { backgroundColor: colors.danger }]}
               >
-                <Text style={[layout.buttonText, { color: '#fff' }]}>Not attending</Text>
+                <Text style={[layout.buttonText, { color: '#fff' }]}>
+                  {t('schedule.notAttending')}
+                </Text>
               </Pressable>
             </View>
 
@@ -74,17 +77,17 @@ export function ScheduleScreen() {
                     { backgroundColor: conflict ? '#FEF3C7' : '#F8FAFC' },
                   ]}
                 >
-                  <Text style={{ fontWeight: '700' }}>
+                  <Text style={{ fontWeight: '700', textAlign: 'right' }}>
                     {ack.playerId === 'user-player-roi' ? 'Roi' : 'Dan'}
-                    {conflict ? ' · CONFLICT' : ''}
+                    {conflict ? ` · ${t('schedule.conflict')}` : ''}
                   </Text>
-                  <Text style={{ color: colors.muted }}>
-                    Player: {ack.playerChoice ?? '—'}
-                    {ack.playerReason ? ` (${ack.playerReason})` : ''}
+                  <Text style={{ color: colors.muted, textAlign: 'right' }}>
+                    {t('schedule.player')}: {translateRsvp(ack.playerChoice)}
+                    {ack.playerReason ? ` (${translateAbsenceReason(ack.playerReason)})` : ''}
                   </Text>
-                  <Text style={{ color: colors.muted }}>
-                    Parent: {ack.parentChoice ?? '—'}
-                    {ack.parentReason ? ` (${ack.parentReason})` : ''}
+                  <Text style={{ color: colors.muted, textAlign: 'right' }}>
+                    {t('schedule.parent')}: {translateRsvp(ack.parentChoice)}
+                    {ack.parentReason ? ` (${translateAbsenceReason(ack.parentReason)})` : ''}
                   </Text>
                 </View>
               );
@@ -94,19 +97,22 @@ export function ScheduleScreen() {
       })}
 
       <Text style={[layout.title, { color: colors.primary, fontSize: 22, marginTop: 12 }]}>
-        Carpool
+        {t('schedule.carpool')}
       </Text>
       {carpools.map((offer) => (
         <View key={offer.id} style={[styles.card, { borderColor: colors.secondary }]}>
-          <Text style={{ fontWeight: '700' }}>{offer.parentName}</Text>
-          <Text style={{ color: colors.muted }}>
-            {offer.seatsTaken}/{offer.seatsAvailable} seats taken
+          <Text style={{ fontWeight: '700', textAlign: 'right' }}>{offer.parentName}</Text>
+          <Text style={{ color: colors.muted, textAlign: 'right' }}>
+            {t('schedule.seatsTaken', {
+              taken: offer.seatsTaken,
+              available: offer.seatsAvailable,
+            })}
           </Text>
           <Pressable
             onPress={() => claimCarpoolSeat(offer.id)}
             style={[layout.button, { backgroundColor: colors.primary, marginTop: 10 }]}
           >
-            <Text style={[layout.buttonText, { color: '#fff' }]}>Claim a seat</Text>
+            <Text style={[layout.buttonText, { color: '#fff' }]}>{t('schedule.claimSeat')}</Text>
           </Pressable>
         </View>
       ))}
@@ -144,7 +150,7 @@ function ReasonSheet({
       <Pressable style={styles.sheetBackdrop} onPress={onClose}>
         <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
           <Text style={[layout.title, { fontSize: 20, color: colors.primary }]}>
-            Why can&apos;t you make it?
+            {t('schedule.whyAbsent')}
           </Text>
           {items.map((reason) => (
             <Pressable
@@ -152,7 +158,9 @@ function ReasonSheet({
               onPress={() => onPick(reason)}
               style={[layout.button, { backgroundColor: colors.background, marginTop: 10 }]}
             >
-              <Text style={[layout.buttonText, { color: colors.text }]}>{reason}</Text>
+              <Text style={[layout.buttonText, { color: colors.text }]}>
+                {translateAbsenceReason(reason)}
+              </Text>
             </Pressable>
           ))}
         </View>
@@ -163,8 +171,14 @@ function ReasonSheet({
 
 const styles = StyleSheet.create({
   banner: { borderRadius: 14, padding: 14, marginBottom: 16 },
-  bannerTitle: { color: '#fff', fontWeight: '800', fontSize: 14, textTransform: 'uppercase' },
-  bannerBody: { color: '#fff', marginTop: 6, fontSize: 16, lineHeight: 22 },
+  bannerTitle: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 14,
+    textTransform: 'uppercase',
+    textAlign: 'right',
+  },
+  bannerBody: { color: '#fff', marginTop: 6, fontSize: 16, lineHeight: 22, textAlign: 'right' },
   card: {
     marginTop: 16,
     padding: 14,
@@ -172,7 +186,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     backgroundColor: '#fff',
   },
-  eventTitle: { fontSize: 18, fontWeight: '800', marginBottom: 4 },
+  eventTitle: { fontSize: 18, fontWeight: '800', marginBottom: 4, textAlign: 'right' },
   row: { flexDirection: 'row', gap: 10, marginTop: 12 },
   half: { flex: 1 },
   ackRow: { marginTop: 10, padding: 10, borderRadius: 10 },

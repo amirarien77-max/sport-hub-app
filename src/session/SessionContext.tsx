@@ -24,6 +24,7 @@ import {
   isUnder13,
   resolveInvite,
 } from '@/lib/demo-data';
+import { ABSENCE_REASON_KEYS, t, translateRole } from '@/i18n';
 import { isDemoMode, supabase } from '@/lib/supabase';
 import type {
   AttendanceMark,
@@ -46,15 +47,6 @@ import type {
   ClubBrand,
 } from '@/types';
 import { useTheme } from '@/theme/ThemeContext';
-
-const ABSENCE_REASONS = [
-  'Sick',
-  'School exam',
-  'Injury',
-  'Family event',
-  'Travel',
-  'Other',
-] as const;
 
 type OkOrError = { ok: true } | { ok: false; error: string };
 
@@ -268,10 +260,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = useCallback(async (email: string, password: string): Promise<OkOrError> => {
     if (isDemoMode || !supabase) {
-      return { ok: false, error: 'Live auth is disabled in demo mode.' };
+      return { ok: false, error: t('errors.demoAuthDisabled') };
     }
     if (!email.trim() || !password) {
-      return { ok: false, error: 'Email and password are required.' };
+      return { ok: false, error: t('errors.emailPasswordRequired') };
     }
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
@@ -283,10 +275,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = useCallback(async (email: string, password: string): Promise<OkOrError> => {
     if (isDemoMode || !supabase) {
-      return { ok: false, error: 'Live auth is disabled in demo mode.' };
+      return { ok: false, error: t('errors.demoAuthDisabled') };
     }
     if (!email.trim() || password.length < 6) {
-      return { ok: false, error: 'Use a valid email and a password of at least 6 characters.' };
+      return { ok: false, error: t('errors.weakPassword') };
     }
     const { error } = await supabase.auth.signUp({
       email: email.trim(),
@@ -303,7 +295,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (isDemoMode || !supabase) {
         const brand = resolveInvite(normalized);
         if (!brand) {
-          return { ok: false, error: 'Invalid invite code. Try MAC-U16-2026 in demo mode.' };
+          return { ok: false, error: t('errors.invalidInviteDemo') };
         }
         setBrand(brand);
         setTeam(demoTeam);
@@ -312,7 +304,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (!authUserId) {
-        return { ok: false, error: 'Sign in before redeeming an invite.' };
+        return { ok: false, error: t('errors.signInBeforeInvite') };
       }
 
       const { data: teamRow, error } = await supabase
@@ -325,7 +317,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (!teamRow) {
         return {
           ok: false,
-          error: 'Invalid invite code. Apply seed.sql so MAC-U16-2026 exists, or use your club code.',
+          error: t('errors.invalidInviteLive'),
         };
       }
 
@@ -354,14 +346,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       parentPhone?: string;
     }): Promise<OkOrError> => {
       if (!inviteOk || !team) {
-        return { ok: false, error: 'Redeem an invite code first.' };
+        return { ok: false, error: t('errors.redeemInviteFirst') };
       }
       if (!input.fullName.trim()) {
-        return { ok: false, error: 'Name is required.' };
+        return { ok: false, error: t('errors.nameRequired') };
       }
       const under13 = input.role === 'player' && isUnder13(input.dateOfBirth);
       if (under13 && !input.parentPhone?.trim()) {
-        return { ok: false, error: 'Players under 13 must provide a parent phone.' };
+        return { ok: false, error: t('errors.under13Phone') };
       }
 
       if (isDemoMode || !supabase) {
@@ -380,7 +372,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (!authUserId) {
-        return { ok: false, error: 'Sign in before completing your profile.' };
+        return { ok: false, error: t('errors.signInBeforeProfile') };
       }
 
       const payload = {
@@ -553,7 +545,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         ...demoUsers[0],
         role,
         id: `user-demo-${role}`,
-        fullName: `Demo ${role}`,
+        fullName: t('demo.demoRoleName', { role: translateRole(role) }),
       };
       setInviteOk(true);
       setTeam(demoTeam);
@@ -588,7 +580,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       suggestions,
       carpools,
       banner,
-      absenceReasons: ABSENCE_REASONS,
+      absenceReasons: ABSENCE_REASON_KEYS,
       onboarded: Boolean(user),
       authReady,
       authUserId,
@@ -651,6 +643,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
 export function useSession() {
   const ctx = useContext(SessionContext);
-  if (!ctx) throw new Error('useSession must be used within SessionProvider');
+  if (!ctx) throw new Error(t('errors.useSessionOutsideProvider'));
   return ctx;
 }

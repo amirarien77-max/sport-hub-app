@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { t, translateAttendanceMark } from '@/i18n';
 import { useSession } from '@/session/SessionContext';
 import { layout, useTheme } from '@/theme/ThemeContext';
 import type { AttendanceMark } from '@/types';
@@ -25,20 +26,16 @@ export function AttendanceScreen() {
   if (!isCoach) {
     return (
       <View style={[layout.screen, { backgroundColor: colors.background }]}>
-        <Text style={[layout.title, { color: colors.primary }]}>Attendance</Text>
-        <Text style={[layout.subtitle, { color: colors.muted }]}>
-          Only coaches mark court attendance. Switch to a coach persona from Profile.
-        </Text>
+        <Text style={[layout.title, { color: colors.primary }]}>{t('attendance.title')}</Text>
+        <Text style={[layout.subtitle, { color: colors.muted }]}>{t('attendance.playersOnly')}</Text>
       </View>
     );
   }
 
   return (
     <View style={[layout.screen, { backgroundColor: colors.background }]}>
-      <Text style={[layout.title, { color: colors.primary }]}>Court grid</Text>
-      <Text style={[layout.subtitle, { color: colors.muted }]}>
-        Tap cycles Present → Excused → No-show. Lock notifies parents of no-shows.
-      </Text>
+      <Text style={[layout.title, { color: colors.primary }]}>{t('attendance.courtGrid')}</Text>
+      <Text style={[layout.subtitle, { color: colors.muted }]}>{t('attendance.subtitle')}</Text>
 
       <View style={styles.grid}>
         {rows.map((row) => {
@@ -50,7 +47,7 @@ export function AttendanceScreen() {
               style={[styles.cell, { backgroundColor: bg }]}
             >
               <Text style={styles.cellName}>{row.playerName}</Text>
-              <Text style={styles.cellMark}>{row.mark ?? 'unmarked'}</Text>
+              <Text style={styles.cellMark}>{translateAttendanceMark(row.mark)}</Text>
             </Pressable>
           );
         })}
@@ -62,18 +59,18 @@ export function AttendanceScreen() {
           const noShows = lockAttendance(eventId);
           const message =
             noShows.length === 0
-              ? 'Attendance locked. No no-shows.'
-              : `Locked. Notified parents of: ${noShows.join(', ')}`;
+              ? t('attendance.lockedNoShows')
+              : t('attendance.lockedWithNames', { names: noShows.join(', ') });
           setLockedNote(message);
-          Alert.alert('Attendance locked', message);
+          Alert.alert(t('attendance.lockedTitle'), message);
         }}
         style={[layout.button, { backgroundColor: colors.primary, marginTop: 20 }]}
       >
-        <Text style={[layout.buttonText, { color: '#fff' }]}>Lock & notify</Text>
+        <Text style={[layout.buttonText, { color: '#fff' }]}>{t('attendance.lockNotify')}</Text>
       </Pressable>
 
       {lockedNote ? (
-        <Text style={{ marginTop: 12, color: colors.muted }}>{lockedNote}</Text>
+        <Text style={{ marginTop: 12, color: colors.muted, textAlign: 'right' }}>{lockedNote}</Text>
       ) : null}
     </View>
   );
@@ -93,6 +90,12 @@ const styles = StyleSheet.create({
     padding: 12,
     justifyContent: 'space-between',
   },
-  cellName: { color: '#fff', fontWeight: '800', fontSize: 16 },
-  cellMark: { color: '#fff', textTransform: 'uppercase', fontSize: 12, fontWeight: '700' },
+  cellName: { color: '#fff', fontWeight: '800', fontSize: 16, textAlign: 'right' },
+  cellMark: {
+    color: '#fff',
+    textTransform: 'uppercase',
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'right',
+  },
 });

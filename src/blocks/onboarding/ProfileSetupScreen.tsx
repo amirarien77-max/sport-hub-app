@@ -9,17 +9,13 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { t, translateRole } from '@/i18n';
 import type { Role } from '@/types';
 import { isDemoMode } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
 import { layout, useTheme } from '@/theme/ThemeContext';
 
-const ROLES: { value: Role; label: string }[] = [
-  { value: 'player', label: 'Player' },
-  { value: 'parent', label: 'Parent' },
-  { value: 'head_coach', label: 'Head coach' },
-  { value: 'assistant_coach', label: 'Assistant' },
-];
+const ROLE_VALUES: Role[] = ['player', 'parent', 'head_coach', 'assistant_coach'];
 
 export function ProfileSetupScreen() {
   const { colors, brand } = useTheme();
@@ -50,34 +46,35 @@ export function ProfileSetupScreen() {
 
   return (
     <ScrollView contentContainerStyle={[layout.screen, { backgroundColor: colors.background }]}>
-      <Text style={[layout.title, { color: colors.primary }]}>Join {brand.name}</Text>
-      <Text style={[layout.subtitle, { color: colors.muted }]}>
-        Under-13 players need a parent phone and stay off the team feed until SMS consent.
+      <Text style={[layout.title, { color: colors.primary }]}>
+        {t('profileSetup.title', { name: brand.name })}
       </Text>
+      <Text style={[layout.subtitle, { color: colors.muted }]}>{t('profileSetup.subtitle')}</Text>
 
-      <Text style={styles.label}>Full name</Text>
+      <Text style={styles.label}>{t('profileSetup.fullName')}</Text>
       <TextInput
+        textAlign="right"
         value={fullName}
         onChangeText={setFullName}
         style={[styles.input, { borderColor: colors.primary, color: colors.text }]}
       />
 
-      <Text style={styles.label}>Role</Text>
+      <Text style={styles.label}>{t('profileSetup.role')}</Text>
       <View style={styles.row}>
-        {ROLES.map((r) => (
+        {ROLE_VALUES.map((value) => (
           <Pressable
-            key={r.value}
-            onPress={() => setRole(r.value)}
+            key={value}
+            onPress={() => setRole(value)}
             style={[
               styles.chip,
               {
-                backgroundColor: role === r.value ? colors.primary : '#fff',
+                backgroundColor: role === value ? colors.primary : '#fff',
                 borderColor: colors.primary,
               },
             ]}
           >
-            <Text style={{ color: role === r.value ? '#fff' : colors.primary, fontWeight: '700' }}>
-              {r.label}
+            <Text style={{ color: role === value ? '#fff' : colors.primary, fontWeight: '700' }}>
+              {translateRole(value)}
             </Text>
           </Pressable>
         ))}
@@ -85,25 +82,29 @@ export function ProfileSetupScreen() {
 
       {role === 'player' ? (
         <>
-          <Text style={styles.label}>Date of birth (YYYY-MM-DD)</Text>
+          <Text style={styles.label}>{t('profileSetup.dob')}</Text>
           <TextInput
+            textAlign="right"
             value={dob}
             onChangeText={setDob}
             style={[styles.input, { borderColor: colors.primary, color: colors.text }]}
           />
-          <Text style={styles.label}>Parent phone (required if under 13)</Text>
+          <Text style={styles.label}>{t('profileSetup.parentPhone')}</Text>
           <TextInput
             keyboardType="phone-pad"
+            textAlign="right"
             value={parentPhone}
             onChangeText={setParentPhone}
-            placeholder="+972..."
+            placeholder={t('profileSetup.parentPhonePlaceholder')}
             placeholderTextColor={colors.muted}
             style={[styles.input, { borderColor: colors.primary, color: colors.text }]}
           />
         </>
       ) : null}
 
-      {error ? <Text style={{ color: colors.danger, marginTop: 8 }}>{error}</Text> : null}
+      {error ? (
+        <Text style={{ color: colors.danger, marginTop: 8, textAlign: 'right' }}>{error}</Text>
+      ) : null}
 
       {busy ? (
         <ActivityIndicator style={{ marginTop: 20 }} color={colors.primary} />
@@ -112,13 +113,15 @@ export function ProfileSetupScreen() {
           onPress={onSubmit}
           style={[layout.button, { backgroundColor: colors.secondary, marginTop: 20 }]}
         >
-          <Text style={[layout.buttonText, { color: colors.primary }]}>Enter hub</Text>
+          <Text style={[layout.buttonText, { color: colors.primary }]}>
+            {t('profileSetup.enterHub')}
+          </Text>
         </Pressable>
       )}
 
       {isDemoMode ? (
         <>
-          <Text style={[styles.label, { marginTop: 28 }]}>Quick demo personas</Text>
+          <Text style={[styles.label, { marginTop: 28 }]}>{t('profileSetup.quickPersonas')}</Text>
           <View style={styles.row}>
             {(['player', 'parent', 'head_coach'] as Role[]).map((r) => (
               <Pressable
@@ -129,7 +132,7 @@ export function ProfileSetupScreen() {
                 }}
                 style={[styles.chip, { borderColor: colors.accent }]}
               >
-                <Text style={{ color: colors.accent, fontWeight: '700' }}>{r}</Text>
+                <Text style={{ color: colors.accent, fontWeight: '700' }}>{translateRole(r)}</Text>
               </Pressable>
             ))}
           </View>
@@ -145,6 +148,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontWeight: '700',
     color: '#334155',
+    textAlign: 'right',
+    writingDirection: 'rtl',
   },
   input: {
     minHeight: 48,
@@ -153,6 +158,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     fontSize: 16,
     backgroundColor: '#fff',
+    writingDirection: 'rtl',
   },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {

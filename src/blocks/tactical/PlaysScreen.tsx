@@ -7,6 +7,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { t, translateSuggestionStatus } from '@/i18n';
 import { useSession } from '@/session/SessionContext';
 import { layout, useTheme } from '@/theme/ThemeContext';
 
@@ -34,23 +35,23 @@ export function PlaysScreen() {
 
   return (
     <ScrollView contentContainerStyle={[layout.screen, { backgroundColor: colors.background }]}>
-      <Text style={[layout.title, { color: colors.primary }]}>Tactical board</Text>
-      <Text style={[layout.subtitle, { color: colors.muted }]}>
-        Position assignments, action prompts, and per-play suggestion toggle.
-      </Text>
+      <Text style={[layout.title, { color: colors.primary }]}>{t('plays.title')}</Text>
+      <Text style={[layout.subtitle, { color: colors.muted }]}>{t('plays.subtitle')}</Text>
 
       {feedBlocked ? (
         <View style={[styles.notice, { backgroundColor: '#FEE2E2' }]}>
-          <Text style={{ color: colors.danger, fontWeight: '700' }}>
-            Team feed locked until parental SMS consent is approved.
+          <Text style={{ color: colors.danger, fontWeight: '700', textAlign: 'right' }}>
+            {t('plays.feedLocked')}
           </Text>
         </View>
       ) : (
         <View style={[styles.notice, { backgroundColor: '#ECFDF5' }]}>
-          <Text style={{ color: colors.success, fontWeight: '700' }}>
-            Feed open · minors may only react with emoji (enforced in feed block).
+          <Text style={{ color: colors.success, fontWeight: '700', textAlign: 'right' }}>
+            {t('plays.feedOpen')}
           </Text>
-          <Text style={{ color: colors.muted, marginTop: 4 }}>Pinned: {banner.message}</Text>
+          <Text style={{ color: colors.muted, marginTop: 4, textAlign: 'right' }}>
+            {t('plays.pinned', { message: banner.message })}
+          </Text>
         </View>
       )}
 
@@ -61,7 +62,7 @@ export function PlaysScreen() {
           <View key={play.id} style={[styles.card, { borderColor: colors.primary }]}>
             <Text style={styles.playTitle}>{play.title}</Text>
             <View style={styles.court}>
-              <Text style={styles.courtLabel}>Court sketch placeholder</Text>
+              <Text style={styles.courtLabel}>{t('plays.courtSketch')}</Text>
               <View style={styles.positions}>
                 {['1', '2', '3', '4', '5'].map((pos) => (
                   <View key={pos} style={[styles.dot, { backgroundColor: colors.secondary }]}>
@@ -83,24 +84,27 @@ export function PlaysScreen() {
                 ]}
               >
                 <Text style={[layout.buttonText, { color: '#fff' }]}>
-                  Suggestions {play.allowSuggestions ? 'ON' : 'OFF'}
+                  {play.allowSuggestions ? t('plays.suggestionsOn') : t('plays.suggestionsOff')}
                 </Text>
               </Pressable>
             ) : null}
 
-            <Text style={styles.section}>Assignments</Text>
+            <Text style={styles.section}>{t('plays.assignments')}</Text>
             {playAssignments.map((a) => (
               <View key={a.id} style={styles.assign}>
-                <Text style={{ fontWeight: '800' }}>
-                  Pos {a.positionName} · {a.playerName}
+                <Text style={{ fontWeight: '800', textAlign: 'right' }}>
+                  {t('plays.pos', { pos: a.positionName, name: a.playerName })}
                 </Text>
-                <Text style={{ color: colors.muted, marginTop: 4 }}>{a.actionPromptQuestion}</Text>
+                <Text style={{ color: colors.muted, marginTop: 4, textAlign: 'right' }}>
+                  {a.actionPromptQuestion}
+                </Text>
                 {user?.role === 'player' ? (
                   <>
                     <TextInput
+                      textAlign="right"
                       value={answerDrafts[a.id] ?? a.playerAnswer ?? ''}
-                      onChangeText={(t) => setAnswerDrafts((d) => ({ ...d, [a.id]: t }))}
-                      placeholder="Explain your action..."
+                      onChangeText={(txt) => setAnswerDrafts((d) => ({ ...d, [a.id]: txt }))}
+                      placeholder={t('plays.answerPlaceholder')}
                       placeholderTextColor={colors.muted}
                       style={[styles.input, { borderColor: colors.primary }]}
                     />
@@ -108,12 +112,16 @@ export function PlaysScreen() {
                       onPress={() => answerAssignment(a.id, answerDrafts[a.id] ?? '')}
                       style={[layout.button, { backgroundColor: colors.secondary, marginTop: 8 }]}
                     >
-                      <Text style={[layout.buttonText, { color: colors.primary }]}>Save answer</Text>
+                      <Text style={[layout.buttonText, { color: colors.primary }]}>
+                        {t('plays.saveAnswer')}
+                      </Text>
                     </Pressable>
                   </>
                 ) : (
-                  <Text style={{ marginTop: 6 }}>
-                    Answer: {a.playerAnswer ?? '— waiting —'}
+                  <Text style={{ marginTop: 6, textAlign: 'right' }}>
+                    {t('plays.answer', {
+                      answer: a.playerAnswer ?? t('plays.waiting'),
+                    })}
                   </Text>
                 )}
               </View>
@@ -121,11 +129,12 @@ export function PlaysScreen() {
 
             {user?.role === 'player' && play.allowSuggestions ? (
               <>
-                <Text style={styles.section}>Suggest a change</Text>
+                <Text style={styles.section}>{t('plays.suggestChange')}</Text>
                 <TextInput
+                  textAlign="right"
                   value={suggestionDraft}
                   onChangeText={setSuggestionDraft}
-                  placeholder="Alternative cut / spacing idea"
+                  placeholder={t('plays.suggestionPlaceholder')}
                   placeholderTextColor={colors.muted}
                   style={[styles.input, { borderColor: colors.primary }]}
                 />
@@ -136,39 +145,45 @@ export function PlaysScreen() {
                   }}
                   style={[layout.button, { backgroundColor: colors.primary, marginTop: 8 }]}
                 >
-                  <Text style={[layout.buttonText, { color: '#fff' }]}>Send suggestion</Text>
+                  <Text style={[layout.buttonText, { color: '#fff' }]}>
+                    {t('plays.sendSuggestion')}
+                  </Text>
                 </Pressable>
               </>
             ) : null}
 
             {user?.role === 'player' && !play.allowSuggestions ? (
-              <Text style={{ marginTop: 10, color: colors.muted }}>
-                Coach disabled suggestions for this play.
+              <Text style={{ marginTop: 10, color: colors.muted, textAlign: 'right' }}>
+                {t('plays.suggestionsDisabled')}
               </Text>
             ) : null}
 
             {isCoach && playSuggestions.length > 0 ? (
               <>
-                <Text style={styles.section}>Suggestion inbox</Text>
+                <Text style={styles.section}>{t('plays.suggestionInbox')}</Text>
                 {playSuggestions.map((s) => (
                   <View key={s.id} style={styles.assign}>
-                    <Text style={{ fontWeight: '700' }}>
-                      {s.playerName} · {s.status}
+                    <Text style={{ fontWeight: '700', textAlign: 'right' }}>
+                      {s.playerName} · {translateSuggestionStatus(s.status)}
                     </Text>
-                    <Text style={{ marginTop: 4 }}>{s.suggestionText}</Text>
+                    <Text style={{ marginTop: 4, textAlign: 'right' }}>{s.suggestionText}</Text>
                     {s.status === 'pending' ? (
                       <View style={styles.row}>
                         <Pressable
                           onPress={() => reviewSuggestion(s.id, 'approved')}
                           style={[layout.button, styles.half, { backgroundColor: colors.success }]}
                         >
-                          <Text style={[layout.buttonText, { color: '#fff' }]}>Approve</Text>
+                          <Text style={[layout.buttonText, { color: '#fff' }]}>
+                            {t('plays.approve')}
+                          </Text>
                         </Pressable>
                         <Pressable
                           onPress={() => reviewSuggestion(s.id, 'rejected')}
                           style={[layout.button, styles.half, { backgroundColor: colors.danger }]}
                         >
-                          <Text style={[layout.buttonText, { color: '#fff' }]}>Reject</Text>
+                          <Text style={[layout.buttonText, { color: '#fff' }]}>
+                            {t('plays.reject')}
+                          </Text>
                         </Pressable>
                       </View>
                     ) : null}
@@ -192,7 +207,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     backgroundColor: '#fff',
   },
-  playTitle: { fontSize: 18, fontWeight: '800' },
+  playTitle: { fontSize: 18, fontWeight: '800', textAlign: 'right' },
   court: {
     marginTop: 12,
     height: 160,
@@ -210,7 +225,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  section: { marginTop: 16, marginBottom: 8, fontWeight: '800', color: '#334155' },
+  section: {
+    marginTop: 16,
+    marginBottom: 8,
+    fontWeight: '800',
+    color: '#334155',
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
   assign: {
     padding: 10,
     borderRadius: 10,
@@ -224,6 +246,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     backgroundColor: '#fff',
+    writingDirection: 'rtl',
   },
   row: { flexDirection: 'row', gap: 8, marginTop: 10 },
   half: { flex: 1 },
