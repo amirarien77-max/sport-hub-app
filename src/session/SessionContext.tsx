@@ -1,4 +1,12 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import type { Session } from '@supabase/supabase-js';
 import {
   DEMO_INVITE_CODE,
   demoAcks,
@@ -16,6 +24,7 @@ import {
   isUnder13,
   resolveInvite,
 } from '@/lib/demo-data';
+import { isDemoMode, supabase } from '@/lib/supabase';
 import type {
   AttendanceMark,
   AttendanceRow,
@@ -32,6 +41,9 @@ import type {
   Team,
   UrgentBanner,
   UserProfile,
+  Role,
+  ConsentStatus,
+  ClubBrand,
 } from '@/types';
 import { useTheme } from '@/theme/ThemeContext';
 
@@ -43,6 +55,8 @@ const ABSENCE_REASONS = [
   'Travel',
   'Other',
 ] as const;
+
+type OkOrError = { ok: true } | { ok: false; error: string };
 
 type SessionContextValue = {
   user: UserProfile | null;
@@ -59,13 +73,18 @@ type SessionContextValue = {
   banner: UrgentBanner;
   absenceReasons: readonly string[];
   onboarded: boolean;
-  redeemInvite: (code: string) => { ok: true } | { ok: false; error: string };
+  authReady: boolean;
+  authUserId: string | null;
+  inviteOk: boolean;
+  redeemInvite: (code: string) => Promise<OkOrError> | OkOrError;
   completeOnboarding: (input: {
     fullName: string;
     role: UserProfile['role'];
     dateOfBirth?: string;
     parentPhone?: string;
-  }) => { ok: true } | { ok: false; error: string };
+  }) => Promise<OkOrError> | OkOrError;
+  signIn: (email: string, password: string) => Promise<OkOrError>;
+  signUp: (email: string, password: string) => Promise<OkOrError>;
   setRsvp: (eventId: string, choice: RsvpChoice, reason?: string, asParent?: boolean) => void;
   cycleAttendance: (playerId: string, eventId: string) => void;
   lockAttendance: (eventId: string) => string[];
@@ -83,8 +102,68 @@ type SessionContextValue = {
 
 const SessionContext = createContext<SessionContextValue | null>(null);
 
+function mapUserRow(row: {
+  id: string;
+  full_name: string;
+  role: Role;
+  team_id: string;
+  club_id: string;
+  date_of_birth?: string | null;
+  parent_phone?: string | null;
+  consent_status: ConsentStatus;
+}): UserProfile {
+  return {
+    id: row.id,
+    fullName: row.full_name,
+    role: row.role,
+    teamId: row.team_id,
+    clubId: row.club_id,
+    dateOfBirth: row.date_of_birth ?? undefined,
+    parentPhone: row.parent_phone ?? undefined,
+    consentStatus: row.consent_status,
+  };
+}
+
+function mapTeamRow(row: {
+  id: string;
+  club_id: string;
+  name: string;
+  invite_code: string;
+  has_fitness_staff: boolean | null;
+  has_physio_staff: boolean | null;
+}): Team {
+  return {
+    id: row.id,
+    clubId: row.club_id,
+    name: row.name,
+    inviteCode: row.invite_code,
+    hasFitnessStaff: Boolean(row.has_fitness_staff),
+    hasPhysioStaff: Boolean(row.has_physio_staff),
+  };
+}
+
+function mapClubRow(row: {
+  id: string;
+  name: string;
+  primary_color: string;
+  secondary_color: string;
+  accent_color: string;
+  logo_url?: string | null;
+}): ClubBrand {
+  return {
+    id: row.id,
+    name: row.name,
+    primaryColor: row.primary_color,
+    secondaryColor: row.secondary_color,
+    accentColor: row.accent_color,
+    logoUrl: row.logo_url ?? undefined,
+  };
+}
+
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const { setBrand, clearBrand } = useTheme();
+  const [authReady, setAuthReady] = useState(isDemoMode);
+  const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [inviteOk, setInviteOk] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
@@ -98,51 +177,230 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [carpools, setCarpools] = useState<CarpoolOffer[]>(demoCarpools);
   const [banner, setBanner] = useState<UrgentBanner>(demoBanner);
 
-  const redeemInvite = useCallback(
-    (code: string) => {
-      const brand = resolveInvite(code);
-      if (!brand) {
-        return { ok: false as const, error: 'Invalid invite code. Try MAC-U16-2026 in demo mode.' };
+  const hydrateFromAuth = useCallback(
+    async (session: Session | null) => {
+      if (!supabase || isDemoMode) {
+        setAuthUserId(null);
+        setAuthReady(true);
+        return;
       }
-      setBrand(brand);
-      setTeam(demoTeam);
-      setInviteOk(true);
-      return { ok: true as const };
+
+      const uid = session?.user?.id ?? null;
+      setAuthUserId(uid);
+
+      if (!uid) {
+        setUser(null);
+        setTeam(null);
+        setInviteOk(false);
+        clearBrand();
+        setAuthReady(true);
+        return;
+      }
+
+      const { data: profile, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('auth_id', uid)
+        .maybeSingle();
+
+      if (error) {
+        console.warn('Failed to load profile', error.message);
+      }
+
+      if (!profile) {
+        setUser(null);
+        setTeam(null);
+        setInviteOk(false);
+        setAuthReady(true);
+        return;
+      }
+
+      const mapped = mapUserRow(profile);
+      setUser(mapped);
+
+      const { data: teamRow } = await supabase
+        .from('teams')
+        .select('*')
+        .eq('id', mapped.teamId)
+        .maybeSingle();
+
+      if (teamRow) {
+        setTeam(mapTeamRow(teamRow));
+        setInviteOk(true);
+      }
+
+      const { data: clubRow } = await supabase
+        .from('clubs')
+        .select('*')
+        .eq('id', mapped.clubId)
+        .maybeSingle();
+
+      if (clubRow) {
+        setBrand(mapClubRow(clubRow));
+      }
+
+      setAuthReady(true);
     },
-    [setBrand],
+    [clearBrand, setBrand],
+  );
+
+  useEffect(() => {
+    if (isDemoMode || !supabase) {
+      setAuthReady(true);
+      return;
+    }
+
+    let cancelled = false;
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!cancelled) void hydrateFromAuth(data.session);
+    });
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      void hydrateFromAuth(session);
+    });
+
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
+  }, [hydrateFromAuth]);
+
+  const signIn = useCallback(async (email: string, password: string): Promise<OkOrError> => {
+    if (isDemoMode || !supabase) {
+      return { ok: false, error: 'Live auth is disabled in demo mode.' };
+    }
+    if (!email.trim() || !password) {
+      return { ok: false, error: 'Email and password are required.' };
+    }
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  }, []);
+
+  const signUp = useCallback(async (email: string, password: string): Promise<OkOrError> => {
+    if (isDemoMode || !supabase) {
+      return { ok: false, error: 'Live auth is disabled in demo mode.' };
+    }
+    if (!email.trim() || password.length < 6) {
+      return { ok: false, error: 'Use a valid email and a password of at least 6 characters.' };
+    }
+    const { error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+    });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  }, []);
+
+  const redeemInvite = useCallback(
+    async (code: string): Promise<OkOrError> => {
+      const normalized = code.trim().toUpperCase();
+
+      if (isDemoMode || !supabase) {
+        const brand = resolveInvite(normalized);
+        if (!brand) {
+          return { ok: false, error: 'Invalid invite code. Try MAC-U16-2026 in demo mode.' };
+        }
+        setBrand(brand);
+        setTeam(demoTeam);
+        setInviteOk(true);
+        return { ok: true };
+      }
+
+      if (!authUserId) {
+        return { ok: false, error: 'Sign in before redeeming an invite.' };
+      }
+
+      const { data: teamRow, error } = await supabase
+        .from('teams')
+        .select('*')
+        .eq('invite_code', normalized)
+        .maybeSingle();
+
+      if (error) return { ok: false, error: error.message };
+      if (!teamRow) {
+        return {
+          ok: false,
+          error: 'Invalid invite code. Apply seed.sql so MAC-U16-2026 exists, or use your club code.',
+        };
+      }
+
+      const mappedTeam = mapTeamRow(teamRow);
+      setTeam(mappedTeam);
+      setInviteOk(true);
+
+      const { data: clubRow } = await supabase
+        .from('clubs')
+        .select('*')
+        .eq('id', mappedTeam.clubId)
+        .maybeSingle();
+
+      if (clubRow) setBrand(mapClubRow(clubRow));
+
+      return { ok: true };
+    },
+    [authUserId, setBrand],
   );
 
   const completeOnboarding = useCallback(
-    (input: {
+    async (input: {
       fullName: string;
       role: UserProfile['role'];
       dateOfBirth?: string;
       parentPhone?: string;
-    }) => {
+    }): Promise<OkOrError> => {
       if (!inviteOk || !team) {
-        return { ok: false as const, error: 'Redeem an invite code first.' };
+        return { ok: false, error: 'Redeem an invite code first.' };
       }
       if (!input.fullName.trim()) {
-        return { ok: false as const, error: 'Name is required.' };
+        return { ok: false, error: 'Name is required.' };
       }
       const under13 = input.role === 'player' && isUnder13(input.dateOfBirth);
       if (under13 && !input.parentPhone?.trim()) {
-        return { ok: false as const, error: 'Players under 13 must provide a parent phone.' };
+        return { ok: false, error: 'Players under 13 must provide a parent phone.' };
       }
-      const profile: UserProfile = {
-        id: `user-local-${Date.now()}`,
-        fullName: input.fullName.trim(),
+
+      if (isDemoMode || !supabase) {
+        const profile: UserProfile = {
+          id: `user-local-${Date.now()}`,
+          fullName: input.fullName.trim(),
+          role: input.role,
+          teamId: team.id,
+          clubId: team.clubId,
+          dateOfBirth: input.dateOfBirth,
+          parentPhone: input.parentPhone,
+          consentStatus: under13 ? 'pending_parental_consent' : 'active',
+        };
+        setUser(profile);
+        return { ok: true };
+      }
+
+      if (!authUserId) {
+        return { ok: false, error: 'Sign in before completing your profile.' };
+      }
+
+      const payload = {
+        auth_id: authUserId,
+        club_id: team.clubId,
+        team_id: team.id,
+        full_name: input.fullName.trim(),
         role: input.role,
-        teamId: team.id,
-        clubId: team.clubId,
-        dateOfBirth: input.dateOfBirth,
-        parentPhone: input.parentPhone,
-        consentStatus: under13 ? 'pending_parental_consent' : 'active',
+        date_of_birth: input.dateOfBirth || null,
+        parent_phone: input.parentPhone?.trim() || null,
+        consent_status: (under13 ? 'pending_parental_consent' : 'active') as ConsentStatus,
       };
-      setUser(profile);
-      return { ok: true as const };
+
+      const { data, error } = await supabase.from('users').insert(payload).select('*').single();
+      if (error) return { ok: false, error: error.message };
+
+      setUser(mapUserRow(data));
+      return { ok: true };
     },
-    [inviteOk, team],
+    [authUserId, inviteOk, team],
   );
 
   const setRsvp = useCallback(
@@ -288,24 +546,32 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }));
   }, [user]);
 
-  const switchDemoRole = useCallback((role: UserProfile['role']) => {
-    const match = demoUsers.find((u) => u.role === role) ?? {
-      ...demoUsers[0],
-      role,
-      id: `user-demo-${role}`,
-      fullName: `Demo ${role}`,
-    };
-    setInviteOk(true);
-    setTeam(demoTeam);
-    setUser(match);
-    setBrand(resolveInvite(DEMO_INVITE_CODE)!);
-  }, [setBrand]);
+  const switchDemoRole = useCallback(
+    (role: UserProfile['role']) => {
+      if (!isDemoMode) return;
+      const match = demoUsers.find((u) => u.role === role) ?? {
+        ...demoUsers[0],
+        role,
+        id: `user-demo-${role}`,
+        fullName: `Demo ${role}`,
+      };
+      setInviteOk(true);
+      setTeam(demoTeam);
+      setUser(match);
+      setBrand(resolveInvite(DEMO_INVITE_CODE)!);
+    },
+    [setBrand],
+  );
 
   const signOut = useCallback(() => {
     setUser(null);
     setTeam(null);
     setInviteOk(false);
+    setAuthUserId(null);
     clearBrand();
+    if (!isDemoMode && supabase) {
+      void supabase.auth.signOut();
+    }
   }, [clearBrand]);
 
   const value = useMemo<SessionContextValue>(
@@ -324,8 +590,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       banner,
       absenceReasons: ABSENCE_REASONS,
       onboarded: Boolean(user),
+      authReady,
+      authUserId,
+      inviteOk,
       redeemInvite,
       completeOnboarding,
+      signIn,
+      signUp,
       setRsvp,
       cycleAttendance,
       lockAttendance,
@@ -352,8 +623,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       suggestions,
       carpools,
       banner,
+      authReady,
+      authUserId,
+      inviteOk,
       redeemInvite,
       completeOnboarding,
+      signIn,
+      signUp,
       setRsvp,
       cycleAttendance,
       lockAttendance,
