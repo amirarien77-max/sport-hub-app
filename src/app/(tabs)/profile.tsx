@@ -48,7 +48,7 @@ export default function ProfileRoute() {
         <>
           <Text style={styles.label}>{t('profile.switchDemoRole')}</Text>
           <View style={styles.row}>
-            {(['player', 'parent', 'head_coach'] as Role[]).map((role) => (
+            {(['player', 'parent', 'head_coach', 'fitness_coach', 'physio'] as Role[]).map((role) => (
               <Pressable
                 key={role}
                 onPress={() => switchDemoRole(role)}

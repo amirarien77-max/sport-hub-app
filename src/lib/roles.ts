@@ -1,4 +1,4 @@
-import type { Role } from '@/types';
+import type { Role, Team, UserProfile } from '@/types';
 
 /** Court attendance + lock — head/assistant coach and admin. */
 export function isAttendanceCoach(role: Role | undefined | null): boolean {
@@ -28,4 +28,22 @@ export function canClaimCarpool(role: Role | undefined | null): boolean {
 
 export function canLogReadiness(role: Role | undefined | null): boolean {
   return role === 'player';
+}
+
+/**
+ * Dynamic staff permissions (PRD §3):
+ * fitness/physio → write; head coach inherits write only when no specialist on team;
+ * otherwise head coach / assistant / admin → read; others → none.
+ */
+export function coachHealthAccess(
+  team: Team,
+  role: UserProfile['role'],
+): 'write' | 'read' | 'none' {
+  if (role === 'fitness_coach' || role === 'physio') return 'write';
+  if (role === 'admin') return 'write';
+  if (role === 'head_coach') {
+    return team.hasFitnessStaff || team.hasPhysioStaff ? 'read' : 'write';
+  }
+  if (role === 'assistant_coach') return 'read';
+  return 'none';
 }
