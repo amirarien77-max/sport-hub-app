@@ -139,6 +139,8 @@ export const he = {
     seatsTaken: '{taken}/{available} מקומות תפוסים',
     claimSeat: 'שמירת מקום',
     whyAbsent: 'למה לא תוכלו להגיע?',
+    emptyEvents: 'אין אירועים עדיין. אחרי seed + migration 006 יופיעו אימון ומשחק לדוגמה.',
+    emptyCarpool: 'אין הצעות טרמפ כרגע.',
   },
 
   attendance: {

@@ -28,7 +28,7 @@ export function ScheduleScreen() {
           <Text style={styles.bannerTitle}>{t('schedule.urgent')}</Text>
           <Text style={styles.bannerBody}>{banner.message}</Text>
           <Pressable
-            onPress={acknowledgeBanner}
+            onPress={() => void acknowledgeBanner()}
             style={[layout.button, { backgroundColor: '#fff', marginTop: 10 }]}
           >
             <Text style={[layout.buttonText, { color: colors.accent }]}>
@@ -41,6 +41,12 @@ export function ScheduleScreen() {
       <Text style={[layout.title, { color: colors.primary }]}>{t('schedule.title')}</Text>
       <Text style={[layout.subtitle, { color: colors.muted }]}>{t('schedule.subtitle')}</Text>
 
+      {events.length === 0 ? (
+        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 12 }}>
+          {t('schedule.emptyEvents')}
+        </Text>
+      ) : null}
+
       {events.map((event) => {
         const related = acks.filter((a) => a.eventId === event.id);
         return (
@@ -52,7 +58,7 @@ export function ScheduleScreen() {
 
             <View style={styles.row}>
               <Pressable
-                onPress={() => setRsvp(event.id, 'attending', undefined, user?.role === 'parent')}
+                onPress={() => void setRsvp(event.id, 'attending', undefined, user?.role === 'parent')}
                 style={[layout.button, styles.half, { backgroundColor: colors.success }]}
               >
                 <Text style={[layout.buttonText, { color: '#fff' }]}>{t('schedule.attending')}</Text>
@@ -78,7 +84,12 @@ export function ScheduleScreen() {
                   ]}
                 >
                   <Text style={{ fontWeight: '700', textAlign: 'right' }}>
-                    {ack.playerId === 'user-player-roi' ? 'Roi' : 'Dan'}
+                    {ack.playerName ??
+                      (ack.playerId === 'user-player-roi'
+                        ? 'Roi'
+                        : ack.playerId === 'user-player-dan'
+                          ? 'Dan'
+                          : ack.playerId.slice(0, 8))}
                     {conflict ? ` · ${t('schedule.conflict')}` : ''}
                   </Text>
                   <Text style={{ color: colors.muted, textAlign: 'right' }}>
@@ -99,6 +110,11 @@ export function ScheduleScreen() {
       <Text style={[layout.title, { color: colors.primary, fontSize: 22, marginTop: 12 }]}>
         {t('schedule.carpool')}
       </Text>
+      {carpools.length === 0 ? (
+        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 8 }}>
+          {t('schedule.emptyCarpool')}
+        </Text>
+      ) : null}
       {carpools.map((offer) => (
         <View key={offer.id} style={[styles.card, { borderColor: colors.secondary }]}>
           <Text style={{ fontWeight: '700', textAlign: 'right' }}>{offer.parentName}</Text>
@@ -109,7 +125,7 @@ export function ScheduleScreen() {
             })}
           </Text>
           <Pressable
-            onPress={() => claimCarpoolSeat(offer.id)}
+            onPress={() => void claimCarpoolSeat(offer.id)}
             style={[layout.button, { backgroundColor: colors.primary, marginTop: 10 }]}
           >
             <Text style={[layout.buttonText, { color: '#fff' }]}>{t('schedule.claimSeat')}</Text>
@@ -123,7 +139,7 @@ export function ScheduleScreen() {
         onClose={() => setSheetEventId(null)}
         onPick={(reason) => {
           if (sheetEventId) {
-            setRsvp(sheetEventId, 'not_attending', reason, user?.role === 'parent');
+            void setRsvp(sheetEventId, 'not_attending', reason, user?.role === 'parent');
           }
           setSheetEventId(null);
         }}

@@ -43,7 +43,7 @@ export function AttendanceScreen() {
           return (
             <Pressable
               key={row.playerId}
-              onPress={() => eventId && cycleAttendance(row.playerId, eventId)}
+              onPress={() => eventId && void cycleAttendance(row.playerId, eventId)}
               style={[styles.cell, { backgroundColor: bg }]}
             >
               <Text style={styles.cellName}>{row.playerName}</Text>
@@ -56,13 +56,15 @@ export function AttendanceScreen() {
       <Pressable
         onPress={() => {
           if (!eventId) return;
-          const noShows = lockAttendance(eventId);
-          const message =
-            noShows.length === 0
-              ? t('attendance.lockedNoShows')
-              : t('attendance.lockedWithNames', { names: noShows.join(', ') });
-          setLockedNote(message);
-          Alert.alert(t('attendance.lockedTitle'), message);
+          void (async () => {
+            const noShows = await Promise.resolve(lockAttendance(eventId));
+            const message =
+              noShows.length === 0
+                ? t('attendance.lockedNoShows')
+                : t('attendance.lockedWithNames', { names: noShows.join(', ') });
+            setLockedNote(message);
+            Alert.alert(t('attendance.lockedTitle'), message);
+          })();
         }}
         style={[layout.button, { backgroundColor: colors.primary, marginTop: 20 }]}
       >
