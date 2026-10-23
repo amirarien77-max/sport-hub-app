@@ -15,7 +15,8 @@ import { isDemoMode } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
 import { layout, useTheme } from '@/theme/ThemeContext';
 
-const ROLE_VALUES: Role[] = ['player', 'parent', 'head_coach', 'assistant_coach'];
+/** Coach roles first so live testers don't miss מאמן when picking a persona. */
+const ROLE_VALUES: Role[] = ['head_coach', 'assistant_coach', 'player', 'parent'];
 
 export function ProfileSetupScreen() {
   const { colors, brand } = useTheme();

@@ -74,6 +74,7 @@ import type {
 import { useTheme } from '@/theme/ThemeContext';
 
 type OkOrError = { ok: true } | { ok: false; error: string };
+type CreatePlayResult = { ok: true; playId: string } | { ok: false; error: string };
 
 const EMPTY_BANNER: UrgentBanner = {
   id: '',
@@ -132,7 +133,7 @@ type SessionContextValue = {
   refreshHealth: () => Promise<void>;
   refreshTactical: () => Promise<void>;
   tacticalPlayers: { id: string; fullName: string }[];
-  createPlay: (title: string) => Promise<OkOrError>;
+  createPlay: (title: string) => Promise<CreatePlayResult>;
   updatePlayMedia: (playId: string, mediaUrl: string) => Promise<OkOrError>;
   updatePlayBoard: (playId: string, boardJson: string) => Promise<OkOrError>;
   createAssignment: (input: {
@@ -788,8 +789,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   );
 
   const createPlay = useCallback(
-    async (title: string): Promise<OkOrError> => {
-      if (!user || !team || !title.trim()) {
+    async (title: string): Promise<CreatePlayResult> => {
+      if (!user || !team) {
+        return { ok: false, error: t('errors.redeemInviteFirst') };
+      }
+      if (!title.trim()) {
         return { ok: false, error: t('errors.nameRequired') };
       }
 
@@ -803,7 +807,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           createdAt: new Date().toISOString(),
         };
         setPlays((prev) => [play, ...prev]);
-        return { ok: true };
+        return { ok: true, playId: play.id };
       }
 
       try {
@@ -813,7 +817,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           boardJson: '{"markers":[]}',
         });
         setPlays((prev) => [play, ...prev]);
-        return { ok: true };
+        return { ok: true, playId: play.id };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return { ok: false, error: message };

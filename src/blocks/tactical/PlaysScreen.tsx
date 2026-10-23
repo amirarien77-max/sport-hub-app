@@ -20,9 +20,21 @@ import { useSession } from '@/session/SessionContext';
 import { layout, useTheme } from '@/theme/ThemeContext';
 import type { TacticalPlay } from '@/types';
 
-function showResult(result: { ok: true } | { ok: false; error: string } | void) {
+function showResult(
+  result: { ok: true; playId?: string } | { ok: false; error: string } | void,
+) {
   if (!result || result.ok) return;
   Alert.alert(t('plays.saveFailed', { error: result.error }));
+}
+
+function nextMarkerLabel(markers: BoardMarker[]): number {
+  const used = markers
+    .map((m) => Number.parseInt(m.label, 10))
+    .filter((n) => Number.isFinite(n) && n >= 1 && n <= 5);
+  for (let n = 1; n <= 5; n += 1) {
+    if (!used.includes(n)) return n;
+  }
+  return (used[used.length - 1] % 5) + 1;
 }
 
 export function PlaysScreen() {
@@ -64,9 +76,12 @@ export function PlaysScreen() {
     if (!selectedPlay) {
       setLocalMarkers([]);
       setMediaDraft('');
+      setNextLabel(1);
       return;
     }
-    setLocalMarkers(parseBoardJson(selectedPlay.boardJson).markers);
+    const markers = parseBoardJson(selectedPlay.boardJson).markers;
+    setLocalMarkers(markers);
+    setNextLabel(nextMarkerLabel(markers));
     setMediaDraft(selectedPlay.mediaUrl ?? '');
     setSuggestionDraft('');
   }, [selectedPlay?.id, selectedPlay?.boardJson, selectedPlay?.mediaUrl]);
@@ -98,23 +113,31 @@ export function PlaysScreen() {
     setCourtSize({ w: Math.max(1, width), h: Math.max(1, height) });
   };
 
-  const onCourtPress = (evt: { nativeEvent: { locationX: number; locationY: number } }) => {
+  const addMarkerAt = (locationX: number, locationY: number) => {
     if (!isCoach || !selectedPlay) return;
-    const x = Math.round((evt.nativeEvent.locationX / courtSize.w) * 100);
-    const y = Math.round((evt.nativeEvent.locationY / courtSize.h) * 100);
+    const x = Math.min(100, Math.max(0, Math.round((locationX / courtSize.w) * 100)));
+    const y = Math.min(100, Math.max(0, Math.round((locationY / courtSize.h) * 100)));
     const label = String(nextLabel);
-    setNextLabel((n) => (n >= 5 ? 1 : n + 1));
-    setLocalMarkers((prev) => [...prev, { x, y, label }].slice(-12));
+    const next = [...localMarkers, { x, y, label }].slice(-12);
+    setLocalMarkers(next);
+    setNextLabel(nextMarkerLabel(next));
   };
 
   const removeMarker = (idx: number) => {
     if (!isCoach) return;
-    setLocalMarkers((prev) => prev.filter((_, i) => i !== idx));
+    const next = localMarkers.filter((_, i) => i !== idx);
+    setLocalMarkers(next);
+    setNextLabel(nextMarkerLabel(next));
   };
 
   const saveBoard = async () => {
     if (!selectedPlay) return;
-    showResult(await updatePlayBoard(selectedPlay.id, serializeBoardJson({ markers: localMarkers })));
+    const result = await updatePlayBoard(
+      selectedPlay.id,
+      serializeBoardJson({ markers: localMarkers }),
+    );
+    if (result.ok) Alert.alert(t('plays.savedOk'));
+    else showResult(result);
   };
 
   const renderList = () => (
@@ -157,15 +180,24 @@ export function PlaysScreen() {
           <Pressable
             onPress={async () => {
               const result = await createPlay(newPlayTitle);
-              showResult(result);
-              if (result.ok) setNewPlayTitle('');
+              if (result.ok) {
+                setNewPlayTitle('');
+                setSelectedPlayId(result.playId);
+                Alert.alert(t('plays.savedOk'));
+              } else {
+                showResult(result);
+              }
             }}
             style={[layout.button, { backgroundColor: colors.primary, marginTop: 8 }]}
           >
             <Text style={[layout.buttonText, { color: '#fff' }]}>{t('plays.createPlaySubmit')}</Text>
           </Pressable>
         </View>
-      ) : null}
+      ) : (
+        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 8 }}>
+          {t('plays.coachOnlyCreate')}
+        </Text>
+      )}
 
       {plays.length === 0 ? (
         <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 12 }}>
@@ -195,20 +227,39 @@ export function PlaysScreen() {
       <Text style={[layout.title, { color: colors.primary }]}>{play.title}</Text>
       <Text style={[layout.subtitle, { color: colors.muted }]}>{t('plays.gameIqStub')}</Text>
 
+      {/*
+        Court taps must beat the parent ScrollView. Use Pressable for hit-testing,
+        keep decorations pointerEvents=none, and refuse responder termination so
+        vertical scroll does not swallow the tap.
+      */}
       <View
         style={styles.court}
         onLayout={onCourtLayout}
-        onStartShouldSetResponder={() => isCoach}
-        onResponderRelease={onCourtPress}
+        onStartShouldSetResponder={() => true}
+        onMoveShouldSetResponder={() => false}
+        onResponderTerminationRequest={() => false}
       >
-        <Text style={styles.courtLabel}>
-          {isCoach ? t('plays.courtSketch') : t('plays.courtHintPlayer')}
-        </Text>
-        <View style={styles.paint} />
-        <View style={styles.ftLine} />
+        <Pressable
+          disabled={!isCoach}
+          onPress={(evt) => {
+            const { locationX, locationY } = evt.nativeEvent;
+            addMarkerAt(locationX, locationY);
+          }}
+          style={StyleSheet.absoluteFill}
+          accessibilityRole="button"
+          accessibilityLabel={t('plays.courtSketch')}
+        />
+        <View pointerEvents="none" style={styles.courtLabelWrap}>
+          <Text style={styles.courtLabel}>
+            {isCoach ? t('plays.courtSketch') : t('plays.courtHintPlayer')}
+          </Text>
+        </View>
+        <View pointerEvents="none" style={styles.paint} />
+        <View pointerEvents="none" style={styles.ftLine} />
         {localMarkers.map((m, idx) => (
           <Pressable
             key={`${m.label}-${idx}-${m.x}-${m.y}`}
+            disabled={!isCoach}
             onPress={() => removeMarker(idx)}
             style={[
               styles.marker,
@@ -217,6 +268,7 @@ export function PlaysScreen() {
                 top: (m.y / 100) * courtSize.h - 18,
                 backgroundColor: colors.secondary,
                 borderColor: colors.primary,
+                zIndex: 2,
               },
             ]}
           >
@@ -536,15 +588,17 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
-  courtLabel: {
+  courtLabelWrap: {
     position: 'absolute',
     top: 10,
     right: 12,
     left: 12,
+    zIndex: 1,
+  },
+  courtLabel: {
     color: '#D8F3DC',
     fontWeight: '600',
     textAlign: 'right',
-    zIndex: 1,
   },
   paint: {
     position: 'absolute',

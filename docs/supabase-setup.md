@@ -31,6 +31,7 @@ Open **SQL Editor** in the Supabase dashboard and run these files **in order** (
 9. `supabase/migrations/008_fix_rls_recursion.sql` (SECURITY DEFINER helpers; health staff read)
 10. `supabase/migrations/009_module3_health_live.sql` (water 0–24, fitness/physio flag sync, health RLS)
 11. `supabase/migrations/010_module4_tactical_live.sql` (tactical RLS writes, board_json, seed Horns play)
+12. `supabase/migrations/011_module4_board_touch_notes.sql` (re-assert coach INSERT/UPDATE policies + grants)
 
 Skip any file you have already applied. This agent cannot apply SQL to your cloud DB without the database password or service role.
 

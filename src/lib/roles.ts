@@ -1,38 +1,48 @@
 import type { Role, Team, UserProfile } from '@/types';
 
+/** Normalize DB / client role strings before gate checks (trim + lower-case). */
+export function normalizeRole(role: Role | string | undefined | null): string {
+  return (role ?? '').toString().trim().toLowerCase();
+}
+
 /** Court attendance + lock — head/assistant coach and admin. */
 export function isAttendanceCoach(role: Role | undefined | null): boolean {
-  return role === 'head_coach' || role === 'assistant_coach' || role === 'admin';
+  const r = normalizeRole(role);
+  return r === 'head_coach' || r === 'assistant_coach' || r === 'admin';
 }
 
 /** Tactical plays create/edit + suggestion review. */
 export function isTacticalCoach(role: Role | undefined | null): boolean {
-  return role === 'head_coach' || role === 'assistant_coach' || role === 'admin';
+  const r = normalizeRole(role);
+  return r === 'head_coach' || r === 'assistant_coach' || r === 'admin';
 }
 
 /** Staff who see coach health / risk surfaces. */
 export function isHealthStaff(role: Role | undefined | null): boolean {
+  const r = normalizeRole(role);
   return (
-    role === 'head_coach' ||
-    role === 'assistant_coach' ||
-    role === 'admin' ||
-    role === 'fitness_coach' ||
-    role === 'physio'
+    r === 'head_coach' ||
+    r === 'assistant_coach' ||
+    r === 'admin' ||
+    r === 'fitness_coach' ||
+    r === 'physio'
   );
 }
 
 /** Dual-Ack RSVP actions (player self or parent for linked player). */
 export function canSubmitRsvp(role: Role | undefined | null): boolean {
-  return role === 'player' || role === 'parent';
+  const r = normalizeRole(role);
+  return r === 'player' || r === 'parent';
 }
 
 /** Carpool seat claim — parents (and players helping family logistics). */
 export function canClaimCarpool(role: Role | undefined | null): boolean {
-  return role === 'parent' || role === 'player';
+  const r = normalizeRole(role);
+  return r === 'parent' || r === 'player';
 }
 
 export function canLogReadiness(role: Role | undefined | null): boolean {
-  return role === 'player';
+  return normalizeRole(role) === 'player';
 }
 
 /**
@@ -44,11 +54,12 @@ export function coachHealthAccess(
   team: Team,
   role: UserProfile['role'],
 ): 'write' | 'read' | 'none' {
-  if (role === 'fitness_coach' || role === 'physio') return 'write';
-  if (role === 'admin') return 'write';
-  if (role === 'head_coach') {
+  const r = normalizeRole(role);
+  if (r === 'fitness_coach' || r === 'physio') return 'write';
+  if (r === 'admin') return 'write';
+  if (r === 'head_coach') {
     return team.hasFitnessStaff || team.hasPhysioStaff ? 'read' : 'write';
   }
-  if (role === 'assistant_coach') return 'read';
+  if (r === 'assistant_coach') return 'read';
   return 'none';
 }

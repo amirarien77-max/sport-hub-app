@@ -245,6 +245,7 @@ export const he = {
     createPlay: 'תרגיל חדש',
     createPlayPlaceholder: 'שם התרגיל (למשל: סט הורן)',
     createPlaySubmit: 'יצירת תרגיל',
+    coachOnlyCreate: 'רק מאמן (ראשי / עוזר) יכול ליצור תרגילים ולערוך את הלוח.',
     courtSketch: 'לוח מגרש — לחצו להוספת סימון',
     courtHintCoach: 'מצב עריכה: לחיצה על המגרש מוסיפה סימון עמדה. לחצו על סימון כדי להסיר.',
     courtHintPlayer: 'סקיצת המאמן — עמדות על המגרש.',
