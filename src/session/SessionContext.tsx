@@ -25,6 +25,12 @@ import {
   resolveInvite,
 } from '@/lib/demo-data';
 import {
+  fetchHealthBundle,
+  insertPainLive,
+  upsertReadinessLive,
+} from '@/lib/health-live';
+import { isHealthStaff } from '@/lib/roles';
+import {
   acknowledgeUrgentBanner,
   claimCarpoolSeatLive,
   ensureParentPlayerLink,
@@ -103,8 +109,18 @@ type SessionContextValue = {
   ) => void | Promise<void>;
   cycleAttendance: (playerId: string, eventId: string) => void | Promise<void>;
   lockAttendance: (eventId: string) => string[] | Promise<string[]>;
-  submitReadiness: (rpe: number, sleepHours: number, waterLiters: number) => void;
-  submitPain: (region: string, subRegion: string, severity: PainSeverity) => void;
+  healthPlayers: { id: string; fullName: string }[];
+  submitReadiness: (
+    rpe: number,
+    sleepHours: number,
+    waterLiters: number,
+  ) => Promise<OkOrError> | OkOrError;
+  submitPain: (
+    region: string,
+    subRegion: string,
+    severity: PainSeverity,
+  ) => Promise<OkOrError> | OkOrError;
+  refreshHealth: () => Promise<void>;
   togglePlaySuggestions: (playId: string) => void;
   answerAssignment: (assignmentId: string, answer: string) => void;
   submitSuggestion: (playId: string, text: string) => void;
@@ -117,6 +133,8 @@ type SessionContextValue = {
     | { ok: false; reason: 'full' | 'not_found' | 'error'; message?: string };
   acknowledgeBanner: () => void | Promise<void>;
   switchDemoRole: (role: UserProfile['role']) => void;
+  /** Demo-only: flip team fitness/physio flags to test head-coach inheritance. */
+  toggleDemoMedicalStaff: (kind: 'fitness' | 'physio') => void;
   signOut: () => void;
 };
 
@@ -198,8 +216,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [attendance, setAttendance] = useState<AttendanceRow[]>(
     isDemoMode ? demoAttendance : [],
   );
-  const [readiness, setReadiness] = useState<ReadinessReport[]>(demoReadiness);
-  const [pain, setPain] = useState<PainReport[]>(demoPain);
+  const [readiness, setReadiness] = useState<ReadinessReport[]>(
+    isDemoMode ? demoReadiness : [],
+  );
+  const [pain, setPain] = useState<PainReport[]>(isDemoMode ? demoPain : []);
+  const [healthPlayers, setHealthPlayers] = useState<{ id: string; fullName: string }[]>(
+    isDemoMode
+      ? demoUsers.filter((u) => u.role === 'player').map((u) => ({ id: u.id, fullName: u.fullName }))
+      : [],
+  );
   const [plays, setPlays] = useState<TacticalPlay[]>(demoPlays);
   const [assignments, setAssignments] = useState<PlayAssignment[]>(demoAssignments);
   const [suggestions, setSuggestions] = useState<PlaySuggestion[]>(demoSuggestions);
@@ -219,6 +244,39 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       console.warn('Failed to load schedule', err instanceof Error ? err.message : err);
     }
   }, []);
+
+  const refreshHealthFor = useCallback(async (profile: UserProfile, teamId: string) => {
+    if (isDemoMode || !supabase) return;
+
+    // Parents must not load other players' medical data (Checkpoint 3).
+    if (profile.role === 'parent') {
+      setReadiness([]);
+      setPain([]);
+      setHealthPlayers([]);
+      return;
+    }
+
+    try {
+      const asStaff = isHealthStaff(profile.role);
+      const bundle = await fetchHealthBundle(supabase, { teamId, asStaff });
+      if (profile.role === 'player') {
+        setReadiness(bundle.readiness.filter((r) => r.playerId === profile.id));
+        setPain(bundle.pain.filter((p) => p.playerId === profile.id));
+        setHealthPlayers([{ id: profile.id, fullName: profile.fullName }]);
+      } else {
+        setReadiness(bundle.readiness);
+        setPain(bundle.pain);
+        setHealthPlayers(bundle.players);
+      }
+    } catch (err) {
+      console.warn('Failed to load health', err instanceof Error ? err.message : err);
+    }
+  }, []);
+
+  const refreshHealth = useCallback(async () => {
+    if (!user || !team) return;
+    await refreshHealthFor(user, team.id);
+  }, [refreshHealthFor, team, user]);
 
   const hydrateFromAuth = useCallback(
     async (session: Session | null) => {
@@ -240,6 +298,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setAttendance([]);
         setCarpools([]);
         setBanner(EMPTY_BANNER);
+        setReadiness([]);
+        setPain([]);
+        setHealthPlayers([]);
         clearBrand();
         setAuthReady(true);
         return;
@@ -277,6 +338,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setTeam(mappedTeam);
         setInviteOk(true);
         await refreshSchedule(mappedTeam.id);
+        await refreshHealthFor(mapped, mappedTeam.id);
       }
 
       const { data: clubRow } = await supabase
@@ -291,7 +353,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
       setAuthReady(true);
     },
-    [clearBrand, refreshSchedule, setBrand],
+    [clearBrand, refreshHealthFor, refreshSchedule, setBrand],
   );
 
   useEffect(() => {
@@ -447,11 +509,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase.from('users').insert(payload).select('*').single();
       if (error) return { ok: false, error: error.message };
 
-      setUser(mapUserRow(data));
+      const mappedUser = mapUserRow(data);
+      setUser(mappedUser);
       await refreshSchedule(team.id);
+      await refreshHealthFor(mappedUser, team.id);
+
+      // Refresh team flags after role insert (fitness/physio trigger).
+      const { data: freshTeam } = await supabase
+        .from('teams')
+        .select('*')
+        .eq('id', team.id)
+        .maybeSingle();
+      if (freshTeam) setTeam(mapTeamRow(freshTeam));
+
       return { ok: true };
     },
-    [authUserId, inviteOk, refreshSchedule, team],
+    [authUserId, inviteOk, refreshHealthFor, refreshSchedule, team],
   );
 
   const setRsvp = useCallback(
@@ -570,38 +643,93 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   );
 
   const submitReadiness = useCallback(
-    (rpe: number, sleepHours: number, waterLiters: number) => {
-      if (!user) return;
+    async (rpe: number, sleepHours: number, waterLiters: number): Promise<OkOrError> => {
+      if (!user) return { ok: false, error: t('errors.signInBeforeProfile') };
+      if (user.role !== 'player') {
+        return { ok: false, error: t('health.playersOnlyWrite') };
+      }
       const clamp24 = (n: number) => Math.min(24, Math.max(0, n));
-      setReadiness((prev) => [
-        {
-          id: `ready-${Date.now()}`,
+      const sleep = clamp24(sleepHours);
+      const water = clamp24(waterLiters);
+      const today = new Date().toISOString().slice(0, 10);
+
+      if (isDemoMode || !supabase) {
+        setReadiness((prev) => [
+          {
+            id: `ready-${Date.now()}`,
+            playerId: user.id,
+            date: today,
+            rpe,
+            sleepHours: sleep,
+            waterLiters: water,
+          },
+          ...prev.filter((r) => !(r.playerId === user.id && r.date === today)),
+        ]);
+        return { ok: true };
+      }
+
+      try {
+        const saved = await upsertReadinessLive(supabase, {
           playerId: user.id,
-          date: new Date().toISOString().slice(0, 10),
           rpe,
-          sleepHours: clamp24(sleepHours),
-          waterLiters: clamp24(waterLiters),
-        },
-        ...prev,
-      ]);
+          sleepHours: sleep,
+          waterLiters: water,
+          reportDate: today,
+        });
+        setReadiness((prev) => [
+          saved,
+          ...prev.filter((r) => !(r.playerId === saved.playerId && r.date === saved.date)),
+        ]);
+        return { ok: true };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn('Readiness save failed', message);
+        return { ok: false, error: message };
+      }
     },
     [user],
   );
 
   const submitPain = useCallback(
-    (region: string, subRegion: string, severity: PainSeverity) => {
-      if (!user) return;
-      setPain((prev) => [
-        {
-          id: `pain-${Date.now()}`,
+    async (
+      region: string,
+      subRegion: string,
+      severity: PainSeverity,
+    ): Promise<OkOrError> => {
+      if (!user) return { ok: false, error: t('errors.signInBeforeProfile') };
+      if (user.role !== 'player') {
+        return { ok: false, error: t('health.playersOnlyWrite') };
+      }
+
+      if (isDemoMode || !supabase) {
+        setPain((prev) => [
+          {
+            id: `pain-${Date.now()}`,
+            playerId: user.id,
+            region,
+            subRegion,
+            severity,
+            createdAt: new Date().toISOString(),
+          },
+          ...prev,
+        ]);
+        return { ok: true };
+      }
+
+      try {
+        const saved = await insertPainLive(supabase, {
           playerId: user.id,
           region,
           subRegion,
           severity,
-          createdAt: new Date().toISOString(),
-        },
-        ...prev,
-      ]);
+        });
+        setPain((prev) => [saved, ...prev]);
+        return { ok: true };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn('Pain save failed', message);
+        return { ok: false, error: message };
+      }
     },
     [user],
   );
@@ -729,18 +857,41 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         id: `user-demo-${role}`,
         fullName: t('demo.demoRoleName', { role: translateRole(role) }),
       };
+      // Simulate specialist on roster when switching into fitness/physio.
+      // Use health-screen demo toggles to test head-coach read-only inheritance.
+      const nextTeam: Team = {
+        ...demoTeam,
+        hasFitnessStaff: role === 'fitness_coach',
+        hasPhysioStaff: role === 'physio',
+      };
       setInviteOk(true);
-      setTeam(demoTeam);
+      setTeam(nextTeam);
       setUser(match);
       setEvents(demoEvents);
       setAcks(demoAcks);
       setAttendance(demoAttendance);
       setCarpools(demoCarpools);
       setBanner(demoBanner);
+      setReadiness(demoReadiness);
+      setPain(demoPain);
+      setHealthPlayers(
+        demoUsers.filter((u) => u.role === 'player').map((u) => ({ id: u.id, fullName: u.fullName })),
+      );
       setBrand(resolveInvite(DEMO_INVITE_CODE)!);
     },
     [setBrand],
   );
+
+  const toggleDemoMedicalStaff = useCallback((kind: 'fitness' | 'physio') => {
+    if (!isDemoMode) return;
+    setTeam((prev) => {
+      if (!prev) return prev;
+      if (kind === 'fitness') {
+        return { ...prev, hasFitnessStaff: !prev.hasFitnessStaff };
+      }
+      return { ...prev, hasPhysioStaff: !prev.hasPhysioStaff };
+    });
+  }, []);
 
   const signOut = useCallback(() => {
     setUser(null);
@@ -753,6 +904,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setAttendance([]);
       setCarpools([]);
       setBanner(EMPTY_BANNER);
+      setReadiness([]);
+      setPain([]);
+      setHealthPlayers([]);
     }
     clearBrand();
     if (!isDemoMode && supabase) {
@@ -769,6 +923,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       attendance,
       readiness,
       pain,
+      healthPlayers,
       plays,
       assignments,
       suggestions,
@@ -788,6 +943,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       lockAttendance,
       submitReadiness,
       submitPain,
+      refreshHealth,
       togglePlaySuggestions,
       answerAssignment,
       submitSuggestion,
@@ -795,6 +951,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       claimCarpoolSeat,
       acknowledgeBanner,
       switchDemoRole,
+      toggleDemoMedicalStaff,
       signOut,
     }),
     [
@@ -805,6 +962,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       attendance,
       readiness,
       pain,
+      healthPlayers,
       plays,
       assignments,
       suggestions,
@@ -822,6 +980,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       lockAttendance,
       submitReadiness,
       submitPain,
+      refreshHealth,
       togglePlaySuggestions,
       answerAssignment,
       submitSuggestion,
@@ -829,6 +988,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       claimCarpoolSeat,
       acknowledgeBanner,
       switchDemoRole,
+      toggleDemoMedicalStaff,
       signOut,
     ],
   );

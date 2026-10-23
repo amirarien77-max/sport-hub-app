@@ -28,6 +28,8 @@ Open **SQL Editor** in the Supabase dashboard and run these files **in order** (
 6. `supabase/seed.sql` (demo club/team with invite `MAC-U16-2026`)
 7. `supabase/migrations/006_module2_live.sql` (Dual-Ack / attendance / carpool / urgent banner RLS + seed events)
 8. `supabase/migrations/007_claim_carpool_seat.sql` (atomic RPC for carpool seat claim)
+9. `supabase/migrations/008_fix_rls_recursion.sql` (SECURITY DEFINER helpers; health staff read)
+10. `supabase/migrations/009_module3_health_live.sql` (water 0–24, fitness/physio flag sync, health RLS)
 
 Skip any file you have already applied. This agent cannot apply SQL to your cloud DB without the database password or service role.
 

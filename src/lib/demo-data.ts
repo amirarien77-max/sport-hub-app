@@ -202,16 +202,6 @@ export function isUnder13(dateOfBirth?: string): boolean {
   return dob > cutoff;
 }
 
-/** Head coach inherits health dashboard write access when no fitness/physio on staff. */
-export function coachHealthAccess(team: Team, role: UserProfile['role']): 'write' | 'read' | 'none' {
-  if (role === 'fitness_coach' || role === 'physio') return 'write';
-  if (role === 'head_coach') {
-    return team.hasFitnessStaff || team.hasPhysioStaff ? 'read' : 'write';
-  }
-  if (role === 'assistant_coach' || role === 'admin') return 'read';
-  return 'none';
-}
-
 export function dualAckConflict(ack: DualAck): boolean {
   return (
     ack.playerChoice !== null &&

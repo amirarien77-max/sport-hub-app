@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -14,8 +14,9 @@ import {
   translateBodySubRegion,
   translatePainSeverity,
 } from '@/i18n';
-import { coachHealthAccess } from '@/lib/demo-data';
-import { canLogReadiness, isHealthStaff } from '@/lib/roles';
+import { buildPlayerRiskRows, type PlayerRiskLevel } from '@/lib/health-live';
+import { canLogReadiness, coachHealthAccess, isHealthStaff } from '@/lib/roles';
+import { isDemoMode } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
 import { layout, useTheme } from '@/theme/ThemeContext';
 import type { PainSeverity } from '@/types';
@@ -39,6 +40,16 @@ function accessLabel(access: 'write' | 'read' | 'none'): string {
   return t('health.accessNone');
 }
 
+function riskLabel(level: PlayerRiskLevel): string {
+  if (level === 'high') return t('health.riskHigh');
+  if (level === 'watch') return t('health.riskWatch');
+  return t('health.riskOk');
+}
+
+function reasonLabel(key: string): string {
+  return t(`health.riskReasons.${key}`);
+}
+
 /** Parse a 0–24 value; returns error key or the number. */
 function parseBounded(raw: string): { ok: true; value: number } | { ok: false; errorKey: string } {
   const trimmed = raw.trim().replace(',', '.');
@@ -52,7 +63,16 @@ function parseBounded(raw: string): { ok: true; value: number } | { ok: false; e
 
 export function ReadinessScreen() {
   const { colors } = useTheme();
-  const { submitReadiness, submitPain, readiness, pain, user, team } = useSession();
+  const {
+    submitReadiness,
+    submitPain,
+    readiness,
+    pain,
+    healthPlayers,
+    user,
+    team,
+    toggleDemoMedicalStaff,
+  } = useSession();
   const [rpe, setRpe] = useState<number | null>(null);
   const [sleep, setSleep] = useState('8');
   const [water, setWater] = useState('2');
@@ -61,14 +81,21 @@ export function ReadinessScreen() {
   const [region, setRegion] = useState<string | null>(null);
   const [subRegion, setSubRegion] = useState<string | null>(null);
   const [severity, setSeverity] = useState<PainSeverity>('soreness');
+  const [saving, setSaving] = useState(false);
 
   const access = user && team ? coachHealthAccess(team, user.role) : 'none';
   const isPlayer = canLogReadiness(user?.role);
   const isCoach = isHealthStaff(user?.role);
+  const isParent = user?.role === 'parent';
+
+  const riskRows = useMemo(
+    () => buildPlayerRiskRows(healthPlayers, readiness, pain),
+    [healthPlayers, readiness, pain],
+  );
 
   const subtitle = isCoach
     ? t('health.subtitleCoach')
-    : user?.role === 'parent'
+    : isParent
       ? t('health.subtitleParent')
       : t('health.subtitle');
 
@@ -96,7 +123,7 @@ export function ReadinessScreen() {
     }
   };
 
-  const onSaveReadiness = () => {
+  const onSaveReadiness = async () => {
     if (rpe == null) {
       Alert.alert(t('health.title'), t('health.readinessNeedRpe'));
       return;
@@ -117,30 +144,59 @@ export function ReadinessScreen() {
       Alert.alert(t('health.title'), msg);
       return;
     }
-    submitReadiness(rpe, sleepParsed.value, waterParsed.value);
-    Alert.alert(t('health.readinessSavedTitle'), t('health.lastReady', {
-      rpe,
-      sleep: sleepParsed.value,
-      water: waterParsed.value,
-    }));
+    setSaving(true);
+    try {
+      const result = await Promise.resolve(
+        submitReadiness(rpe, sleepParsed.value, waterParsed.value),
+      );
+      if (!result.ok) {
+        Alert.alert(t('health.title'), result.error);
+        return;
+      }
+      Alert.alert(
+        t('health.readinessSavedTitle'),
+        t('health.lastReady', {
+          rpe,
+          sleep: sleepParsed.value,
+          water: waterParsed.value,
+        }),
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const onLogPain = () => {
+  const onLogPain = async () => {
     if (!region || !subRegion) {
       Alert.alert(t('health.painMap'), t('health.logPainNeedSubregion'));
       return;
     }
-    submitPain(region, subRegion, severity);
-    Alert.alert(
-      t('health.logPainSuccessTitle'),
-      t('health.logPainSuccessBody', {
-        region: translateBodyRegion(region),
-        sub: translateBodySubRegion(subRegion),
-        severity: translatePainSeverity(severity),
-      }),
-    );
-    setRegion(null);
-    setSubRegion(null);
+    setSaving(true);
+    try {
+      const result = await Promise.resolve(submitPain(region, subRegion, severity));
+      if (!result.ok) {
+        Alert.alert(t('health.painMap'), result.error);
+        return;
+      }
+      Alert.alert(
+        t('health.logPainSuccessTitle'),
+        t('health.logPainSuccessBody', {
+          region: translateBodyRegion(region),
+          sub: translateBodySubRegion(subRegion),
+          severity: translatePainSeverity(severity),
+        }),
+      );
+      setRegion(null);
+      setSubRegion(null);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const riskColor = (level: PlayerRiskLevel) => {
+    if (level === 'high') return colors.danger;
+    if (level === 'watch') return colors.warning;
+    return colors.muted;
   };
 
   return (
@@ -152,6 +208,14 @@ export function ReadinessScreen() {
       <Text style={[layout.title, { color: colors.primary }]}>{t('health.title')}</Text>
       <Text style={[layout.subtitle, { color: colors.muted }]}>{subtitle}</Text>
 
+      {isParent ? (
+        <View style={[styles.panel, { borderColor: colors.muted, backgroundColor: '#F8FAFC' }]}>
+          <Text style={{ color: colors.muted, textAlign: 'right', lineHeight: 22 }}>
+            {t('health.parentBlocked')}
+          </Text>
+        </View>
+      ) : null}
+
       {isCoach && access !== 'none' ? (
         <View style={[styles.panel, { borderColor: colors.warning }]}>
           <Text style={{ fontWeight: '800', color: colors.primary, textAlign: 'right' }}>
@@ -159,24 +223,105 @@ export function ReadinessScreen() {
           </Text>
           <Text style={{ color: colors.muted, marginTop: 4, textAlign: 'right' }}>
             {t('health.access', { access: accessLabel(access) })}
-            {!team?.hasFitnessStaff && !team?.hasPhysioStaff ? t('health.inheritedWrite') : ''}
+            {user?.role === 'head_coach' && !team?.hasFitnessStaff && !team?.hasPhysioStaff
+              ? t('health.inheritedWrite')
+              : ''}
+            {user?.role === 'head_coach' && (team?.hasFitnessStaff || team?.hasPhysioStaff)
+              ? t('health.specialistReadOnly')
+              : ''}
           </Text>
-          {pain.length === 0 ? (
+
+          {isDemoMode ? (
+            <View style={styles.demoRow}>
+              <Pressable
+                onPress={() => toggleDemoMedicalStaff('fitness')}
+                style={[
+                  styles.demoChip,
+                  {
+                    borderColor: colors.primary,
+                    backgroundColor: team?.hasFitnessStaff ? colors.secondary : '#fff',
+                  },
+                ]}
+              >
+                <Text style={{ fontWeight: '700', color: colors.primary, fontSize: 12 }}>
+                  {t('health.demoToggleFitness')}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => toggleDemoMedicalStaff('physio')}
+                style={[
+                  styles.demoChip,
+                  {
+                    borderColor: colors.primary,
+                    backgroundColor: team?.hasPhysioStaff ? colors.secondary : '#fff',
+                  },
+                ]}
+              >
+                <Text style={{ fontWeight: '700', color: colors.primary, fontSize: 12 }}>
+                  {t('health.demoTogglePhysio')}
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {riskRows.length === 0 ? (
             <Text style={{ marginTop: 8, color: colors.muted, textAlign: 'right' }}>
               {t('health.emptyPainCoach')}
             </Text>
           ) : (
-            pain.map((p) => (
-              <Text
-                key={p.id}
-                style={{
-                  marginTop: 8,
-                  color: p.severity === 'disabling' ? colors.danger : colors.warning,
-                  textAlign: 'right',
-                }}
+            riskRows.map((row) => (
+              <View
+                key={row.playerId}
+                style={[
+                  styles.riskCard,
+                  {
+                    borderColor: riskColor(row.level),
+                    backgroundColor:
+                      row.level === 'high'
+                        ? '#FEF2F2'
+                        : row.level === 'watch'
+                          ? '#FFFBEB'
+                          : '#F8FAFC',
+                  },
+                ]}
               >
-                {translateBodySubRegion(p.subRegion)} — {translatePainSeverity(p.severity)}
-              </Text>
+                <View style={styles.riskHeader}>
+                  <Text style={{ fontWeight: '800', color: colors.primary, textAlign: 'right', flex: 1 }}>
+                    {row.playerName}
+                  </Text>
+                  <Text style={{ fontWeight: '800', color: riskColor(row.level) }}>
+                    {riskLabel(row.level)}
+                  </Text>
+                </View>
+                <Text style={{ marginTop: 4, color: colors.muted, textAlign: 'right', fontSize: 13 }}>
+                  {row.latestRpe != null
+                    ? t('health.coachRpeLine', {
+                        rpe: row.latestRpe,
+                        sleep: row.latestSleep ?? '—',
+                        water: row.latestWater ?? '—',
+                      })
+                    : t('health.noReadinessYet')}
+                </Text>
+                {row.reasons.length > 0 ? (
+                  <Text style={{ marginTop: 4, color: riskColor(row.level), textAlign: 'right', fontSize: 13 }}>
+                    {row.reasons.map(reasonLabel).join(' · ')}
+                  </Text>
+                ) : null}
+                {row.openPain.map((p) => (
+                  <Text
+                    key={p.id}
+                    style={{
+                      marginTop: 6,
+                      color: p.severity === 'disabling' ? colors.danger : colors.warning,
+                      textAlign: 'right',
+                      fontWeight: '600',
+                    }}
+                  >
+                    {translateBodyRegion(p.region)} / {translateBodySubRegion(p.subRegion)} —{' '}
+                    {translatePainSeverity(p.severity)}
+                  </Text>
+                ))}
+              </View>
             ))
           )}
         </View>
@@ -236,13 +381,22 @@ export function ReadinessScreen() {
           ) : null}
 
           <Pressable
-            onPress={onSaveReadiness}
-            style={[layout.button, { backgroundColor: colors.primary, marginTop: 14 }]}
+            onPress={() => void onSaveReadiness()}
+            disabled={saving}
+            style={[
+              layout.button,
+              {
+                backgroundColor: colors.primary,
+                marginTop: 14,
+                opacity: saving ? 0.7 : 1,
+              },
+            ]}
           >
             <Text style={[layout.buttonText, { color: '#fff' }]}>{t('health.saveReadiness')}</Text>
           </Pressable>
 
           <Text style={[styles.section, { marginTop: 24 }]}>{t('health.painMap')}</Text>
+          <Text style={styles.hint}>{t('health.painMapHint')}</Text>
           {!region ? (
             <View style={styles.regionGrid}>
               {Object.keys(BODY_REGIONS).map((key) => (
@@ -269,6 +423,9 @@ export function ReadinessScreen() {
                   {t('health.backToBody')}
                 </Text>
               </Pressable>
+              <Text style={[styles.hint, { marginTop: 8 }]}>
+                {t('health.zoomedRegion', { region: translateBodyRegion(region) })}
+              </Text>
               <View style={styles.regionGrid}>
                 {BODY_REGIONS[region].map((sub) => (
                   <Pressable
@@ -315,12 +472,14 @@ export function ReadinessScreen() {
                 ))}
               </View>
               <Pressable
-                onPress={onLogPain}
+                onPress={() => void onLogPain()}
+                disabled={saving}
                 style={[
                   layout.button,
                   {
                     backgroundColor: subRegion ? colors.secondary : colors.muted,
                     marginTop: 12,
+                    opacity: saving ? 0.7 : 1,
                   },
                 ]}
               >
@@ -353,6 +512,30 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1.5,
     backgroundColor: '#FFFBEB',
+  },
+  riskCard: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1.5,
+  },
+  riskHeader: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 8,
+  },
+  demoRow: {
+    flexDirection: 'row-reverse',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
+  demoChip: {
+    minHeight: 36,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    justifyContent: 'center',
   },
   section: {
     marginTop: 18,
