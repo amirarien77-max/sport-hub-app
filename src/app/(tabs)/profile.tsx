@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { t, translateConsent, translateRole } from '@/i18n';
 import { isDemoMode } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
 import { layout, useTheme } from '@/theme/ThemeContext';
@@ -11,20 +12,23 @@ export default function ProfileRoute() {
 
   return (
     <View style={[layout.screen, { backgroundColor: colors.background }]}>
-      <Text style={[layout.title, { color: colors.primary }]}>Profile</Text>
+      <Text style={[layout.title, { color: colors.primary }]}>{t('profile.title')}</Text>
       <Text style={[layout.subtitle, { color: colors.muted }]}>
-        {user?.fullName} · {user?.role}
+        {user?.fullName} · {user?.role ? translateRole(user.role) : ''}
       </Text>
-      <Text style={{ marginTop: 8, color: colors.text }}>
-        Club: {brand.name} · Team: {team?.name ?? '—'}
+      <Text style={{ marginTop: 8, color: colors.text, textAlign: 'right' }}>
+        {t('profile.clubTeam', { club: brand.name, team: team?.name ?? '—' })}
       </Text>
-      <Text style={{ marginTop: 4, color: colors.muted }}>
-        Consent: {user?.consentStatus} · Mode: {isDemoMode ? 'demo' : 'supabase'}
+      <Text style={{ marginTop: 4, color: colors.muted, textAlign: 'right' }}>
+        {t('profile.consentMode', {
+          consent: user?.consentStatus ? translateConsent(user.consentStatus) : '—',
+          mode: isDemoMode ? t('mode.demo') : t('mode.supabase'),
+        })}
       </Text>
 
       {isDemoMode ? (
         <>
-          <Text style={styles.label}>Switch demo role</Text>
+          <Text style={styles.label}>{t('profile.switchDemoRole')}</Text>
           <View style={styles.row}>
             {(['player', 'parent', 'head_coach'] as Role[]).map((role) => (
               <Pressable
@@ -32,7 +36,9 @@ export default function ProfileRoute() {
                 onPress={() => switchDemoRole(role)}
                 style={[styles.chip, { borderColor: colors.primary }]}
               >
-                <Text style={{ color: colors.primary, fontWeight: '700' }}>{role}</Text>
+                <Text style={{ color: colors.primary, fontWeight: '700' }}>
+                  {translateRole(role)}
+                </Text>
               </Pressable>
             ))}
           </View>
@@ -46,14 +52,21 @@ export default function ProfileRoute() {
         }}
         style={[layout.button, { backgroundColor: colors.danger, marginTop: 24 }]}
       >
-        <Text style={[layout.buttonText, { color: '#fff' }]}>Sign out</Text>
+        <Text style={[layout.buttonText, { color: '#fff' }]}>{t('profile.signOut')}</Text>
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  label: { marginTop: 24, marginBottom: 8, fontWeight: '800', color: '#334155' },
+  label: {
+    marginTop: 24,
+    marginBottom: 8,
+    fontWeight: '800',
+    color: '#334155',
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     minHeight: 40,

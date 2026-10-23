@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
 import { StyleSheet } from 'react-native';
+import { he, t } from '@/i18n';
 import type { ClubBrand } from '@/types';
 
 const defaultBrand: ClubBrand = {
   id: 'default',
-  name: 'Basketball Hub',
+  name: he.demo.brandDefault,
   primaryColor: '#0B1F3A',
   secondaryColor: '#F5B700',
   accentColor: '#2A9D8F',
@@ -59,7 +60,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 export function useTheme() {
   const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error('useTheme must be used within ThemeProvider');
+  if (!ctx) throw new Error(t('errors.useThemeOutsideProvider'));
   return ctx;
 }
 
@@ -74,11 +75,15 @@ export const layout = StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
     letterSpacing: -0.5,
+    textAlign: 'right',
+    writingDirection: 'rtl',
   },
   subtitle: {
     fontSize: 15,
     lineHeight: 22,
     marginTop: 6,
+    textAlign: 'right',
+    writingDirection: 'rtl',
   },
   button: {
     minHeight: 48,
@@ -90,5 +95,7 @@ export const layout = StyleSheet.create({
   buttonText: {
     fontSize: 16,
     fontWeight: '700',
+    textAlign: 'center',
+    writingDirection: 'rtl',
   },
 });

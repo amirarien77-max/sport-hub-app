@@ -1,5 +1,11 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  t,
+  translateBodyRegion,
+  translateBodySubRegion,
+  translatePainSeverity,
+} from '@/i18n';
 import { coachHealthAccess } from '@/lib/demo-data';
 import { useSession } from '@/session/SessionContext';
 import { layout, useTheme } from '@/theme/ThemeContext';
@@ -16,6 +22,12 @@ const BODY_REGIONS: Record<string, string[]> = {
   arm: ['Elbow', 'Wrist'],
 };
 
+function accessLabel(access: 'write' | 'read' | 'none'): string {
+  if (access === 'write') return t('health.accessWrite');
+  if (access === 'read') return t('health.accessRead');
+  return t('health.accessNone');
+}
+
 export function ReadinessScreen() {
   const { colors } = useTheme();
   const { submitReadiness, submitPain, readiness, pain, user, team } = useSession();
@@ -31,23 +43,28 @@ export function ReadinessScreen() {
 
   return (
     <ScrollView contentContainerStyle={[layout.screen, { backgroundColor: colors.background }]}>
-      <Text style={[layout.title, { color: colors.primary }]}>Readiness & pain</Text>
-      <Text style={[layout.subtitle, { color: colors.muted }]}>
-        RPE uses large 1–10 buttons (no sliders). Tap a body region to zoom into sub-areas.
-      </Text>
+      <Text style={[layout.title, { color: colors.primary }]}>{t('health.title')}</Text>
+      <Text style={[layout.subtitle, { color: colors.muted }]}>{t('health.subtitle')}</Text>
 
       {access !== 'none' ? (
         <View style={[styles.panel, { borderColor: colors.warning }]}>
-          <Text style={{ fontWeight: '800', color: colors.primary }}>Coach risk board</Text>
-          <Text style={{ color: colors.muted, marginTop: 4 }}>
-            Access: {access}
-            {!team?.hasFitnessStaff && !team?.hasPhysioStaff
-              ? ' · Head coach inherited write (no fitness/physio on staff)'
-              : ''}
+          <Text style={{ fontWeight: '800', color: colors.primary, textAlign: 'right' }}>
+            {t('health.coachBoard')}
+          </Text>
+          <Text style={{ color: colors.muted, marginTop: 4, textAlign: 'right' }}>
+            {t('health.access', { access: accessLabel(access) })}
+            {!team?.hasFitnessStaff && !team?.hasPhysioStaff ? t('health.inheritedWrite') : ''}
           </Text>
           {pain.map((p) => (
-            <Text key={p.id} style={{ marginTop: 8, color: p.severity === 'disabling' ? colors.danger : colors.warning }}>
-              {p.subRegion} — {p.severity}
+            <Text
+              key={p.id}
+              style={{
+                marginTop: 8,
+                color: p.severity === 'disabling' ? colors.danger : colors.warning,
+                textAlign: 'right',
+              }}
+            >
+              {translateBodySubRegion(p.subRegion)} — {translatePainSeverity(p.severity)}
             </Text>
           ))}
         </View>
@@ -55,7 +72,7 @@ export function ReadinessScreen() {
 
       {isPlayer ? (
         <>
-          <Text style={styles.section}>Today&apos;s RPE</Text>
+          <Text style={styles.section}>{t('health.todaysRpe')}</Text>
           <View style={styles.rpeGrid}>
             {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
               <Pressable
@@ -74,16 +91,18 @@ export function ReadinessScreen() {
             ))}
           </View>
 
-          <Text style={styles.section}>Sleep (hours)</Text>
+          <Text style={styles.section}>{t('health.sleep')}</Text>
           <TextInput
             keyboardType="decimal-pad"
+            textAlign="right"
             value={sleep}
             onChangeText={setSleep}
             style={[styles.input, { borderColor: colors.primary }]}
           />
-          <Text style={styles.section}>Water (liters)</Text>
+          <Text style={styles.section}>{t('health.water')}</Text>
           <TextInput
             keyboardType="decimal-pad"
+            textAlign="right"
             value={water}
             onChangeText={setWater}
             style={[styles.input, { borderColor: colors.primary }]}
@@ -96,10 +115,10 @@ export function ReadinessScreen() {
             }}
             style={[layout.button, { backgroundColor: colors.primary, marginTop: 14 }]}
           >
-            <Text style={[layout.buttonText, { color: '#fff' }]}>Save readiness</Text>
+            <Text style={[layout.buttonText, { color: '#fff' }]}>{t('health.saveReadiness')}</Text>
           </Pressable>
 
-          <Text style={[styles.section, { marginTop: 24 }]}>Pain map</Text>
+          <Text style={[styles.section, { marginTop: 24 }]}>{t('health.painMap')}</Text>
           {!region ? (
             <View style={styles.regionGrid}>
               {Object.keys(BODY_REGIONS).map((key) => (
@@ -108,14 +127,23 @@ export function ReadinessScreen() {
                   onPress={() => setRegion(key)}
                   style={[styles.region, { borderColor: colors.primary }]}
                 >
-                  <Text style={{ fontWeight: '700', color: colors.primary }}>{key.replace('_', ' ')}</Text>
+                  <Text style={{ fontWeight: '700', color: colors.primary }}>
+                    {translateBodyRegion(key)}
+                  </Text>
                 </Pressable>
               ))}
             </View>
           ) : (
             <View>
-              <Pressable onPress={() => { setRegion(null); setSubRegion(null); }}>
-                <Text style={{ color: colors.accent, fontWeight: '700' }}>← Back to body</Text>
+              <Pressable
+                onPress={() => {
+                  setRegion(null);
+                  setSubRegion(null);
+                }}
+              >
+                <Text style={{ color: colors.accent, fontWeight: '700', textAlign: 'right' }}>
+                  {t('health.backToBody')}
+                </Text>
               </Pressable>
               <View style={styles.regionGrid}>
                 {BODY_REGIONS[region].map((sub) => (
@@ -130,7 +158,9 @@ export function ReadinessScreen() {
                       },
                     ]}
                   >
-                    <Text style={{ fontWeight: '700', color: colors.primary }}>{sub}</Text>
+                    <Text style={{ fontWeight: '700', color: colors.primary }}>
+                      {translateBodySubRegion(sub)}
+                    </Text>
                   </Pressable>
                 ))}
               </View>
@@ -155,7 +185,7 @@ export function ReadinessScreen() {
                         { color: severity === s ? '#fff' : colors.danger, fontSize: 14 },
                       ]}
                     >
-                      {s === 'soreness' ? 'Soreness / tight' : 'Disabling pain'}
+                      {translatePainSeverity(s)}
                     </Text>
                   </Pressable>
                 ))}
@@ -169,7 +199,9 @@ export function ReadinessScreen() {
                 }}
                 style={[layout.button, { backgroundColor: colors.secondary, marginTop: 12 }]}
               >
-                <Text style={[layout.buttonText, { color: colors.primary }]}>Log pain</Text>
+                <Text style={[layout.buttonText, { color: colors.primary }]}>
+                  {t('health.logPain')}
+                </Text>
               </Pressable>
             </View>
           )}
@@ -177,8 +209,12 @@ export function ReadinessScreen() {
       ) : null}
 
       {readiness[0] ? (
-        <Text style={{ marginTop: 16, color: colors.muted }}>
-          Last RPE {readiness[0].rpe} · sleep {readiness[0].sleepHours}h · water {readiness[0].waterLiters}L
+        <Text style={{ marginTop: 16, color: colors.muted, textAlign: 'right' }}>
+          {t('health.lastReady', {
+            rpe: readiness[0].rpe,
+            sleep: readiness[0].sleepHours,
+            water: readiness[0].waterLiters,
+          })}
         </Text>
       ) : null}
     </ScrollView>
@@ -193,7 +229,14 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     backgroundColor: '#FFFBEB',
   },
-  section: { marginTop: 18, marginBottom: 8, fontWeight: '800', color: '#334155' },
+  section: {
+    marginTop: 18,
+    marginBottom: 8,
+    fontWeight: '800',
+    color: '#334155',
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
   rpeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   rpeBtn: {
     width: 56,
@@ -210,6 +253,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     backgroundColor: '#fff',
     fontSize: 16,
+    writingDirection: 'rtl',
   },
   regionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   region: {

@@ -1,3 +1,4 @@
+import { he } from '@/i18n';
 import type {
   AttendanceRow,
   CarpoolOffer,
@@ -18,7 +19,7 @@ export const DEMO_INVITE_CODE = 'MAC-U16-2026';
 
 export const demoClub: ClubBrand = {
   id: 'club-maccabi',
-  name: 'Maccabi Youth',
+  name: he.demo.clubName,
   primaryColor: '#0B1F3A',
   secondaryColor: '#F5B700',
   accentColor: '#E63946',
@@ -27,7 +28,7 @@ export const demoClub: ClubBrand = {
 export const demoTeam: Team = {
   id: 'team-u16',
   clubId: demoClub.id,
-  name: 'U16 Boys',
+  name: he.demo.teamName,
   inviteCode: DEMO_INVITE_CODE,
   hasFitnessStaff: false,
   hasPhysioStaff: false,
@@ -75,17 +76,17 @@ export const demoEvents: SessionEvent[] = [
   {
     id: 'event-practice-1',
     teamId: demoTeam.id,
-    title: 'Practice — pick & roll',
+    title: he.demo.eventPractice,
     startsAt: new Date(Date.now() + 1000 * 60 * 60 * 26).toISOString(),
-    location: 'Hall A',
+    location: he.demo.locationHallA,
     type: 'practice',
   },
   {
     id: 'event-game-1',
     teamId: demoTeam.id,
-    title: 'Game vs Herzliya',
+    title: he.demo.eventGame,
     startsAt: new Date(Date.now() + 1000 * 60 * 60 * 72).toISOString(),
-    location: 'Away Arena',
+    location: he.demo.locationAway,
     type: 'game',
   },
 ];
@@ -138,7 +139,7 @@ export const demoPlays: TacticalPlay[] = [
   {
     id: 'play-1',
     teamId: demoTeam.id,
-    title: 'Horn set — weak side cut',
+    title: he.demo.playTitle,
     mediaUrl: undefined,
     allowSuggestions: true,
     createdAt: new Date().toISOString(),
@@ -152,7 +153,7 @@ export const demoAssignments: PlayAssignment[] = [
     playerId: 'user-player-roi',
     playerName: 'Roi Cohen',
     positionName: '1',
-    actionPromptQuestion: 'What do you do after the screen is set?',
+    actionPromptQuestion: he.demo.assignQ1,
     playerAnswer: undefined,
   },
   {
@@ -161,7 +162,7 @@ export const demoAssignments: PlayAssignment[] = [
     playerId: 'user-player-dan',
     playerName: 'Dan Levi',
     positionName: '1',
-    actionPromptQuestion: 'Where do you cut if the defender goes under?',
+    actionPromptQuestion: he.demo.assignQ2,
   },
 ];
 
@@ -181,7 +182,7 @@ export const demoCarpools: CarpoolOffer[] = [
 export const demoBanner: UrgentBanner = {
   id: 'banner-1',
   teamId: demoTeam.id,
-  message: 'Practice moved to Hall B tomorrow — arrive 15 min early.',
+  message: he.demo.banner,
   requiresAck: true,
   acknowledgedBy: [],
 };

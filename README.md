@@ -2,6 +2,8 @@
 
 Expo Router (TypeScript) + Supabase app for youth basketball clubs — white-label onboarding, Dual-Ack schedule, court attendance, readiness/pain, and tactical plays.
 
+**UI language:** Hebrew (RTL). Strings live in `src/i18n/`; invite code `MAC-U16-2026` is not translated.
+
 Built against the project PRD (`docs/basketball-hub-prd.md` in the agent store).
 
 ## Stack
@@ -9,11 +11,12 @@ Built against the project PRD (`docs/basketball-hub-prd.md` in the agent store).
 - **Client:** Expo SDK 58, Expo Router, TypeScript
 - **Backend:** Supabase (PostgreSQL + RLS) — SQL in `supabase/migrations/`
 - **Demo mode:** runs without Supabase credentials using in-memory mock data
+- **i18n / RTL:** `src/i18n/` + `expo-localization` (`forcesRTL`)
 
 ## Quick start
 
 ```bash
-cd basketball-data-hub
+cd sport-hub-app
 cp .env.example .env   # leave demo mode on
 npm install
 npx expo start
@@ -21,7 +24,9 @@ npx expo start
 
 Demo invite code: **`MAC-U16-2026`**
 
-Or use **Profile → Switch demo role** after onboarding for player / parent / head coach personas.
+Or use **פרופיל → החלפת תפקיד דמו** after onboarding for player / parent / head coach personas.
+
+> After the first load with RTL forced, Expo Go may ask you to reload once so layout flips correctly.
 
 ## Architecture (blocks)
 
@@ -32,7 +37,8 @@ Or use **Profile → Switch demo role** after onboarding for player / parent / h
 | Health | `src/blocks/health/` | RPE buttons, smart-zoom pain map, coach risk |
 | Tactical | `src/blocks/tactical/` | Plays, assignments, suggestion toggle |
 | Theme | `src/theme/` | Club brand injection |
-| Session | `src/session/` | Demo state / future Supabase wiring |
+| Session | `src/session/` | Demo state / Supabase wiring |
+| i18n | `src/i18n/` | Hebrew copy + RTL helpers |
 
 Routes live in `src/app/` (Expo Router).
 

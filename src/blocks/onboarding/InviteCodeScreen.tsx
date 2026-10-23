@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { t } from '@/i18n';
 import { DEMO_INVITE_CODE } from '@/lib/demo-data';
 import { isDemoMode } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
@@ -35,13 +36,12 @@ export function InviteCodeScreen() {
   return (
     <View style={[layout.screen, { backgroundColor: colors.background }]}>
       <Text style={[layout.title, { color: colors.primary }]}>{brand.name}</Text>
-      <Text style={[layout.subtitle, { color: colors.muted }]}>
-        Enter your club invite code to join. Colors apply as soon as the code is valid.
-      </Text>
+      <Text style={[layout.subtitle, { color: colors.muted }]}>{t('invite.subtitle')}</Text>
 
       <TextInput
         autoCapitalize="characters"
         autoCorrect={false}
+        textAlign="center"
         placeholder="MAC-U16-2026"
         placeholderTextColor={colors.muted}
         value={code}
@@ -49,7 +49,9 @@ export function InviteCodeScreen() {
         style={[styles.input, { borderColor: colors.primary, color: colors.text }]}
       />
 
-      {error ? <Text style={{ color: colors.danger, marginTop: 8 }}>{error}</Text> : null}
+      {error ? (
+        <Text style={{ color: colors.danger, marginTop: 8, textAlign: 'right' }}>{error}</Text>
+      ) : null}
 
       {busy ? (
         <ActivityIndicator style={{ marginTop: 16 }} color={colors.primary} />
@@ -59,17 +61,19 @@ export function InviteCodeScreen() {
           onPress={onSubmit}
           style={[layout.button, styles.cta, { backgroundColor: colors.secondary }]}
         >
-          <Text style={[layout.buttonText, { color: colors.primary }]}>Continue</Text>
+          <Text style={[layout.buttonText, { color: colors.primary }]}>{t('invite.continue')}</Text>
         </Pressable>
       )}
 
       {isDemoMode ? (
         <Pressable onPress={() => setCode(DEMO_INVITE_CODE)} style={styles.hint}>
-          <Text style={{ color: colors.muted }}>Demo code: {DEMO_INVITE_CODE}</Text>
+          <Text style={{ color: colors.muted, textAlign: 'right' }}>
+            {t('invite.demoCode', { code: DEMO_INVITE_CODE })}
+          </Text>
         </Pressable>
       ) : (
-        <Text style={[styles.hint, { color: colors.muted }]}>
-          After seed.sql, try invite {DEMO_INVITE_CODE}.
+        <Text style={[styles.hint, { color: colors.muted, textAlign: 'right' }]}>
+          {t('invite.afterSeed', { code: DEMO_INVITE_CODE })}
         </Text>
       )}
     </View>

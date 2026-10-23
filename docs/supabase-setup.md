@@ -42,8 +42,10 @@ npx expo start
 
 ## 4. First live login
 
-1. Sign up (or sign in) with email + password on the auth screen.  
-2. Redeem invite code `MAC-U16-2026` (after seed).  
-3. Complete your profile — the app links `auth.users` to `public.users` via `auth_id`.
+The in-app UI is Hebrew (RTL). Button labels below match the Hebrew screens:
+
+1. On **התחברות**, choose **יצירת חשבון** (or **התחברות**) with email + password.  
+2. Redeem invite code `MAC-U16-2026` (after seed) — the code itself stays Latin.  
+3. Complete your profile (**כניסה למרכז**) — the app links `auth.users` to `public.users` via `auth_id`.
 
 With `EXPO_PUBLIC_DEMO_MODE=true` (or missing URL/key), the app stays in in-memory demo mode and does not call Supabase.
