@@ -22,7 +22,8 @@ export function ProfileSetupScreen() {
   const { colors, brand } = useTheme();
   const { completeOnboarding, switchDemoRole } = useSession();
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState<Role>('player');
+  /** Default to head coach so live QA / first-time club setup lands with create-play UI. */
+  const [role, setRole] = useState<Role>('head_coach');
   const [dob, setDob] = useState('2012-04-12');
   const [parentPhone, setParentPhone] = useState('');
   const [error, setError] = useState<string | null>(null);

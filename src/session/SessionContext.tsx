@@ -29,7 +29,7 @@ import {
   insertPainLive,
   upsertReadinessLive,
 } from '@/lib/health-live';
-import { isHealthStaff } from '@/lib/roles';
+import { isHealthStaff, isTacticalCoach } from '@/lib/roles';
 import {
   acknowledgeUrgentBanner,
   claimCarpoolSeatLive,
@@ -358,53 +358,75 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const { data: profile, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('auth_id', uid)
-        .maybeSingle();
+      try {
+        const { data: profile, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('auth_id', uid)
+          .maybeSingle();
 
-      if (error) {
-        console.warn('Failed to load profile', error.message);
-      }
+        if (error) {
+          console.warn('Failed to load profile', error.message);
+        }
 
-      if (!profile) {
-        setUser(null);
-        setTeam(null);
-        setInviteOk(false);
-        setAuthReady(true);
-        return;
-      }
+        if (!profile) {
+          // New account still needs invite/profile — clear local identity.
+          // Do not wipe on transient fetch errors (handled above via warn).
+          setUser(null);
+          setTeam(null);
+          setInviteOk(false);
+          setAuthReady(true);
+          return;
+        }
 
-      const mapped = mapUserRow(profile);
-      setUser(mapped);
+        const mapped = mapUserRow(profile);
 
-      const { data: teamRow } = await supabase
-        .from('teams')
-        .select('*')
-        .eq('id', mapped.teamId)
-        .maybeSingle();
+        const { data: teamRow, error: teamErr } = await supabase
+          .from('teams')
+          .select('*')
+          .eq('id', mapped.teamId)
+          .maybeSingle();
 
-      if (teamRow) {
-        const mappedTeam = mapTeamRow(teamRow);
+        if (teamErr) {
+          console.warn('Failed to load team', teamErr.message);
+        }
+
+        // Apply user+team together so coach create UI never mounts with team=null
+        // (createPlay then fails; Alert is a no-op on web → looks like a dead tap).
+        const mappedTeam = teamRow ? mapTeamRow(teamRow) : null;
+        setUser(mapped);
         setTeam(mappedTeam);
-        setInviteOk(true);
-        await refreshSchedule(mappedTeam.id);
-        await refreshHealthFor(mapped, mappedTeam.id);
-        await refreshTacticalFor(mappedTeam.id);
+        setInviteOk(Boolean(mappedTeam));
+        setAuthReady(true);
+
+        const { data: clubRow } = await supabase
+          .from('clubs')
+          .select('*')
+          .eq('id', mapped.clubId)
+          .maybeSingle();
+
+        if (clubRow) {
+          setBrand(mapClubRow(clubRow));
+        }
+
+        // Bundle loads must NOT block authReady — a hung RLS query previously
+        // left the app on an infinite spinner after login.
+        if (mappedTeam) {
+          void Promise.all([
+            refreshSchedule(mappedTeam.id),
+            refreshHealthFor(mapped, mappedTeam.id),
+            refreshTacticalFor(mappedTeam.id),
+          ]).catch((err) => {
+            console.warn(
+              'post-hydrate bundle refresh failed',
+              err instanceof Error ? err.message : err,
+            );
+          });
+        }
+      } catch (err) {
+        console.warn('hydrateFromAuth failed', err instanceof Error ? err.message : err);
+        setAuthReady(true);
       }
-
-      const { data: clubRow } = await supabase
-        .from('clubs')
-        .select('*')
-        .eq('id', mapped.clubId)
-        .maybeSingle();
-
-      if (clubRow) {
-        setBrand(mapClubRow(clubRow));
-      }
-
-      setAuthReady(true);
     },
     [clearBrand, refreshHealthFor, refreshSchedule, refreshTacticalFor, setBrand],
   );
@@ -416,13 +438,23 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
 
     let cancelled = false;
+    let hydrateGen = 0;
+
+    const runHydrate = (session: Session | null) => {
+      const gen = ++hydrateGen;
+      void hydrateFromAuth(session).then(() => {
+        if (cancelled || gen !== hydrateGen) return;
+      });
+    };
 
     supabase.auth.getSession().then(({ data }) => {
-      if (!cancelled) void hydrateFromAuth(data.session);
+      if (!cancelled) runHydrate(data.session);
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      void hydrateFromAuth(session);
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      // Ignore noisy token refresh storms; INITIAL_SESSION / SIGNED_IN / SIGNED_OUT matter.
+      if (event === 'TOKEN_REFRESHED') return;
+      if (!cancelled) runHydrate(session);
     });
 
     return () => {
@@ -431,35 +463,44 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     };
   }, [hydrateFromAuth]);
 
-  const signIn = useCallback(async (email: string, password: string): Promise<OkOrError> => {
-    if (isDemoMode || !supabase) {
-      return { ok: false, error: t('errors.demoAuthDisabled') };
-    }
-    if (!email.trim() || !password) {
-      return { ok: false, error: t('errors.emailPasswordRequired') };
-    }
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
-  }, []);
+  const signIn = useCallback(
+    async (email: string, password: string): Promise<OkOrError> => {
+      if (isDemoMode || !supabase) {
+        return { ok: false, error: t('errors.demoAuthDisabled') };
+      }
+      if (!email.trim() || !password) {
+        return { ok: false, error: t('errors.emailPasswordRequired') };
+      }
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      if (error) return { ok: false, error: error.message };
+      // Hydrate profile+team before navigation so index does not send coaches to invite.
+      await hydrateFromAuth(data.session);
+      return { ok: true };
+    },
+    [hydrateFromAuth],
+  );
 
-  const signUp = useCallback(async (email: string, password: string): Promise<OkOrError> => {
-    if (isDemoMode || !supabase) {
-      return { ok: false, error: t('errors.demoAuthDisabled') };
-    }
-    if (!email.trim() || password.length < 6) {
-      return { ok: false, error: t('errors.weakPassword') };
-    }
-    const { error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-    });
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
-  }, []);
+  const signUp = useCallback(
+    async (email: string, password: string): Promise<OkOrError> => {
+      if (isDemoMode || !supabase) {
+        return { ok: false, error: t('errors.demoAuthDisabled') };
+      }
+      if (!email.trim() || password.length < 6) {
+        return { ok: false, error: t('errors.weakPassword') };
+      }
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
+      if (error) return { ok: false, error: error.message };
+      await hydrateFromAuth(data.session);
+      return { ok: true };
+    },
+    [hydrateFromAuth],
+  );
 
   const redeemInvite = useCallback(
     async (code: string): Promise<OkOrError> => {
@@ -790,11 +831,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const createPlay = useCallback(
     async (title: string): Promise<CreatePlayResult> => {
-      if (!user || !team) {
+      if (!user) {
+        return { ok: false, error: t('errors.signInBeforeProfile') };
+      }
+      if (!team) {
         return { ok: false, error: t('errors.redeemInviteFirst') };
       }
+      if (!isTacticalCoach(user.role)) {
+        return { ok: false, error: t('plays.coachOnlyCreate') };
+      }
       if (!title.trim()) {
-        return { ok: false, error: t('errors.nameRequired') };
+        return { ok: false, error: t('errors.playTitleRequired') };
       }
 
       if (isDemoMode || !supabase) {
@@ -820,6 +867,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         return { ok: true, playId: play.id };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        console.warn('createPlay failed', message);
         return { ok: false, error: message };
       }
     },

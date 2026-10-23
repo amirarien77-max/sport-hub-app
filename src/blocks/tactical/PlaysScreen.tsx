@@ -20,11 +20,14 @@ import { useSession } from '@/session/SessionContext';
 import { layout, useTheme } from '@/theme/ThemeContext';
 import type { TacticalPlay } from '@/types';
 
+/** Prefer inline UI feedback — Alert.alert is a no-op on react-native-web. */
 function showResult(
   result: { ok: true; playId?: string } | { ok: false; error: string } | void,
 ) {
   if (!result || result.ok) return;
-  Alert.alert(t('plays.saveFailed', { error: result.error }));
+  const msg = t('plays.saveFailed', { error: result.error });
+  console.warn(msg);
+  Alert.alert(t('plays.title'), msg);
 }
 
 function nextMarkerLabel(markers: BoardMarker[]): number {
@@ -67,6 +70,8 @@ export function PlaysScreen() {
   const [localMarkers, setLocalMarkers] = useState<BoardMarker[]>([]);
   const [courtSize, setCourtSize] = useState({ w: 1, h: 1 });
   const [nextLabel, setNextLabel] = useState(1);
+  const [creatingPlay, setCreatingPlay] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const isCoach = isTacticalCoach(user?.role);
   const feedBlocked = user?.consentStatus === 'pending_parental_consent';
@@ -169,28 +174,62 @@ export function PlaysScreen() {
       {isCoach ? (
         <View style={[styles.card, { borderColor: colors.primary }]}>
           <Text style={styles.playTitle}>{t('plays.createPlay')}</Text>
+          <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
+            {t('plays.createPlayHint')}
+          </Text>
           <TextInput
             textAlign="right"
             value={newPlayTitle}
-            onChangeText={setNewPlayTitle}
+            onChangeText={(txt) => {
+              setNewPlayTitle(txt);
+              if (createError) setCreateError(null);
+            }}
             placeholder={t('plays.createPlayPlaceholder')}
             placeholderTextColor={colors.muted}
+            editable={!creatingPlay}
             style={[styles.input, { borderColor: colors.primary }]}
           />
+          {createError ? (
+            <Text style={{ color: colors.danger, marginTop: 8, textAlign: 'right', fontWeight: '600' }}>
+              {createError}
+            </Text>
+          ) : null}
           <Pressable
-            onPress={async () => {
-              const result = await createPlay(newPlayTitle);
-              if (result.ok) {
-                setNewPlayTitle('');
-                setSelectedPlayId(result.playId);
-                Alert.alert(t('plays.savedOk'));
-              } else {
-                showResult(result);
-              }
+            accessibilityRole="button"
+            accessibilityLabel={t('plays.createPlaySubmit')}
+            disabled={creatingPlay}
+            hitSlop={8}
+            onPress={() => {
+              void (async () => {
+                setCreateError(null);
+                setCreatingPlay(true);
+                try {
+                  const result = await createPlay(newPlayTitle);
+                  if (result.ok) {
+                    setNewPlayTitle('');
+                    setSelectedPlayId(result.playId);
+                    Alert.alert(t('plays.title'), t('plays.savedOk'));
+                  } else {
+                    setCreateError(result.error);
+                    showResult(result);
+                  }
+                } finally {
+                  setCreatingPlay(false);
+                }
+              })();
             }}
-            style={[layout.button, { backgroundColor: colors.primary, marginTop: 8 }]}
+            style={[
+              layout.button,
+              {
+                backgroundColor: creatingPlay ? colors.muted : colors.primary,
+                marginTop: 8,
+                opacity: creatingPlay ? 0.85 : 1,
+              },
+            ]}
           >
-            <Text style={[layout.buttonText, { color: '#fff' }]}>{t('plays.createPlaySubmit')}</Text>
+            <Text style={[layout.buttonText, { color: '#fff' }]}>
+              {creatingPlay ? t('plays.creatingPlay') : t('plays.createPlaySubmit')}
+            </Text>
           </Pressable>
         </View>
       ) : (
