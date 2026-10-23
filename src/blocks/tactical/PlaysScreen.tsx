@@ -34,7 +34,11 @@ export function PlaysScreen() {
   const feedBlocked = user?.consentStatus === 'pending_parental_consent';
 
   return (
-    <ScrollView contentContainerStyle={[layout.screen, { backgroundColor: colors.background }]}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={layout.scrollContent}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={[layout.title, { color: colors.primary }]}>{t('plays.title')}</Text>
       <Text style={[layout.subtitle, { color: colors.muted }]}>{t('plays.subtitle')}</Text>
 

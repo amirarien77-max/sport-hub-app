@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -9,6 +10,7 @@ import {
 } from 'react-native';
 import { t, translateAbsenceReason, translateRsvp } from '@/i18n';
 import { dualAckConflict } from '@/lib/demo-data';
+import { canClaimCarpool, canSubmitRsvp, isAttendanceCoach } from '@/lib/roles';
 import { useSession } from '@/session/SessionContext';
 import { layout, useTheme } from '@/theme/ThemeContext';
 
@@ -17,18 +19,59 @@ export function ScheduleScreen() {
   const { events, acks, setRsvp, absenceReasons, user, carpools, claimCarpoolSeat, banner, acknowledgeBanner } =
     useSession();
   const [sheetEventId, setSheetEventId] = useState<string | null>(null);
+  const [claimingOfferId, setClaimingOfferId] = useState<string | null>(null);
+
+  const coachView = isAttendanceCoach(user?.role);
+  const showRsvp = canSubmitRsvp(user?.role);
+  const showClaim = canClaimCarpool(user?.role);
+
+  const subtitle = coachView
+    ? t('schedule.subtitleCoach')
+    : user?.role === 'parent'
+      ? t('schedule.subtitleParent')
+      : t('schedule.subtitle');
+
+  const onClaimSeat = async (offerId: string, isFull: boolean) => {
+    if (isFull || claimingOfferId) return;
+    setClaimingOfferId(offerId);
+    try {
+      const result = await Promise.resolve(claimCarpoolSeat(offerId));
+      if (result.ok) {
+        Alert.alert(
+          t('schedule.claimSuccessTitle'),
+          t('schedule.claimSuccessBody', {
+            taken: result.seatsTaken,
+            available: result.seatsAvailable,
+          }),
+        );
+        return;
+      }
+      if (result.reason === 'full') {
+        Alert.alert(t('schedule.claimFullTitle'), t('schedule.claimFullBody'));
+        return;
+      }
+      Alert.alert(t('schedule.claimErrorTitle'), t('schedule.claimErrorBody'));
+    } finally {
+      setClaimingOfferId(null);
+    }
+  };
 
   const pendingBanner =
     banner.requiresAck && user && !banner.acknowledgedBy.includes(user.id);
 
   return (
-    <ScrollView contentContainerStyle={[layout.screen, { backgroundColor: colors.background }]}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={layout.scrollContent}
+      keyboardShouldPersistTaps="handled"
+      nestedScrollEnabled
+    >
       {pendingBanner ? (
         <View style={[styles.banner, { backgroundColor: colors.accent }]}>
           <Text style={styles.bannerTitle}>{t('schedule.urgent')}</Text>
           <Text style={styles.bannerBody}>{banner.message}</Text>
           <Pressable
-            onPress={acknowledgeBanner}
+            onPress={() => void acknowledgeBanner()}
             style={[layout.button, { backgroundColor: '#fff', marginTop: 10 }]}
           >
             <Text style={[layout.buttonText, { color: colors.accent }]}>
@@ -39,7 +82,18 @@ export function ScheduleScreen() {
       ) : null}
 
       <Text style={[layout.title, { color: colors.primary }]}>{t('schedule.title')}</Text>
-      <Text style={[layout.subtitle, { color: colors.muted }]}>{t('schedule.subtitle')}</Text>
+      <Text style={[layout.subtitle, { color: colors.muted }]}>{subtitle}</Text>
+      {coachView ? (
+        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 8 }}>
+          {t('schedule.coachReadOnlyHint')}
+        </Text>
+      ) : null}
+
+      {events.length === 0 ? (
+        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 12 }}>
+          {t('schedule.emptyEvents')}
+        </Text>
+      ) : null}
 
       {events.map((event) => {
         const related = acks.filter((a) => a.eventId === event.id);
@@ -50,22 +104,28 @@ export function ScheduleScreen() {
               {new Date(event.startsAt).toLocaleString('he-IL')} · {event.location}
             </Text>
 
-            <View style={styles.row}>
-              <Pressable
-                onPress={() => setRsvp(event.id, 'attending', undefined, user?.role === 'parent')}
-                style={[layout.button, styles.half, { backgroundColor: colors.success }]}
-              >
-                <Text style={[layout.buttonText, { color: '#fff' }]}>{t('schedule.attending')}</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setSheetEventId(event.id)}
-                style={[layout.button, styles.half, { backgroundColor: colors.danger }]}
-              >
-                <Text style={[layout.buttonText, { color: '#fff' }]}>
-                  {t('schedule.notAttending')}
-                </Text>
-              </Pressable>
-            </View>
+            {showRsvp ? (
+              <View style={styles.row}>
+                <Pressable
+                  onPress={() =>
+                    void setRsvp(event.id, 'attending', undefined, user?.role === 'parent')
+                  }
+                  style={[layout.button, styles.half, { backgroundColor: colors.success }]}
+                >
+                  <Text style={[layout.buttonText, { color: '#fff' }]}>
+                    {t('schedule.attending')}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setSheetEventId(event.id)}
+                  style={[layout.button, styles.half, { backgroundColor: colors.danger }]}
+                >
+                  <Text style={[layout.buttonText, { color: '#fff' }]}>
+                    {t('schedule.notAttending')}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
 
             {related.map((ack) => {
               const conflict = dualAckConflict(ack);
@@ -78,7 +138,12 @@ export function ScheduleScreen() {
                   ]}
                 >
                   <Text style={{ fontWeight: '700', textAlign: 'right' }}>
-                    {ack.playerId === 'user-player-roi' ? 'Roi' : 'Dan'}
+                    {ack.playerName ??
+                      (ack.playerId === 'user-player-roi'
+                        ? 'Roi'
+                        : ack.playerId === 'user-player-dan'
+                          ? 'Dan'
+                          : ack.playerId.slice(0, 8))}
                     {conflict ? ` · ${t('schedule.conflict')}` : ''}
                   </Text>
                   <Text style={{ color: colors.muted, textAlign: 'right' }}>
@@ -99,23 +164,54 @@ export function ScheduleScreen() {
       <Text style={[layout.title, { color: colors.primary, fontSize: 22, marginTop: 12 }]}>
         {t('schedule.carpool')}
       </Text>
-      {carpools.map((offer) => (
-        <View key={offer.id} style={[styles.card, { borderColor: colors.secondary }]}>
-          <Text style={{ fontWeight: '700', textAlign: 'right' }}>{offer.parentName}</Text>
-          <Text style={{ color: colors.muted, textAlign: 'right' }}>
-            {t('schedule.seatsTaken', {
-              taken: offer.seatsTaken,
-              available: offer.seatsAvailable,
-            })}
-          </Text>
-          <Pressable
-            onPress={() => claimCarpoolSeat(offer.id)}
-            style={[layout.button, { backgroundColor: colors.primary, marginTop: 10 }]}
-          >
-            <Text style={[layout.buttonText, { color: '#fff' }]}>{t('schedule.claimSeat')}</Text>
-          </Pressable>
-        </View>
-      ))}
+      {coachView ? (
+        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
+          {t('schedule.carpoolCoachHint')}
+        </Text>
+      ) : null}
+      {carpools.length === 0 ? (
+        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 8 }}>
+          {t('schedule.emptyCarpool')}
+        </Text>
+      ) : null}
+      {carpools.map((offer) => {
+        const isFull = offer.seatsTaken >= offer.seatsAvailable;
+        const claiming = claimingOfferId === offer.id;
+        const disabled = isFull || claiming || claimingOfferId != null;
+        return (
+          <View key={offer.id} style={[styles.card, { borderColor: colors.secondary }]}>
+            <Text style={{ fontWeight: '700', textAlign: 'right' }}>{offer.parentName}</Text>
+            <Text style={{ color: colors.muted, textAlign: 'right' }}>
+              {t('schedule.seatsTaken', {
+                taken: offer.seatsTaken,
+                available: offer.seatsAvailable,
+              })}
+            </Text>
+            {showClaim ? (
+              <Pressable
+                disabled={disabled}
+                onPress={() => void onClaimSeat(offer.id, isFull)}
+                style={[
+                  layout.button,
+                  {
+                    backgroundColor: isFull ? colors.muted : colors.primary,
+                    marginTop: 10,
+                    opacity: disabled && !isFull ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Text style={[layout.buttonText, { color: '#fff' }]}>
+                  {isFull
+                    ? t('schedule.claimSeatFull')
+                    : claiming
+                      ? t('schedule.claimSeatClaiming')
+                      : t('schedule.claimSeat')}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        );
+      })}
 
       <ReasonSheet
         visible={Boolean(sheetEventId)}
@@ -123,7 +219,7 @@ export function ScheduleScreen() {
         onClose={() => setSheetEventId(null)}
         onPick={(reason) => {
           if (sheetEventId) {
-            setRsvp(sheetEventId, 'not_attending', reason, user?.role === 'parent');
+            void setRsvp(sheetEventId, 'not_attending', reason, user?.role === 'parent');
           }
           setSheetEventId(null);
         }}

@@ -58,6 +58,7 @@ export interface SessionEvent {
 export interface DualAck {
   eventId: string;
   playerId: string;
+  playerName?: string;
   playerChoice: RsvpChoice;
   playerReason?: string;
   parentChoice: RsvpChoice;

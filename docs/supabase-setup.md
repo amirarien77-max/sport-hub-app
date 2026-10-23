@@ -26,6 +26,8 @@ Open **SQL Editor** in the Supabase dashboard and run these files **in order** (
 4. `supabase/migrations/004_tactical.sql`
 5. `supabase/migrations/005_live_auth.sql` (invite lookup + self profile insert policies)
 6. `supabase/seed.sql` (demo club/team with invite `MAC-U16-2026`)
+7. `supabase/migrations/006_module2_live.sql` (Dual-Ack / attendance / carpool / urgent banner RLS + seed events)
+8. `supabase/migrations/007_claim_carpool_seat.sql` (atomic RPC for carpool seat claim)
 
 Skip any file you have already applied. This agent cannot apply SQL to your cloud DB without the database password or service role.
 

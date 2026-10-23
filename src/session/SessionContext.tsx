@@ -24,6 +24,15 @@ import {
   isUnder13,
   resolveInvite,
 } from '@/lib/demo-data';
+import {
+  acknowledgeUrgentBanner,
+  claimCarpoolSeatLive,
+  ensureParentPlayerLink,
+  fetchScheduleBundle,
+  lockAttendanceRecords,
+  upsertAttendanceMark,
+  upsertRsvp,
+} from '@/lib/schedule-live';
 import { ABSENCE_REASON_KEYS, t, translateRole } from '@/i18n';
 import { isDemoMode, supabase } from '@/lib/supabase';
 import type {
@@ -37,6 +46,7 @@ import type {
   PlaySuggestion,
   ReadinessReport,
   RsvpChoice,
+  SessionEvent,
   SuggestionStatus,
   TacticalPlay,
   Team,
@@ -50,10 +60,18 @@ import { useTheme } from '@/theme/ThemeContext';
 
 type OkOrError = { ok: true } | { ok: false; error: string };
 
+const EMPTY_BANNER: UrgentBanner = {
+  id: '',
+  teamId: '',
+  message: '',
+  requiresAck: false,
+  acknowledgedBy: [],
+};
+
 type SessionContextValue = {
   user: UserProfile | null;
   team: Team | null;
-  events: typeof demoEvents;
+  events: SessionEvent[];
   acks: DualAck[];
   attendance: AttendanceRow[];
   readiness: ReadinessReport[];
@@ -77,17 +95,27 @@ type SessionContextValue = {
   }) => Promise<OkOrError> | OkOrError;
   signIn: (email: string, password: string) => Promise<OkOrError>;
   signUp: (email: string, password: string) => Promise<OkOrError>;
-  setRsvp: (eventId: string, choice: RsvpChoice, reason?: string, asParent?: boolean) => void;
-  cycleAttendance: (playerId: string, eventId: string) => void;
-  lockAttendance: (eventId: string) => string[];
+  setRsvp: (
+    eventId: string,
+    choice: RsvpChoice,
+    reason?: string,
+    asParent?: boolean,
+  ) => void | Promise<void>;
+  cycleAttendance: (playerId: string, eventId: string) => void | Promise<void>;
+  lockAttendance: (eventId: string) => string[] | Promise<string[]>;
   submitReadiness: (rpe: number, sleepHours: number, waterLiters: number) => void;
   submitPain: (region: string, subRegion: string, severity: PainSeverity) => void;
   togglePlaySuggestions: (playId: string) => void;
   answerAssignment: (assignmentId: string, answer: string) => void;
   submitSuggestion: (playId: string, text: string) => void;
   reviewSuggestion: (id: string, status: SuggestionStatus) => void;
-  claimCarpoolSeat: (offerId: string) => void;
-  acknowledgeBanner: () => void;
+  claimCarpoolSeat: (
+    offerId: string,
+  ) =>
+    | Promise<{ ok: true; seatsTaken: number; seatsAvailable: number } | { ok: false; reason: 'full' | 'not_found' | 'error'; message?: string }>
+    | { ok: true; seatsTaken: number; seatsAvailable: number }
+    | { ok: false; reason: 'full' | 'not_found' | 'error'; message?: string };
+  acknowledgeBanner: () => void | Promise<void>;
   switchDemoRole: (role: UserProfile['role']) => void;
   signOut: () => void;
 };
@@ -152,6 +180,12 @@ function mapClubRow(row: {
   };
 }
 
+function nextAttendanceMark(mark: AttendanceMark): AttendanceMark {
+  const order: AttendanceMark[] = [null, 'present', 'excused', 'no_show'];
+  const idx = order.indexOf(mark);
+  return order[(idx + 1) % order.length];
+}
+
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const { setBrand, clearBrand } = useTheme();
   const [authReady, setAuthReady] = useState(isDemoMode);
@@ -159,15 +193,32 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [inviteOk, setInviteOk] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
-  const [acks, setAcks] = useState<DualAck[]>(demoAcks);
-  const [attendance, setAttendance] = useState<AttendanceRow[]>(demoAttendance);
+  const [events, setEvents] = useState<SessionEvent[]>(isDemoMode ? demoEvents : []);
+  const [acks, setAcks] = useState<DualAck[]>(isDemoMode ? demoAcks : []);
+  const [attendance, setAttendance] = useState<AttendanceRow[]>(
+    isDemoMode ? demoAttendance : [],
+  );
   const [readiness, setReadiness] = useState<ReadinessReport[]>(demoReadiness);
   const [pain, setPain] = useState<PainReport[]>(demoPain);
   const [plays, setPlays] = useState<TacticalPlay[]>(demoPlays);
   const [assignments, setAssignments] = useState<PlayAssignment[]>(demoAssignments);
   const [suggestions, setSuggestions] = useState<PlaySuggestion[]>(demoSuggestions);
-  const [carpools, setCarpools] = useState<CarpoolOffer[]>(demoCarpools);
-  const [banner, setBanner] = useState<UrgentBanner>(demoBanner);
+  const [carpools, setCarpools] = useState<CarpoolOffer[]>(isDemoMode ? demoCarpools : []);
+  const [banner, setBanner] = useState<UrgentBanner>(isDemoMode ? demoBanner : EMPTY_BANNER);
+
+  const refreshSchedule = useCallback(async (teamId: string) => {
+    if (isDemoMode || !supabase) return;
+    try {
+      const bundle = await fetchScheduleBundle(supabase, teamId);
+      setEvents(bundle.events);
+      setAcks(bundle.acks);
+      setAttendance(bundle.attendance);
+      setCarpools(bundle.carpools);
+      setBanner(bundle.banner ?? EMPTY_BANNER);
+    } catch (err) {
+      console.warn('Failed to load schedule', err instanceof Error ? err.message : err);
+    }
+  }, []);
 
   const hydrateFromAuth = useCallback(
     async (session: Session | null) => {
@@ -184,6 +235,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         setTeam(null);
         setInviteOk(false);
+        setEvents([]);
+        setAcks([]);
+        setAttendance([]);
+        setCarpools([]);
+        setBanner(EMPTY_BANNER);
         clearBrand();
         setAuthReady(true);
         return;
@@ -217,8 +273,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       if (teamRow) {
-        setTeam(mapTeamRow(teamRow));
+        const mappedTeam = mapTeamRow(teamRow);
+        setTeam(mappedTeam);
         setInviteOk(true);
+        await refreshSchedule(mappedTeam.id);
       }
 
       const { data: clubRow } = await supabase
@@ -233,7 +291,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
       setAuthReady(true);
     },
-    [clearBrand, setBrand],
+    [clearBrand, refreshSchedule, setBrand],
   );
 
   useEffect(() => {
@@ -390,16 +448,41 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (error) return { ok: false, error: error.message };
 
       setUser(mapUserRow(data));
+      await refreshSchedule(team.id);
       return { ok: true };
     },
-    [authUserId, inviteOk, team],
+    [authUserId, inviteOk, refreshSchedule, team],
   );
 
   const setRsvp = useCallback(
-    (eventId: string, choice: RsvpChoice, reason?: string, asParent = false) => {
+    async (eventId: string, choice: RsvpChoice, reason?: string, asParent = false) => {
       if (!user) return;
-      const playerId =
-        user.role === 'parent' ? 'user-player-roi' : user.id.startsWith('user-local') ? 'user-player-roi' : user.id;
+
+      const parentMode = asParent || user.role === 'parent';
+      let playerId = user.id;
+      let playerName = user.fullName;
+
+      if (isDemoMode || !supabase) {
+        playerId =
+          user.role === 'parent' || user.id.startsWith('user-local')
+            ? 'user-player-roi'
+            : user.id;
+        playerName =
+          demoUsers.find((u) => u.id === playerId)?.fullName ?? user.fullName;
+      } else if (parentMode) {
+        const linked = await ensureParentPlayerLink(supabase, user.id, user.teamId);
+        if (!linked) {
+          console.warn('No team player to link for parent RSVP');
+          return;
+        }
+        playerId = linked;
+        const { data: playerRow } = await supabase
+          .from('users')
+          .select('full_name')
+          .eq('id', linked)
+          .maybeSingle();
+        playerName = (playerRow?.full_name as string | undefined) ?? playerName;
+      }
 
       setAcks((prev) => {
         const existing = prev.find((a) => a.eventId === eventId && a.playerId === playerId);
@@ -407,41 +490,80 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           const next: DualAck = {
             eventId,
             playerId,
-            playerChoice: asParent ? null : choice,
-            parentChoice: asParent ? choice : null,
-            playerReason: asParent ? undefined : reason,
-            parentReason: asParent ? reason : undefined,
+            playerName,
+            playerChoice: parentMode ? null : choice,
+            parentChoice: parentMode ? choice : null,
+            playerReason: parentMode ? undefined : reason,
+            parentReason: parentMode ? reason : undefined,
           };
           return [...prev, next];
         }
         return prev.map((a) => {
           if (a.eventId !== eventId || a.playerId !== playerId) return a;
-          if (asParent || user.role === 'parent') {
-            return { ...a, parentChoice: choice, parentReason: reason };
+          if (parentMode) {
+            return { ...a, playerName: a.playerName ?? playerName, parentChoice: choice, parentReason: reason };
           }
-          return { ...a, playerChoice: choice, playerReason: reason };
+          return {
+            ...a,
+            playerName: a.playerName ?? playerName,
+            playerChoice: choice,
+            playerReason: reason,
+          };
         });
       });
+
+      if (!isDemoMode && supabase) {
+        try {
+          await upsertRsvp(supabase, {
+            eventId,
+            playerId,
+            asParent: parentMode,
+            choice,
+            reason,
+          });
+        } catch (err) {
+          console.warn('RSVP save failed', err instanceof Error ? err.message : err);
+        }
+      }
     },
     [user],
   );
 
-  const cycleAttendance = useCallback((playerId: string, eventId: string) => {
+  const cycleAttendance = useCallback(async (playerId: string, eventId: string) => {
+    const current = attendance.find((r) => r.playerId === playerId && r.eventId === eventId);
+    const mark = nextAttendanceMark(current?.mark ?? null);
+
     setAttendance((prev) =>
-      prev.map((row) => {
-        if (row.playerId !== playerId || row.eventId !== eventId) return row;
-        const order: AttendanceMark[] = [null, 'present', 'excused', 'no_show'];
-        const idx = order.indexOf(row.mark);
-        return { ...row, mark: order[(idx + 1) % order.length] };
-      }),
+      prev.map((row) =>
+        row.playerId === playerId && row.eventId === eventId ? { ...row, mark } : row,
+      ),
     );
-  }, []);
+
+    if (!isDemoMode && supabase) {
+      try {
+        await upsertAttendanceMark(supabase, eventId, playerId, mark);
+      } catch (err) {
+        console.warn('Attendance save failed', err instanceof Error ? err.message : err);
+      }
+    }
+  }, [attendance]);
 
   const lockAttendance = useCallback(
-    (eventId: string) => {
-      const noShows = attendance
-        .filter((r) => r.eventId === eventId && r.mark === 'no_show')
-        .map((r) => r.playerName);
+    async (eventId: string) => {
+      const rows = attendance.filter((r) => r.eventId === eventId);
+      const noShows = rows.filter((r) => r.mark === 'no_show').map((r) => r.playerName);
+
+      if (!isDemoMode && supabase) {
+        try {
+          for (const row of rows) {
+            await upsertAttendanceMark(supabase, eventId, row.playerId, row.mark);
+          }
+          await lockAttendanceRecords(supabase, eventId);
+        } catch (err) {
+          console.warn('Attendance lock failed', err instanceof Error ? err.message : err);
+        }
+      }
+
       return noShows;
     },
     [attendance],
@@ -450,14 +572,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const submitReadiness = useCallback(
     (rpe: number, sleepHours: number, waterLiters: number) => {
       if (!user) return;
+      const clamp24 = (n: number) => Math.min(24, Math.max(0, n));
       setReadiness((prev) => [
         {
           id: `ready-${Date.now()}`,
           playerId: user.id,
           date: new Date().toISOString().slice(0, 10),
           rpe,
-          sleepHours,
-          waterLiters,
+          sleepHours: clamp24(sleepHours),
+          waterLiters: clamp24(waterLiters),
         },
         ...prev,
       ]);
@@ -518,25 +641,84 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setSuggestions((prev) => prev.map((s) => (s.id === id ? { ...s, status } : s)));
   }, []);
 
-  const claimCarpoolSeat = useCallback((offerId: string) => {
-    setCarpools((prev) =>
-      prev.map((c) => {
-        if (c.id !== offerId) return c;
-        if (c.seatsTaken >= c.seatsAvailable) return c;
-        return { ...c, seatsTaken: c.seatsTaken + 1 };
-      }),
-    );
-  }, []);
+  const claimCarpoolSeat = useCallback(
+    async (offerId: string) => {
+      const offer = carpools.find((c) => c.id === offerId);
+      if (!offer) {
+        return { ok: false as const, reason: 'not_found' as const };
+      }
+      if (offer.seatsTaken >= offer.seatsAvailable) {
+        return { ok: false as const, reason: 'full' as const };
+      }
 
-  const acknowledgeBanner = useCallback(() => {
-    if (!user) return;
+      if (isDemoMode || !supabase) {
+        const seatsTaken = offer.seatsTaken + 1;
+        setCarpools((prev) =>
+          prev.map((c) =>
+            c.id === offerId ? { ...c, seatsTaken } : c,
+          ),
+        );
+        return {
+          ok: true as const,
+          seatsTaken,
+          seatsAvailable: offer.seatsAvailable,
+        };
+      }
+
+      try {
+        const result = await claimCarpoolSeatLive(
+          supabase,
+          offerId,
+          offer.seatsTaken,
+          offer.seatsAvailable,
+        );
+        if (result.ok) {
+          setCarpools((prev) =>
+            prev.map((c) =>
+              c.id === offerId
+                ? {
+                    ...c,
+                    seatsTaken: result.seatsTaken,
+                    seatsAvailable: result.seatsAvailable,
+                  }
+                : c,
+            ),
+          );
+        } else if (result.reason === 'full') {
+          setCarpools((prev) =>
+            prev.map((c) =>
+              c.id === offerId ? { ...c, seatsTaken: c.seatsAvailable } : c,
+            ),
+          );
+        }
+        return result;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn('Carpool claim failed', message);
+        return { ok: false as const, reason: 'error' as const, message };
+      }
+    },
+    [carpools],
+  );
+
+  const acknowledgeBanner = useCallback(async () => {
+    if (!user || !banner.id) return;
+
     setBanner((prev) => ({
       ...prev,
       acknowledgedBy: prev.acknowledgedBy.includes(user.id)
         ? prev.acknowledgedBy
         : [...prev.acknowledgedBy, user.id],
     }));
-  }, [user]);
+
+    if (!isDemoMode && supabase) {
+      try {
+        await acknowledgeUrgentBanner(supabase, banner.id, user.id);
+      } catch (err) {
+        console.warn('Banner ack failed', err instanceof Error ? err.message : err);
+      }
+    }
+  }, [banner.id, user]);
 
   const switchDemoRole = useCallback(
     (role: UserProfile['role']) => {
@@ -550,6 +732,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setInviteOk(true);
       setTeam(demoTeam);
       setUser(match);
+      setEvents(demoEvents);
+      setAcks(demoAcks);
+      setAttendance(demoAttendance);
+      setCarpools(demoCarpools);
+      setBanner(demoBanner);
       setBrand(resolveInvite(DEMO_INVITE_CODE)!);
     },
     [setBrand],
@@ -560,6 +747,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setTeam(null);
     setInviteOk(false);
     setAuthUserId(null);
+    if (!isDemoMode) {
+      setEvents([]);
+      setAcks([]);
+      setAttendance([]);
+      setCarpools([]);
+      setBanner(EMPTY_BANNER);
+    }
     clearBrand();
     if (!isDemoMode && supabase) {
       void supabase.auth.signOut();
@@ -570,7 +764,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     () => ({
       user,
       team,
-      events: demoEvents,
+      events,
       acks,
       attendance,
       readiness,
@@ -606,6 +800,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [
       user,
       team,
+      events,
       acks,
       attendance,
       readiness,
