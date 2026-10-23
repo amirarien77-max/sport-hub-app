@@ -141,6 +141,8 @@ export const demoPlays: TacticalPlay[] = [
     teamId: demoTeam.id,
     title: he.demo.playTitle,
     mediaUrl: undefined,
+    boardJson:
+      '{"markers":[{"x":22,"y":70,"label":"1"},{"x":50,"y":55,"label":"4"},{"x":78,"y":70,"label":"2"},{"x":35,"y":35,"label":"5"},{"x":65,"y":35,"label":"3"}]}',
     allowSuggestions: true,
     createdAt: new Date().toISOString(),
   },

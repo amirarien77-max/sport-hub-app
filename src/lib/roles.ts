@@ -5,6 +5,11 @@ export function isAttendanceCoach(role: Role | undefined | null): boolean {
   return role === 'head_coach' || role === 'assistant_coach' || role === 'admin';
 }
 
+/** Tactical plays create/edit + suggestion review. */
+export function isTacticalCoach(role: Role | undefined | null): boolean {
+  return role === 'head_coach' || role === 'assistant_coach' || role === 'admin';
+}
+
 /** Staff who see coach health / risk surfaces. */
 export function isHealthStaff(role: Role | undefined | null): boolean {
   return (
