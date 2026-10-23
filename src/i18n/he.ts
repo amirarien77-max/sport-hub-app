@@ -128,6 +128,8 @@ export const he = {
   schedule: {
     title: 'לו״ז',
     subtitle: 'אישור כפול: RSVP של שחקן והורה. התנגשויות מסומנות בצהוב.',
+    subtitleCoach: 'תצוגת מאמן: סטטוסי הגעה של הקבוצה. סימון נוכחות במגרש במסך נוכחות.',
+    subtitleParent: 'אשרו הגעה כהורה. סתירה מול השחקן מסומנת בצהוב.',
     urgent: 'דחוף',
     acknowledge: 'אני מאשר/ת',
     attending: 'מגיע',
@@ -149,23 +151,29 @@ export const he = {
     whyAbsent: 'למה לא תוכלו להגיע?',
     emptyEvents: 'אין אירועים עדיין. אחרי seed + migration 006 יופיעו אימון ומשחק לדוגמה.',
     emptyCarpool: 'אין הצעות טרמפ כרגע.',
+    coachReadOnlyHint: 'מצב מאמן — ללא RSVP אישי. עברו לנוכחות לסימון במגרש.',
+    carpoolCoachHint: 'צפייה בטרמפים (שמירת מקום להורים/שחקנים).',
   },
 
   attendance: {
     title: 'נוכחות',
     playersOnly:
-      'רק מאמנים מסמנים נוכחות במגרש. עברו לדמות מאמן ממסך הפרופיל.',
+      'מסך זה מיועד למאמנים בלבד. כשחקן או הורה תוכלו לאשר הגעה במסך הלו״ז.',
     courtGrid: 'רשת מגרש',
     subtitle: 'לחיצה מחליפה: נוכח ← מוצדק ← לא הגיע. נעילה שולחת הודעה להורים על אי-הגעה.',
     lockNotify: 'נעילה ושליחה',
     lockedTitle: 'הנוכחות ננעלה',
     lockedNoShows: 'הנוכחות ננעלה. אין אי-הגעות.',
     lockedWithNames: 'ננעל. נשלחה הודעה להורים של: {names}',
+    emptyPlayers: 'אין שחקנים בקבוצה עדיין — אחרי ששחקנים נרשמים הם יופיעו כאן.',
+    noEvent: 'אין אירוע קרוב לסימון נוכחות.',
   },
 
   health: {
     title: 'מוכנות וכאב',
     subtitle: 'RPE עם כפתורים גדולים 1–10 (בלי סליידרים). לחצו על אזור בגוף כדי להתקרב לתת-אזורים.',
+    subtitleCoach: 'לוח סיכון למאמן — צפייה בדיווחי כאב של השחקנים.',
+    subtitleParent: 'הורים לא מדווחים מוכנות/כאב. השחקן ממלא במסך זה.',
     coachBoard: 'לוח סיכון למאמן',
     access: 'גישה: {access}',
     inheritedWrite: ' · המאמן הראשי קיבל הרשאת כתיבה (אין כושר/פיזיו בצוות)',
@@ -176,10 +184,32 @@ export const he = {
     painMap: 'מפת כאב',
     backToBody: 'חזרה לגוף',
     logPain: 'רישום כאב',
+    logPainNeedSubregion: 'בחרו תת-אזור בגוף לפני רישום הכאב.',
+    logPainSuccessTitle: 'הכאב נרשם',
+    logPainSuccessBody: '{region} · {sub} · {severity}',
+    readinessNeedRpe: 'בחרו ערך RPE (1–10) לפני השמירה.',
+    readinessSavedTitle: 'המוכנות נשמרה',
+    sleepWaterHint: 'ערך בין 0 ל־24.',
+    sleepOverLimit: 'שעות שינה לא יכולות לעבור 24.',
+    waterOverLimit: 'כמות המים לא יכולה לעבור 24 ליטר.',
+    invalidNumber: 'הזינו מספר תקין (0–24).',
     lastReady: 'RPE אחרון {rpe} · שינה {sleep}ש׳ · מים {water}ל׳',
     accessWrite: 'כתיבה',
     accessRead: 'קריאה',
     accessNone: 'אין',
+    emptyPainCoach: 'אין דיווחי כאב עדיין.',
+  },
+
+  profile: {
+    title: 'פרופיל',
+    roleBadge: 'תפקיד: {role}',
+    clubTeam: 'מועדון: {club} · קבוצה: {team}',
+    consentMode: 'הסכמה: {consent} · מצב: {mode}',
+    switchDemoRole: 'החלפת תפקיד דמו',
+    signOut: 'התנתקות',
+    coachToolsHint: 'כמאמן: מסך נוכחות לסימון במגרש, ולוח סיכון בבריאות.',
+    playerToolsHint: 'כשחקן: RSVP בלו״ז, דיווח מוכנות ומפת כאב בבריאות.',
+    parentToolsHint: 'כהורה: RSVP בלו״ז ושמירת מקום בטרמפים.',
   },
 
   plays: {
@@ -204,14 +234,6 @@ export const he = {
     suggestionInbox: 'תיבת הצעות',
     approve: 'אישור',
     reject: 'דחייה',
-  },
-
-  profile: {
-    title: 'פרופיל',
-    clubTeam: 'מועדון: {club} · קבוצה: {team}',
-    consentMode: 'הסכמה: {consent} · מצב: {mode}',
-    switchDemoRole: 'החלפת תפקיד דמו',
-    signOut: 'התנתקות',
   },
 
   errors: {

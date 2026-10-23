@@ -1,10 +1,14 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { t } from '@/i18n';
+import { isAttendanceCoach } from '@/lib/roles';
+import { useSession } from '@/session/SessionContext';
 import { useTheme } from '@/theme/ThemeContext';
 
 export default function TabsLayout() {
   const { colors, brand } = useTheme();
+  const { user } = useSession();
+  const showAttendance = isAttendanceCoach(user?.role);
 
   return (
     <Tabs
@@ -31,6 +35,7 @@ export default function TabsLayout() {
         name="attendance"
         options={{
           title: t('tabs.attendance'),
+          href: showAttendance ? undefined : null,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="grid-outline" color={color as string} size={size} />
           ),

@@ -65,11 +65,22 @@ export function useTheme() {
 }
 
 export const layout = StyleSheet.create({
+  /** Full-screen View wrappers (fills the tab). */
   screen: {
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 24,
+  },
+  /**
+   * ScrollView contentContainerStyle — no flex:1 (that prevents scrolling
+   * when content is taller than the viewport).
+   */
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 48,
+    flexGrow: 1,
   },
   title: {
     fontSize: 28,

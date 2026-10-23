@@ -45,7 +45,11 @@ export function ProfileSetupScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={[layout.screen, { backgroundColor: colors.background }]}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={layout.scrollContent}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={[layout.title, { color: colors.primary }]}>
         {t('profileSetup.title', { name: brand.name })}
       </Text>

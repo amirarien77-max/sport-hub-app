@@ -572,14 +572,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const submitReadiness = useCallback(
     (rpe: number, sleepHours: number, waterLiters: number) => {
       if (!user) return;
+      const clamp24 = (n: number) => Math.min(24, Math.max(0, n));
       setReadiness((prev) => [
         {
           id: `ready-${Date.now()}`,
           playerId: user.id,
           date: new Date().toISOString().slice(0, 10),
           rpe,
-          sleepHours,
-          waterLiters,
+          sleepHours: clamp24(sleepHours),
+          waterLiters: clamp24(waterLiters),
         },
         ...prev,
       ]);

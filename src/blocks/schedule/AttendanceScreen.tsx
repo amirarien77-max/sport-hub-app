@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { t, translateAttendanceMark } from '@/i18n';
+import { isAttendanceCoach } from '@/lib/roles';
 import { useSession } from '@/session/SessionContext';
 import { layout, useTheme } from '@/theme/ThemeContext';
 import type { AttendanceMark } from '@/types';
@@ -18,10 +19,7 @@ export function AttendanceScreen() {
   const rows = attendance.filter((r) => r.eventId === eventId);
   const [lockedNote, setLockedNote] = useState<string | null>(null);
 
-  const isCoach =
-    user?.role === 'head_coach' ||
-    user?.role === 'assistant_coach' ||
-    user?.role === 'admin';
+  const isCoach = isAttendanceCoach(user?.role);
 
   if (!isCoach) {
     return (
@@ -33,9 +31,24 @@ export function AttendanceScreen() {
   }
 
   return (
-    <View style={[layout.screen, { backgroundColor: colors.background }]}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={layout.scrollContent}
+    >
       <Text style={[layout.title, { color: colors.primary }]}>{t('attendance.courtGrid')}</Text>
       <Text style={[layout.subtitle, { color: colors.muted }]}>{t('attendance.subtitle')}</Text>
+
+      {!eventId ? (
+        <Text style={{ marginTop: 16, color: colors.muted, textAlign: 'right' }}>
+          {t('attendance.noEvent')}
+        </Text>
+      ) : null}
+
+      {eventId && rows.length === 0 ? (
+        <Text style={{ marginTop: 16, color: colors.muted, textAlign: 'right' }}>
+          {t('attendance.emptyPlayers')}
+        </Text>
+      ) : null}
 
       <View style={styles.grid}>
         {rows.map((row) => {
@@ -74,7 +87,7 @@ export function AttendanceScreen() {
       {lockedNote ? (
         <Text style={{ marginTop: 12, color: colors.muted, textAlign: 'right' }}>{lockedNote}</Text>
       ) : null}
-    </View>
+    </ScrollView>
   );
 }
 

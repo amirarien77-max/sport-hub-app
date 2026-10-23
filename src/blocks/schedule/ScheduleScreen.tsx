@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { t, translateAbsenceReason, translateRsvp } from '@/i18n';
 import { dualAckConflict } from '@/lib/demo-data';
+import { canClaimCarpool, canSubmitRsvp, isAttendanceCoach } from '@/lib/roles';
 import { useSession } from '@/session/SessionContext';
 import { layout, useTheme } from '@/theme/ThemeContext';
 
@@ -19,6 +20,16 @@ export function ScheduleScreen() {
     useSession();
   const [sheetEventId, setSheetEventId] = useState<string | null>(null);
   const [claimingOfferId, setClaimingOfferId] = useState<string | null>(null);
+
+  const coachView = isAttendanceCoach(user?.role);
+  const showRsvp = canSubmitRsvp(user?.role);
+  const showClaim = canClaimCarpool(user?.role);
+
+  const subtitle = coachView
+    ? t('schedule.subtitleCoach')
+    : user?.role === 'parent'
+      ? t('schedule.subtitleParent')
+      : t('schedule.subtitle');
 
   const onClaimSeat = async (offerId: string, isFull: boolean) => {
     if (isFull || claimingOfferId) return;
@@ -49,7 +60,12 @@ export function ScheduleScreen() {
     banner.requiresAck && user && !banner.acknowledgedBy.includes(user.id);
 
   return (
-    <ScrollView contentContainerStyle={[layout.screen, { backgroundColor: colors.background }]}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={layout.scrollContent}
+      keyboardShouldPersistTaps="handled"
+      nestedScrollEnabled
+    >
       {pendingBanner ? (
         <View style={[styles.banner, { backgroundColor: colors.accent }]}>
           <Text style={styles.bannerTitle}>{t('schedule.urgent')}</Text>
@@ -66,7 +82,12 @@ export function ScheduleScreen() {
       ) : null}
 
       <Text style={[layout.title, { color: colors.primary }]}>{t('schedule.title')}</Text>
-      <Text style={[layout.subtitle, { color: colors.muted }]}>{t('schedule.subtitle')}</Text>
+      <Text style={[layout.subtitle, { color: colors.muted }]}>{subtitle}</Text>
+      {coachView ? (
+        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 8 }}>
+          {t('schedule.coachReadOnlyHint')}
+        </Text>
+      ) : null}
 
       {events.length === 0 ? (
         <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 12 }}>
@@ -83,22 +104,28 @@ export function ScheduleScreen() {
               {new Date(event.startsAt).toLocaleString('he-IL')} · {event.location}
             </Text>
 
-            <View style={styles.row}>
-              <Pressable
-                onPress={() => void setRsvp(event.id, 'attending', undefined, user?.role === 'parent')}
-                style={[layout.button, styles.half, { backgroundColor: colors.success }]}
-              >
-                <Text style={[layout.buttonText, { color: '#fff' }]}>{t('schedule.attending')}</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setSheetEventId(event.id)}
-                style={[layout.button, styles.half, { backgroundColor: colors.danger }]}
-              >
-                <Text style={[layout.buttonText, { color: '#fff' }]}>
-                  {t('schedule.notAttending')}
-                </Text>
-              </Pressable>
-            </View>
+            {showRsvp ? (
+              <View style={styles.row}>
+                <Pressable
+                  onPress={() =>
+                    void setRsvp(event.id, 'attending', undefined, user?.role === 'parent')
+                  }
+                  style={[layout.button, styles.half, { backgroundColor: colors.success }]}
+                >
+                  <Text style={[layout.buttonText, { color: '#fff' }]}>
+                    {t('schedule.attending')}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setSheetEventId(event.id)}
+                  style={[layout.button, styles.half, { backgroundColor: colors.danger }]}
+                >
+                  <Text style={[layout.buttonText, { color: '#fff' }]}>
+                    {t('schedule.notAttending')}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
 
             {related.map((ack) => {
               const conflict = dualAckConflict(ack);
@@ -137,6 +164,11 @@ export function ScheduleScreen() {
       <Text style={[layout.title, { color: colors.primary, fontSize: 22, marginTop: 12 }]}>
         {t('schedule.carpool')}
       </Text>
+      {coachView ? (
+        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
+          {t('schedule.carpoolCoachHint')}
+        </Text>
+      ) : null}
       {carpools.length === 0 ? (
         <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 8 }}>
           {t('schedule.emptyCarpool')}
@@ -155,26 +187,28 @@ export function ScheduleScreen() {
                 available: offer.seatsAvailable,
               })}
             </Text>
-            <Pressable
-              disabled={disabled}
-              onPress={() => void onClaimSeat(offer.id, isFull)}
-              style={[
-                layout.button,
-                {
-                  backgroundColor: isFull ? colors.muted : colors.primary,
-                  marginTop: 10,
-                  opacity: disabled && !isFull ? 0.7 : 1,
-                },
-              ]}
-            >
-              <Text style={[layout.buttonText, { color: '#fff' }]}>
-                {isFull
-                  ? t('schedule.claimSeatFull')
-                  : claiming
-                    ? t('schedule.claimSeatClaiming')
-                    : t('schedule.claimSeat')}
-              </Text>
-            </Pressable>
+            {showClaim ? (
+              <Pressable
+                disabled={disabled}
+                onPress={() => void onClaimSeat(offer.id, isFull)}
+                style={[
+                  layout.button,
+                  {
+                    backgroundColor: isFull ? colors.muted : colors.primary,
+                    marginTop: 10,
+                    opacity: disabled && !isFull ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Text style={[layout.buttonText, { color: '#fff' }]}>
+                  {isFull
+                    ? t('schedule.claimSeatFull')
+                    : claiming
+                      ? t('schedule.claimSeatClaiming')
+                      : t('schedule.claimSeat')}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         );
       })}
