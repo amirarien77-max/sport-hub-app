@@ -307,22 +307,82 @@ export async function lockAttendanceRecords(
   if (error) throw new Error(error.message);
 }
 
+export type ClaimCarpoolResult =
+  | { ok: true; seatsTaken: number; seatsAvailable: number }
+  | { ok: false; reason: 'full' | 'not_found' | 'error'; message?: string };
+
+/** Claim one seat. Prefers RPC (atomic); falls back to direct UPDATE. */
 export async function claimCarpoolSeatLive(
   client: SupabaseClient,
   offerId: string,
   seatsTaken: number,
   seatsAvailable: number,
-): Promise<boolean> {
-  if (seatsTaken >= seatsAvailable) return false;
-  const { data, error } = await client
+): Promise<ClaimCarpoolResult> {
+  if (seatsTaken >= seatsAvailable) {
+    return { ok: false, reason: 'full' };
+  }
+
+  const rpc = await client.rpc('claim_carpool_seat', { p_offer_id: offerId });
+  if (!rpc.error) {
+    const row = Array.isArray(rpc.data) ? rpc.data[0] : rpc.data;
+    if (row && typeof row === 'object' && 'seats_taken' in row) {
+      return {
+        ok: true,
+        seatsTaken: Number((row as { seats_taken: number }).seats_taken),
+        seatsAvailable: Number((row as { seats_available: number }).seats_available),
+      };
+    }
+    // RPC succeeded with empty set — treat as full/missing
+    return { ok: false, reason: 'full' };
+  }
+
+  const rpcMsg = rpc.error.message.toLowerCase();
+  if (rpcMsg.includes('offer_full')) return { ok: false, reason: 'full' };
+  if (rpcMsg.includes('offer_not_found')) return { ok: false, reason: 'not_found' };
+  // Function missing / not migrated yet — fall back to direct update
+  const canFallback =
+    rpcMsg.includes('function') ||
+    rpcMsg.includes('could not find') ||
+    rpc.error.code === 'PGRST202' ||
+    rpc.error.code === '42883';
+
+  if (!canFallback) {
+    return { ok: false, reason: 'error', message: rpc.error.message };
+  }
+
+  const { data: fresh, error: readErr } = await client
     .from('carpool_offers')
-    .update({ seats_taken: seatsTaken + 1 })
+    .select('id, seats_taken, seats_available')
     .eq('id', offerId)
-    .eq('seats_taken', seatsTaken)
-    .select('id')
     .maybeSingle();
-  if (error) throw new Error(error.message);
-  return Boolean(data);
+  if (readErr) return { ok: false, reason: 'error', message: readErr.message };
+  if (!fresh) return { ok: false, reason: 'not_found' };
+  if (fresh.seats_taken >= fresh.seats_available) return { ok: false, reason: 'full' };
+
+  const nextTaken = (fresh.seats_taken as number) + 1;
+  const { data: updated, error: updateErr } = await client
+    .from('carpool_offers')
+    .update({ seats_taken: nextTaken })
+    .eq('id', offerId)
+    .eq('seats_taken', fresh.seats_taken)
+    .select('id, seats_taken, seats_available')
+    .maybeSingle();
+
+  if (updateErr) return { ok: false, reason: 'error', message: updateErr.message };
+  if (!updated) {
+    // 0 rows: RLS or race — surface as error so UI is not silent
+    return {
+      ok: false,
+      reason: 'error',
+      message: 'update_blocked',
+    };
+  }
+
+  return {
+    ok: true,
+    seatsTaken: updated.seats_taken as number,
+    seatsAvailable: updated.seats_available as number,
+  };
 }
 
 export async function acknowledgeUrgentBanner(

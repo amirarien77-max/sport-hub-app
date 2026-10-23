@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -17,6 +18,32 @@ export function ScheduleScreen() {
   const { events, acks, setRsvp, absenceReasons, user, carpools, claimCarpoolSeat, banner, acknowledgeBanner } =
     useSession();
   const [sheetEventId, setSheetEventId] = useState<string | null>(null);
+  const [claimingOfferId, setClaimingOfferId] = useState<string | null>(null);
+
+  const onClaimSeat = async (offerId: string, isFull: boolean) => {
+    if (isFull || claimingOfferId) return;
+    setClaimingOfferId(offerId);
+    try {
+      const result = await Promise.resolve(claimCarpoolSeat(offerId));
+      if (result.ok) {
+        Alert.alert(
+          t('schedule.claimSuccessTitle'),
+          t('schedule.claimSuccessBody', {
+            taken: result.seatsTaken,
+            available: result.seatsAvailable,
+          }),
+        );
+        return;
+      }
+      if (result.reason === 'full') {
+        Alert.alert(t('schedule.claimFullTitle'), t('schedule.claimFullBody'));
+        return;
+      }
+      Alert.alert(t('schedule.claimErrorTitle'), t('schedule.claimErrorBody'));
+    } finally {
+      setClaimingOfferId(null);
+    }
+  };
 
   const pendingBanner =
     banner.requiresAck && user && !banner.acknowledgedBy.includes(user.id);
@@ -115,23 +142,42 @@ export function ScheduleScreen() {
           {t('schedule.emptyCarpool')}
         </Text>
       ) : null}
-      {carpools.map((offer) => (
-        <View key={offer.id} style={[styles.card, { borderColor: colors.secondary }]}>
-          <Text style={{ fontWeight: '700', textAlign: 'right' }}>{offer.parentName}</Text>
-          <Text style={{ color: colors.muted, textAlign: 'right' }}>
-            {t('schedule.seatsTaken', {
-              taken: offer.seatsTaken,
-              available: offer.seatsAvailable,
-            })}
-          </Text>
-          <Pressable
-            onPress={() => void claimCarpoolSeat(offer.id)}
-            style={[layout.button, { backgroundColor: colors.primary, marginTop: 10 }]}
-          >
-            <Text style={[layout.buttonText, { color: '#fff' }]}>{t('schedule.claimSeat')}</Text>
-          </Pressable>
-        </View>
-      ))}
+      {carpools.map((offer) => {
+        const isFull = offer.seatsTaken >= offer.seatsAvailable;
+        const claiming = claimingOfferId === offer.id;
+        const disabled = isFull || claiming || claimingOfferId != null;
+        return (
+          <View key={offer.id} style={[styles.card, { borderColor: colors.secondary }]}>
+            <Text style={{ fontWeight: '700', textAlign: 'right' }}>{offer.parentName}</Text>
+            <Text style={{ color: colors.muted, textAlign: 'right' }}>
+              {t('schedule.seatsTaken', {
+                taken: offer.seatsTaken,
+                available: offer.seatsAvailable,
+              })}
+            </Text>
+            <Pressable
+              disabled={disabled}
+              onPress={() => void onClaimSeat(offer.id, isFull)}
+              style={[
+                layout.button,
+                {
+                  backgroundColor: isFull ? colors.muted : colors.primary,
+                  marginTop: 10,
+                  opacity: disabled && !isFull ? 0.7 : 1,
+                },
+              ]}
+            >
+              <Text style={[layout.buttonText, { color: '#fff' }]}>
+                {isFull
+                  ? t('schedule.claimSeatFull')
+                  : claiming
+                    ? t('schedule.claimSeatClaiming')
+                    : t('schedule.claimSeat')}
+              </Text>
+            </Pressable>
+          </View>
+        );
+      })}
 
       <ReasonSheet
         visible={Boolean(sheetEventId)}

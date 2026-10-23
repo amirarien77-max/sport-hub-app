@@ -109,7 +109,12 @@ type SessionContextValue = {
   answerAssignment: (assignmentId: string, answer: string) => void;
   submitSuggestion: (playId: string, text: string) => void;
   reviewSuggestion: (id: string, status: SuggestionStatus) => void;
-  claimCarpoolSeat: (offerId: string) => void | Promise<void>;
+  claimCarpoolSeat: (
+    offerId: string,
+  ) =>
+    | Promise<{ ok: true; seatsTaken: number; seatsAvailable: number } | { ok: false; reason: 'full' | 'not_found' | 'error'; message?: string }>
+    | { ok: true; seatsTaken: number; seatsAvailable: number }
+    | { ok: false; reason: 'full' | 'not_found' | 'error'; message?: string };
   acknowledgeBanner: () => void | Promise<void>;
   switchDemoRole: (role: UserProfile['role']) => void;
   signOut: () => void;
@@ -638,30 +643,59 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const claimCarpoolSeat = useCallback(
     async (offerId: string) => {
       const offer = carpools.find((c) => c.id === offerId);
-      if (!offer || offer.seatsTaken >= offer.seatsAvailable) return;
-
-      if (!isDemoMode && supabase) {
-        try {
-          const ok = await claimCarpoolSeatLive(
-            supabase,
-            offerId,
-            offer.seatsTaken,
-            offer.seatsAvailable,
-          );
-          if (!ok) return;
-        } catch (err) {
-          console.warn('Carpool claim failed', err instanceof Error ? err.message : err);
-          return;
-        }
+      if (!offer) {
+        return { ok: false as const, reason: 'not_found' as const };
+      }
+      if (offer.seatsTaken >= offer.seatsAvailable) {
+        return { ok: false as const, reason: 'full' as const };
       }
 
-      setCarpools((prev) =>
-        prev.map((c) => {
-          if (c.id !== offerId) return c;
-          if (c.seatsTaken >= c.seatsAvailable) return c;
-          return { ...c, seatsTaken: c.seatsTaken + 1 };
-        }),
-      );
+      if (isDemoMode || !supabase) {
+        const seatsTaken = offer.seatsTaken + 1;
+        setCarpools((prev) =>
+          prev.map((c) =>
+            c.id === offerId ? { ...c, seatsTaken } : c,
+          ),
+        );
+        return {
+          ok: true as const,
+          seatsTaken,
+          seatsAvailable: offer.seatsAvailable,
+        };
+      }
+
+      try {
+        const result = await claimCarpoolSeatLive(
+          supabase,
+          offerId,
+          offer.seatsTaken,
+          offer.seatsAvailable,
+        );
+        if (result.ok) {
+          setCarpools((prev) =>
+            prev.map((c) =>
+              c.id === offerId
+                ? {
+                    ...c,
+                    seatsTaken: result.seatsTaken,
+                    seatsAvailable: result.seatsAvailable,
+                  }
+                : c,
+            ),
+          );
+        } else if (result.reason === 'full') {
+          setCarpools((prev) =>
+            prev.map((c) =>
+              c.id === offerId ? { ...c, seatsTaken: c.seatsAvailable } : c,
+            ),
+          );
+        }
+        return result;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn('Carpool claim failed', message);
+        return { ok: false as const, reason: 'error' as const, message };
+      }
     },
     [carpools],
   );
