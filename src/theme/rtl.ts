@@ -46,11 +46,12 @@ export const rtlInput: TextStyle = {
 export const rtlContainerProps: { dir?: 'rtl' } =
   Platform.OS === 'web' ? { dir: 'rtl' } : {};
 
-/** Physical right edge for badges / compact headers inside stretch parents. */
-export const rtlAlignStart: ViewStyle =
-  Platform.OS !== 'web' && I18nManager.isRTL
-    ? { alignSelf: 'flex-start' }
-    : { alignSelf: 'flex-end' };
+/**
+ * Compact badges / chips that should sit on the reading-start edge (right in RTL).
+ * With root/`dir="rtl"` (web) or I18nManager RTL (native), flex-start is already right.
+ * Do NOT use flex-end on web — that packs to the physical left under dir=rtl.
+ */
+export const rtlAlignStart: ViewStyle = { alignSelf: 'flex-start' };
 
 export const rtlLayout = StyleSheet.create({
   /** Apply on screen roots / scroll content wrappers. */
