@@ -137,6 +137,7 @@ type SessionContextValue = {
   createPlay: (title: string) => Promise<CreatePlayResult>;
   updatePlayMedia: (playId: string, mediaUrl: string) => Promise<OkOrError>;
   updatePlayBoard: (playId: string, boardJson: string) => Promise<OkOrError>;
+  cachePlayGameIq: (playId: string, gameIqJson: string) => Promise<OkOrError>;
   createAssignment: (input: {
     playId: string;
     playerId: string;
@@ -946,6 +947,30 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const cachePlayGameIq = useCallback(
+    async (playId: string, gameIqJson: string): Promise<OkOrError> => {
+      if (isDemoMode || !supabase) {
+        tacticalGen.current += 1;
+        setPlays((prev) => prev.map((p) => (p.id === playId ? { ...p, gameIqJson } : p)));
+        return { ok: true };
+      }
+      try {
+        await updatePlayLive(supabase, playId, { gameIqJson });
+        tacticalGen.current += 1;
+        setPlays((prev) => prev.map((p) => (p.id === playId ? { ...p, gameIqJson } : p)));
+        return { ok: true };
+      } catch (err) {
+        // Column may be missing until migration 012 — still keep local cache.
+        tacticalGen.current += 1;
+        setPlays((prev) => prev.map((p) => (p.id === playId ? { ...p, gameIqJson } : p)));
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn('cachePlayGameIq', message);
+        return { ok: true };
+      }
+    },
+    [],
+  );
+
   const createAssignment = useCallback(
     async (input: {
       playId: string;
@@ -1302,6 +1327,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       createPlay,
       updatePlayMedia,
       updatePlayBoard,
+      cachePlayGameIq,
       createAssignment,
       togglePlaySuggestions,
       answerAssignment,
@@ -1345,6 +1371,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       createPlay,
       updatePlayMedia,
       updatePlayBoard,
+      cachePlayGameIq,
       createAssignment,
       togglePlaySuggestions,
       answerAssignment,

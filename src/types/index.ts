@@ -97,6 +97,8 @@ export interface TacticalPlay {
   mediaUrl?: string;
   /** JSON sketch markers for the court board stub (`{"markers":[...]}`). */
   boardJson?: string;
+  /** Cached Game IQ insight JSON (OpenAI or offline stub). */
+  gameIqJson?: string;
   allowSuggestions: boolean;
   createdAt: string;
 }

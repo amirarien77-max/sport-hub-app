@@ -13,7 +13,13 @@ import {
 } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import { t, translateSuggestionStatus } from '@/i18n';
+import {
+  buildOfflineGameIq,
+  generateGameIq,
+  type GameIqInsight,
+} from '@/lib/game-iq';
 import { isTacticalCoach } from '@/lib/roles';
+import { isDemoMode, supabase } from '@/lib/supabase';
 import {
   parseBoardJson,
   serializeBoardJson,
@@ -22,6 +28,19 @@ import {
 import { useSession } from '@/session/SessionContext';
 import { layout, useTheme } from '@/theme/ThemeContext';
 import type { PlayAssignment, TacticalPlay } from '@/types';
+
+function parseCachedInsight(raw?: string): GameIqInsight | null {
+  if (!raw?.trim()) return null;
+  try {
+    const o = JSON.parse(raw) as GameIqInsight;
+    if (!o?.summary || !Array.isArray(o.coachBullets) || !Array.isArray(o.playerBullets)) {
+      return null;
+    }
+    return o;
+  } catch {
+    return null;
+  }
+}
 
 /** Prefer inline UI feedback — Alert.alert is a no-op on react-native-web. */
 function showResult(
@@ -57,12 +76,15 @@ export function PlaysScreen() {
     createPlay,
     updatePlayMedia,
     updatePlayBoard,
+    cachePlayGameIq,
     createAssignment,
     user,
     banner,
   } = useSession();
 
   const [selectedPlayId, setSelectedPlayId] = useState<string | null>(null);
+  const [gameIq, setGameIq] = useState<GameIqInsight | null>(null);
+  const [gameIqLoading, setGameIqLoading] = useState(false);
   const [answerDrafts, setAnswerDrafts] = useState<Record<string, string>>({});
   const [answerStatus, setAnswerStatus] = useState<Record<string, string>>({});
   const [suggestionDraft, setSuggestionDraft] = useState('');
@@ -103,6 +125,7 @@ export function PlaysScreen() {
       setLocalMarkers([]);
       setMediaDraft('');
       setNextLabel(1);
+      setGameIq(null);
       return;
     }
     const markers = parseBoardJson(selectedPlay.boardJson).markers;
@@ -111,7 +134,8 @@ export function PlaysScreen() {
     setMediaDraft(selectedPlay.mediaUrl ?? '');
     setSuggestionDraft('');
     setAssignFeedback(null);
-  }, [selectedPlay?.id, selectedPlay?.boardJson, selectedPlay?.mediaUrl]);
+    setGameIq(parseCachedInsight(selectedPlay.gameIqJson));
+  }, [selectedPlay?.id, selectedPlay?.boardJson, selectedPlay?.mediaUrl, selectedPlay?.gameIqJson]);
 
   useEffect(() => {
     if (!selectedPlayerId && tacticalPlayers[0]) {
@@ -203,6 +227,30 @@ export function PlaysScreen() {
       }
     } finally {
       setCreatingPlay(false);
+    }
+  };
+
+  const runGameIq = async (play: TacticalPlay) => {
+    setGameIqLoading(true);
+    try {
+      const viewerRole = isCoach ? 'coach' : isPlayer ? 'player' : 'other';
+      const playAssigns = assignments.filter((a) => a.playId === play.id);
+      const insight =
+        isDemoMode || !supabase
+          ? buildOfflineGameIq({
+              play,
+              assignments: playAssigns,
+              viewerRole,
+            })
+          : await generateGameIq(supabase, {
+              play,
+              assignments: playAssigns,
+              viewerRole,
+            });
+      setGameIq(insight);
+      await cachePlayGameIq(play.id, JSON.stringify(insight));
+    } finally {
+      setGameIqLoading(false);
     }
   };
 
@@ -415,12 +463,71 @@ export function PlaysScreen() {
       </Pressable>
 
       <Text style={[layout.title, { color: colors.primary }]}>{play.title}</Text>
-      <Text style={[layout.subtitle, { color: colors.muted }]}>{t('plays.gameIqStub')}</Text>
       {createOk && selectedPlayId === play.id ? (
         <Text style={{ color: colors.success, fontWeight: '700', textAlign: 'right', marginBottom: 8 }}>
           {createOk}
         </Text>
       ) : null}
+
+      <View style={[styles.card, { borderColor: colors.secondary }]}>
+        <Text style={styles.playTitle}>{t('plays.gameIqTitle')}</Text>
+        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
+          {t('plays.gameIqStub')}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('plays.gameIqRun')}
+          disabled={gameIqLoading}
+          onPress={() => void runGameIq(play)}
+          style={[
+            layout.button,
+            {
+              backgroundColor: gameIqLoading ? colors.muted : colors.primary,
+              marginTop: 10,
+              minHeight: 48,
+            },
+          ]}
+        >
+          <Text style={[layout.buttonText, { color: '#fff' }]}>
+            {gameIqLoading ? t('plays.gameIqRunning') : t('plays.gameIqRun')}
+          </Text>
+        </Pressable>
+        {gameIq ? (
+          <View style={{ marginTop: 12 }}>
+            <Text
+              style={{
+                textAlign: 'right',
+                fontWeight: '700',
+                color: gameIq.mode === 'openai' ? colors.success : colors.muted,
+              }}
+            >
+              {gameIq.mode === 'openai' ? t('plays.gameIqModeOpenAI') : t('plays.gameIqModeOffline')}
+              {play.gameIqJson ? ` · ${t('plays.gameIqCached')}` : ''}
+            </Text>
+            <Text style={{ textAlign: 'right', marginTop: 8, fontWeight: '600' }}>{gameIq.summary}</Text>
+            {(isCoach || !isPlayer) && (
+              <>
+                <Text style={[styles.section, { marginTop: 12 }]}>{t('plays.gameIqCoach')}</Text>
+                {gameIq.coachBullets.map((b, i) => (
+                  <Text key={`c-${i}`} style={{ textAlign: 'right', marginBottom: 4 }}>
+                    • {b}
+                  </Text>
+                ))}
+              </>
+            )}
+            <Text style={[styles.section, { marginTop: 12 }]}>{t('plays.gameIqPlayer')}</Text>
+            {gameIq.playerBullets.map((b, i) => (
+              <Text key={`p-${i}`} style={{ textAlign: 'right', marginBottom: 4 }}>
+                • {b}
+              </Text>
+            ))}
+          </View>
+        ) : (
+          <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 10 }}>
+            {t('plays.gameIqEmpty')}
+          </Text>
+        )}
+      </View>
 
       {/*
         Court taps must beat the parent ScrollView. Use Pressable for hit-testing,
