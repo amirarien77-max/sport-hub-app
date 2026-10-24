@@ -9,11 +9,17 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { Pressable } from 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import { t } from '@/i18n';
 import type { BoardArrow, BoardMarker } from '@/lib/tactical-live';
 import { rtlRowDirection, rtlText, useTheme } from '@/theme/ThemeContext';
+
+/**
+ * Fullscreen editor chrome (tools / save / clear / back) uses RN Pressable.
+ * RNGH Pressable often does not receive taps inside React Native Modal.
+ */
+const ModalPressable = RNPressable;
 
 export type CourtTool = 'marker' | 'arrow';
 
@@ -49,20 +55,69 @@ function makeArrowId() {
   return `a-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function localPct(
-  pageX: number,
-  pageY: number,
+function clampPct(n: number) {
+  return Math.min(100, Math.max(0, Math.round(n)));
+}
+
+/**
+ * Map a touch to court % coords inside the forced-LTR court.
+ * Web: page − sync getBoundingClientRect origin (locationX can skew under html dir=rtl).
+ * Native: locationX/Y on the LTR court responder, else page − origin.
+ */
+function touchToPct(
+  ne: {
+    locationX?: number;
+    locationY?: number;
+    pageX?: number;
+    pageY?: number;
+  },
   origin: { x: number; y: number },
   size: { w: number; h: number },
 ) {
-  const localX = pageX - origin.x;
-  const localY = pageY - origin.y;
+  const hasPage =
+    typeof ne.pageX === 'number' &&
+    Number.isFinite(ne.pageX) &&
+    typeof ne.pageY === 'number' &&
+    Number.isFinite(ne.pageY);
+  const hasLoc =
+    typeof ne.locationX === 'number' &&
+    Number.isFinite(ne.locationX) &&
+    typeof ne.locationY === 'number' &&
+    Number.isFinite(ne.locationY);
+
+  let localX: number;
+  let localY: number;
+  if (Platform.OS === 'web' && hasPage) {
+    localX = (ne.pageX as number) - origin.x;
+    localY = (ne.pageY as number) - origin.y;
+  } else if (hasLoc) {
+    localX = ne.locationX as number;
+    localY = ne.locationY as number;
+  } else if (hasPage) {
+    localX = (ne.pageX as number) - origin.x;
+    localY = (ne.pageY as number) - origin.y;
+  } else {
+    localX = 0;
+    localY = 0;
+  }
   return {
-    x: Math.min(100, Math.max(0, Math.round((localX / size.w) * 100))),
-    y: Math.min(100, Math.max(0, Math.round((localY / size.h) * 100))),
+    x: clampPct((localX / size.w) * 100),
+    y: clampPct((localY / size.h) * 100),
     localX,
     localY,
   };
+}
+
+/** Sync window origin — web getBoundingClientRect; else last measureInWindow. */
+function readOriginSync(
+  node: { measureInWindow?: (cb: (x: number, y: number) => void) => void } | null,
+  fallback: { x: number; y: number },
+): { x: number; y: number } {
+  if (Platform.OS === 'web' && node && typeof (node as HTMLElement).getBoundingClientRect === 'function') {
+    const r = (node as HTMLElement).getBoundingClientRect();
+    return { x: r.left, y: r.top };
+  }
+  return { ...fallback };
 }
 
 /** Half-court line art — baseline at bottom, midcourt at top (matches reference template). */
@@ -266,19 +321,20 @@ function CourtSurface({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const courtRef = useRef<any>(null);
   const originRef = useRef({ x: 0, y: 0 });
+  /** Origin snapshot for the active gesture — must stay fixed for start/move/release. */
+  const gestureOriginRef = useRef({ x: 0, y: 0 });
   const dragStartRef = useRef<{ x: number; y: number; localX: number; localY: number } | null>(
     null,
   );
   const [dragDraft, setDragDraft] = useState<DragDraft | null>(null);
   const line = 'rgba(232,245,233,0.88)';
 
-  const refreshOrigin = (cb?: (ox: number, oy: number) => void) => {
+  const refreshOrigin = () => {
     const node = courtRef.current as {
       measureInWindow?: (cb: (x: number, y: number) => void) => void;
     } | null;
     node?.measureInWindow?.((x, y) => {
       originRef.current = { x, y };
-      cb?.(x, y);
     });
   };
 
@@ -307,9 +363,12 @@ function CourtSurface({
     setDragDraft(null);
   };
 
+  const captureArrowMoves = editable && tool === 'arrow';
+
   return (
     <View
       ref={courtRef}
+      collapsable={false}
       {...(Platform.OS === 'web' ? { dir: 'ltr' as const } : null)}
       style={[
         styles.court,
@@ -317,18 +376,23 @@ function CourtSurface({
         Platform.OS !== 'web' ? ({ direction: 'ltr' } as const) : null,
       ]}
       onLayout={onLayout}
+      // Capture before children / parent ScrollView so press→drag→release works.
       onStartShouldSetResponder={() => true}
-      onMoveShouldSetResponder={() => editable && tool === 'arrow'}
+      onStartShouldSetResponderCapture={() => captureArrowMoves}
+      onMoveShouldSetResponder={() => captureArrowMoves}
+      onMoveShouldSetResponderCapture={() => captureArrowMoves}
       onResponderTerminationRequest={() => false}
       onResponderGrant={(evt) => {
         const ne = evt.nativeEvent;
-        // Use last measured origin synchronously so drag start isn't lost to async measure.
-        refreshOrigin();
         if (!editable) {
           onOpenFullscreen?.();
           return;
         }
-        const p = localPct(ne.pageX, ne.pageY, originRef.current, size);
+        // Sync lock origin for this gesture (never async-refresh mid-drag).
+        const origin = readOriginSync(courtRef.current, originRef.current);
+        originRef.current = origin;
+        gestureOriginRef.current = origin;
+        const p = touchToPct(ne, gestureOriginRef.current, size);
         dragStartRef.current = {
           x: p.x,
           y: p.y,
@@ -341,8 +405,7 @@ function CourtSurface({
       }}
       onResponderMove={(evt) => {
         if (!editable || tool !== 'arrow' || !dragStartRef.current) return;
-        const ne = evt.nativeEvent;
-        const p = localPct(ne.pageX, ne.pageY, originRef.current, size);
+        const p = touchToPct(evt.nativeEvent, gestureOriginRef.current, size);
         setDragDraft({
           x1: dragStartRef.current.x,
           y1: dragStartRef.current.y,
@@ -356,8 +419,7 @@ function CourtSurface({
         if (!editable) return;
 
         if (tool === 'arrow') {
-          const ne = evt.nativeEvent;
-          const p = localPct(ne.pageX, ne.pageY, originRef.current, size);
+          const p = touchToPct(evt.nativeEvent, gestureOriginRef.current, size);
           const draft: DragDraft = start
             ? { x1: start.x, y1: start.y, x2: p.x, y2: p.y }
             : dragDraft ?? { x1: p.x, y1: p.y, x2: p.x, y2: p.y };
@@ -367,8 +429,7 @@ function CourtSurface({
 
         // Marker: treat as tap if finger barely moved.
         if (!start) return;
-        const ne = evt.nativeEvent;
-        const p = localPct(ne.pageX, ne.pageY, originRef.current, size);
+        const p = touchToPct(evt.nativeEvent, gestureOriginRef.current, size);
         const moved =
           Math.abs(p.localX - start.localX) + Math.abs(p.localY - start.localY);
         if (moved < 14) {
@@ -464,7 +525,7 @@ export function CourtBoard(props: CourtBoardProps) {
   const toolbar = editable && variant === 'fullscreen' ? (
     <View style={styles.toolbar}>
       <View style={[styles.toolRow, { flexDirection: rtlRowDirection }]}>
-        <Pressable
+        <ModalPressable
           onPress={() => onToolChange?.('marker')}
           style={[
             styles.toolChip,
@@ -481,8 +542,8 @@ export function CourtBoard(props: CourtBoardProps) {
           >
             {t('plays.toolMarker')}
           </Text>
-        </Pressable>
-        <Pressable
+        </ModalPressable>
+        <ModalPressable
           onPress={() => onToolChange?.('arrow')}
           style={[
             styles.toolChip,
@@ -499,7 +560,7 @@ export function CourtBoard(props: CourtBoardProps) {
           >
             {t('plays.toolArrow')}
           </Text>
-        </Pressable>
+        </ModalPressable>
       </View>
       <Text style={[styles.toolHint, rtlText, { color: colors.muted }]}>
         {tool === 'arrow' ? t('plays.arrowHint') : t('plays.courtHintCoach')}
@@ -510,22 +571,22 @@ export function CourtBoard(props: CourtBoardProps) {
   const actions =
     editable && variant === 'fullscreen' ? (
       <View style={[styles.actionRow, { flexDirection: rtlRowDirection }]}>
-        <Pressable
+        <ModalPressable
           onPress={onClear}
           style={[styles.actionBtn, { backgroundColor: colors.muted }]}
           accessibilityRole="button"
           accessibilityLabel={t('plays.clearBoard')}
         >
           <Text style={styles.actionBtnText}>{t('plays.clearBoard')}</Text>
-        </Pressable>
-        <Pressable
+        </ModalPressable>
+        <ModalPressable
           onPress={onSave}
           style={[styles.actionBtn, { backgroundColor: colors.primary }]}
           accessibilityRole="button"
           accessibilityLabel={t('plays.saveBoard')}
         >
           <Text style={styles.actionBtnText}>{t('plays.saveBoard')}</Text>
-        </Pressable>
+        </ModalPressable>
       </View>
     ) : null;
 
@@ -604,8 +665,6 @@ export function CourtEditorModal({
     onNextLabel(nextMarkerLabel(next));
   };
 
-  const Btn = Platform.OS === 'web' ? RNPressable : Pressable;
-
   return (
     <Modal
       visible={visible}
@@ -613,46 +672,49 @@ export function CourtEditorModal({
       presentationStyle="fullScreen"
       onRequestClose={onClose}
     >
-      <View style={[styles.modalRoot, { backgroundColor: colors.background }]}>
-        <View style={styles.modalHeader}>
-          <Btn
-            onPress={onClose}
-            accessibilityRole="button"
-            accessibilityLabel={t('plays.courtEditorBack')}
-            hitSlop={12}
-            style={styles.headerBtn}
-          >
-            <Text style={[{ color: colors.primary, fontWeight: '700' }, rtlText]}>
-              ← {t('plays.courtEditorBack')}
+      {/* Modal mounts outside root GH tree — re-wrap so touches work on native. */}
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <View style={[styles.modalRoot, { backgroundColor: colors.background }]}>
+          <View style={styles.modalHeader}>
+            <ModalPressable
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel={t('plays.courtEditorBack')}
+              hitSlop={12}
+              style={styles.headerBtn}
+            >
+              <Text style={[{ color: colors.primary, fontWeight: '700' }, rtlText]}>
+                ← {t('plays.courtEditorBack')}
+              </Text>
+            </ModalPressable>
+            <Text style={[styles.modalTitle, rtlText, { color: colors.primary }]}>
+              {t('plays.courtEditorTitle')}
             </Text>
-          </Btn>
-          <Text style={[styles.modalTitle, rtlText, { color: colors.primary }]}>
-            {t('plays.courtEditorTitle')}
-          </Text>
+          </View>
+          <CourtBoard
+            variant="fullscreen"
+            height={courtHeight}
+            markers={markers}
+            arrows={arrows}
+            editable={editable}
+            tool={tool}
+            onToolChange={setTool}
+            onAddMarker={addMarker}
+            onRemoveMarker={removeMarker}
+            onAddArrow={(a) => onChangeArrows([...arrows, a].slice(-20))}
+            onRemoveArrow={(id) => onChangeArrows(arrows.filter((x) => x.id !== id))}
+            onClear={() => {
+              onChangeMarkers([]);
+              onChangeArrows([]);
+              onNextLabel(1);
+            }}
+            onSave={() => {
+              onSave();
+              onClose();
+            }}
+          />
         </View>
-        <CourtBoard
-          variant="fullscreen"
-          height={courtHeight}
-          markers={markers}
-          arrows={arrows}
-          editable={editable}
-          tool={tool}
-          onToolChange={setTool}
-          onAddMarker={addMarker}
-          onRemoveMarker={removeMarker}
-          onAddArrow={(a) => onChangeArrows([...arrows, a].slice(-20))}
-          onRemoveArrow={(id) => onChangeArrows(arrows.filter((x) => x.id !== id))}
-          onClear={() => {
-            onChangeMarkers([]);
-            onChangeArrows([]);
-            onNextLabel(1);
-          }}
-          onSave={() => {
-            onSave();
-            onClose();
-          }}
-        />
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -668,8 +730,9 @@ const styles = StyleSheet.create({
   },
   courtFill: {
     flex: 1,
+    flexShrink: 1,
     marginTop: 8,
-    minHeight: 280,
+    minHeight: 200,
   },
   courtLabelWrap: {
     position: 'absolute',
@@ -716,6 +779,7 @@ const styles = StyleSheet.create({
   toolbar: {
     marginTop: 4,
     gap: 8,
+    flexShrink: 0,
   },
   toolRow: {
     flexWrap: 'wrap',
@@ -735,6 +799,8 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 12,
     marginBottom: 8,
+    flexShrink: 0,
+    zIndex: 5,
   },
   actionBtn: {
     flex: 1,
@@ -751,15 +817,18 @@ const styles = StyleSheet.create({
   fullscreenBody: {
     flex: 1,
     paddingHorizontal: 12,
+    minHeight: 0,
   },
   modalRoot: {
     flex: 1,
     paddingTop: Platform.OS === 'ios' ? 52 : 24,
     paddingBottom: 16,
+    minHeight: 0,
   },
   modalHeader: {
     paddingHorizontal: 16,
     gap: 6,
+    flexShrink: 0,
   },
   headerBtn: {
     alignSelf: 'flex-end',
