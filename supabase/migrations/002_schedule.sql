@@ -1,4 +1,7 @@
--- Schedule, Dual-Ack, attendance, carpool (PRD Module 2)
+-- =============================================================================
+-- 002_schedule: לו״ז, Dual-Ack (event_rsvps), נוכחות, carpool, feed דחוף (מודול 2).
+-- כתיבות live נוספות ב־006; RPC carpool ב־007.
+-- =============================================================================
 
 CREATE TYPE event_type AS ENUM ('practice', 'game');
 CREATE TYPE rsvp_choice AS ENUM ('attending', 'not_attending');

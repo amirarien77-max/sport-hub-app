@@ -1,3 +1,10 @@
+/**
+ * Game IQ — תובנות מאמן/שחקן לתרגיל טקטי.
+ *
+ * זרימה: Edge Function `game-iq` (OPENAI_API_KEY בשרת) → אם חסר מפתח /
+ * פונקציה / רשת → `buildOfflineGameIq` בעברית (אותו shape). לעולם לא
+ * לשבור את מסך התרגילים בגלל AI.
+ */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PlayAssignment, TacticalPlay } from '@/types';
 

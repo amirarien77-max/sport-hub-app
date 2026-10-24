@@ -1,3 +1,8 @@
+/**
+ * שער ניווט ראשוני אחרי authReady:
+ * onboarded → לו״ז | אין auth (live) → התחברות | אין הזמנה → invite | אחרת → פרופיל.
+ * מחכים ל־authReady כדי לא לשלוח מאמן ל־invite לפני ש־hydrate סיים.
+ */
 import { ActivityIndicator, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { isDemoMode } from '@/lib/supabase';

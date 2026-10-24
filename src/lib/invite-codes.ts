@@ -1,3 +1,8 @@
+/**
+ * קודי הזמנה לדמו הפועל ירושלים.
+ * אחרי מיתוג מחדש הקוד הקנוני הוא HAP-U16-2026; MAC-U16-2026 נשאר alias
+ * כדי שלא ישברו קישורים/בדיקות ישנים. תמיד לעבור דרך normalizeInviteCode.
+ */
 /** Canonical demo invite for הפועל ירושלים. Legacy MAC code still works as alias. */
 export const DEMO_INVITE_CODE = 'HAP-U16-2026';
 export const DEMO_INVITE_LEGACY_ALIAS = 'MAC-U16-2026';

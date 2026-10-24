@@ -1,3 +1,7 @@
+/**
+ * הזנת קוד הזמנה — מפעיל מיתוג מועדון (setBrand) ומאפשר מסך פרופיל.
+ * בדמו מציגים רמז ל־HAP-U16-2026; ב־live מחפשים teams.invite_code.
+ */
 import { useState } from 'react';
 import {
   ActivityIndicator,

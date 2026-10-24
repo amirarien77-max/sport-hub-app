@@ -1,5 +1,7 @@
--- Module 3 live: water 0–24 cap, dynamic fitness/physio staff flags,
--- health RLS via SECURITY DEFINER helpers (parents never get medical SELECT).
+-- =============================================================================
+-- 009_module3_health_live: תקרת water 0–24, סנכרון flags כושר/פיזיו,
+-- RLS בריאות (הורים ללא SELECT רפואי). תואם coachHealthAccess באפליקציה.
+-- =============================================================================
 
 -- ── Water liters upper bound (match app 0–24) ────────────────────────────────
 ALTER TABLE readiness_reports
