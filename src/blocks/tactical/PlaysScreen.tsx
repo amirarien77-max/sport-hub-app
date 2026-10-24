@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Keyboard,
   LayoutChangeEvent,
-  Pressable,
+  Platform,
+  Pressable as RNPressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 import { t, translateSuggestionStatus } from '@/i18n';
 import { isTacticalCoach } from '@/lib/roles';
 import {
@@ -18,7 +21,7 @@ import {
 } from '@/lib/tactical-live';
 import { useSession } from '@/session/SessionContext';
 import { layout, useTheme } from '@/theme/ThemeContext';
-import type { TacticalPlay } from '@/types';
+import type { PlayAssignment, TacticalPlay } from '@/types';
 
 /** Prefer inline UI feedback — Alert.alert is a no-op on react-native-web. */
 function showResult(
@@ -27,7 +30,7 @@ function showResult(
   if (!result || result.ok) return;
   const msg = t('plays.saveFailed', { error: result.error });
   console.warn(msg);
-  Alert.alert(t('plays.title'), msg);
+  if (Platform.OS !== 'web') Alert.alert(t('plays.title'), msg);
 }
 
 function nextMarkerLabel(markers: BoardMarker[]): number {
@@ -61,6 +64,7 @@ export function PlaysScreen() {
 
   const [selectedPlayId, setSelectedPlayId] = useState<string | null>(null);
   const [answerDrafts, setAnswerDrafts] = useState<Record<string, string>>({});
+  const [answerStatus, setAnswerStatus] = useState<Record<string, string>>({});
   const [suggestionDraft, setSuggestionDraft] = useState('');
   const [newPlayTitle, setNewPlayTitle] = useState('');
   const [mediaDraft, setMediaDraft] = useState('');
@@ -72,10 +76,27 @@ export function PlaysScreen() {
   const [nextLabel, setNextLabel] = useState(1);
   const [creatingPlay, setCreatingPlay] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [createOk, setCreateOk] = useState<string | null>(null);
+  const [assignFeedback, setAssignFeedback] = useState<string | null>(null);
 
   const isCoach = isTacticalCoach(user?.role);
+  const isPlayer = user?.role === 'player';
   const feedBlocked = user?.consentStatus === 'pending_parental_consent';
   const selectedPlay = plays.find((p) => p.id === selectedPlayId) ?? null;
+
+  const myAssignments = useMemo(() => {
+    if (!isPlayer || !user) return [] as (PlayAssignment & { playTitle: string })[];
+    const titleById = Object.fromEntries(plays.map((p) => [p.id, p.title]));
+    return assignments
+      .filter((a) => a.playerId === user.id)
+      .map((a) => ({ ...a, playTitle: titleById[a.playId] ?? t('plays.title') }))
+      .sort((a, b) => {
+        const aDone = Boolean(a.playerAnswer?.trim());
+        const bDone = Boolean(b.playerAnswer?.trim());
+        if (aDone === bDone) return 0;
+        return aDone ? 1 : -1;
+      });
+  }, [assignments, isPlayer, plays, user]);
 
   useEffect(() => {
     if (!selectedPlay) {
@@ -89,6 +110,7 @@ export function PlaysScreen() {
     setNextLabel(nextMarkerLabel(markers));
     setMediaDraft(selectedPlay.mediaUrl ?? '');
     setSuggestionDraft('');
+    setAssignFeedback(null);
   }, [selectedPlay?.id, selectedPlay?.boardJson, selectedPlay?.mediaUrl]);
 
   useEffect(() => {
@@ -107,10 +129,10 @@ export function PlaysScreen() {
   );
   const mySuggestions = useMemo(
     () =>
-      selectedPlay && user?.role === 'player'
+      selectedPlay && isPlayer && user
         ? playSuggestions.filter((s) => s.playerId === user.id)
         : [],
-    [playSuggestions, selectedPlay, user],
+    [isPlayer, playSuggestions, selectedPlay, user],
   );
 
   const onCourtLayout = (e: LayoutChangeEvent) => {
@@ -141,9 +163,97 @@ export function PlaysScreen() {
       selectedPlay.id,
       serializeBoardJson({ markers: localMarkers }),
     );
-    if (result.ok) Alert.alert(t('plays.savedOk'));
-    else showResult(result);
+    if (result.ok) {
+      setAssignFeedback(t('plays.savedOk'));
+      if (Platform.OS !== 'web') Alert.alert(t('plays.savedOk'));
+    } else showResult(result);
   };
+
+  const savePlayerAnswer = async (assignmentId: string) => {
+    setAnswerStatus((s) => ({ ...s, [assignmentId]: '' }));
+    const draft = answerDrafts[assignmentId] ?? '';
+    const result = await answerAssignment(assignmentId, draft);
+    if (!result || result.ok) {
+      setAnswerStatus((s) => ({ ...s, [assignmentId]: t('plays.answerSaved') }));
+      if (Platform.OS !== 'web') Alert.alert(t('plays.title'), t('plays.answerSaved'));
+    } else {
+      setAnswerStatus((s) => ({
+        ...s,
+        [assignmentId]: t('plays.saveFailed', { error: result.error }),
+      }));
+      showResult(result);
+    }
+  };
+
+  const handleCreatePlay = async () => {
+    Keyboard.dismiss();
+    setCreateError(null);
+    setCreateOk(null);
+    setCreatingPlay(true);
+    try {
+      const result = await createPlay(newPlayTitle);
+      if (result.ok) {
+        setNewPlayTitle('');
+        setCreateOk(t('plays.createPlaySuccess'));
+        setSelectedPlayId(result.playId);
+        if (Platform.OS !== 'web') Alert.alert(t('plays.title'), t('plays.createPlaySuccess'));
+      } else {
+        setCreateError(result.error);
+        showResult(result);
+      }
+    } finally {
+      setCreatingPlay(false);
+    }
+  };
+
+  const renderAnswerEditor = (a: PlayAssignment, showPlayTitle?: string) => (
+    <View key={a.id} style={styles.assign}>
+      {showPlayTitle ? (
+        <Text style={{ fontWeight: '700', color: colors.primary, textAlign: 'right' }}>
+          {showPlayTitle}
+        </Text>
+      ) : null}
+      <Text style={{ fontWeight: '800', textAlign: 'right', marginTop: showPlayTitle ? 4 : 0 }}>
+        {t('plays.pos', { pos: a.positionName, name: a.playerName })}
+      </Text>
+      <Text style={{ color: colors.muted, marginTop: 4, textAlign: 'right' }}>
+        {a.actionPromptQuestion}
+      </Text>
+      <TextInput
+        textAlign="right"
+        value={answerDrafts[a.id] ?? a.playerAnswer ?? ''}
+        onChangeText={(txt) => {
+          setAnswerDrafts((d) => ({ ...d, [a.id]: txt }));
+          if (answerStatus[a.id]) setAnswerStatus((s) => ({ ...s, [a.id]: '' }));
+        }}
+        placeholder={t('plays.answerPlaceholder')}
+        placeholderTextColor={colors.muted}
+        multiline
+        style={[styles.input, styles.answerInput, { borderColor: colors.primary }]}
+        accessibilityLabel={t('plays.answerPlaceholder')}
+      />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t('plays.saveAnswer')}
+        onPress={() => void savePlayerAnswer(a.id)}
+        style={[layout.button, { backgroundColor: colors.secondary, marginTop: 8 }]}
+      >
+        <Text style={[layout.buttonText, { color: colors.primary }]}>{t('plays.saveAnswer')}</Text>
+      </Pressable>
+      {answerStatus[a.id] ? (
+        <Text
+          style={{
+            marginTop: 6,
+            textAlign: 'right',
+            fontWeight: '600',
+            color: answerStatus[a.id] === t('plays.answerSaved') ? colors.success : colors.danger,
+          }}
+        >
+          {answerStatus[a.id]}
+        </Text>
+      ) : null}
+    </View>
+  );
 
   const renderList = () => (
     <>
@@ -169,6 +279,22 @@ export function PlaysScreen() {
         </View>
       )}
 
+      {isPlayer ? (
+        <View style={[styles.card, { borderColor: colors.secondary }]}>
+          <Text style={styles.playTitle}>{t('plays.myActionTasks')}</Text>
+          <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
+            {t('plays.myActionTasksHint')}
+          </Text>
+          {myAssignments.length === 0 ? (
+            <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 10 }}>
+              {t('plays.noMyAssignments')}
+            </Text>
+          ) : (
+            myAssignments.map((a) => renderAnswerEditor(a, a.playTitle))
+          )}
+        </View>
+      ) : null}
+
       <Text style={[styles.section, { color: colors.primary }]}>{t('plays.listTitle')}</Text>
 
       {isCoach ? (
@@ -183,10 +309,13 @@ export function PlaysScreen() {
             onChangeText={(txt) => {
               setNewPlayTitle(txt);
               if (createError) setCreateError(null);
+              if (createOk) setCreateOk(null);
             }}
             placeholder={t('plays.createPlayPlaceholder')}
             placeholderTextColor={colors.muted}
             editable={!creatingPlay}
+            returnKeyType="done"
+            onSubmitEditing={() => void handleCreatePlay()}
             style={[styles.input, { borderColor: colors.primary }]}
           />
           {createError ? (
@@ -194,43 +323,58 @@ export function PlaysScreen() {
               {createError}
             </Text>
           ) : null}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('plays.createPlaySubmit')}
-            disabled={creatingPlay}
-            hitSlop={8}
-            onPress={() => {
-              void (async () => {
-                setCreateError(null);
-                setCreatingPlay(true);
-                try {
-                  const result = await createPlay(newPlayTitle);
-                  if (result.ok) {
-                    setNewPlayTitle('');
-                    setSelectedPlayId(result.playId);
-                    Alert.alert(t('plays.title'), t('plays.savedOk'));
-                  } else {
-                    setCreateError(result.error);
-                    showResult(result);
-                  }
-                } finally {
-                  setCreatingPlay(false);
-                }
-              })();
-            }}
-            style={[
-              layout.button,
-              {
-                backgroundColor: creatingPlay ? colors.muted : colors.primary,
-                marginTop: 8,
-                opacity: creatingPlay ? 0.85 : 1,
-              },
-            ]}
-          >
-            <Text style={[layout.buttonText, { color: '#fff' }]}>
-              {creatingPlay ? t('plays.creatingPlay') : t('plays.createPlaySubmit')}
+          {createOk ? (
+            <Text style={{ color: colors.success, marginTop: 8, textAlign: 'right', fontWeight: '600' }}>
+              {createOk}
             </Text>
-          </Pressable>
+          ) : null}
+          {/*
+            Gesture-handler Pressable is reliable inside ScrollView on native/Expo Go.
+            On web, RN Pressable avoids GH pointer quirks.
+          */}
+          {Platform.OS === 'web' ? (
+            <RNPressable
+              accessibilityRole="button"
+              accessibilityLabel={t('plays.createPlaySubmit')}
+              disabled={creatingPlay}
+              hitSlop={12}
+              onPress={() => void handleCreatePlay()}
+              style={[
+                layout.button,
+                {
+                  backgroundColor: creatingPlay ? colors.muted : colors.primary,
+                  marginTop: 8,
+                  opacity: creatingPlay ? 0.85 : 1,
+                  minHeight: 52,
+                },
+              ]}
+            >
+              <Text style={[layout.buttonText, { color: '#fff' }]}>
+                {creatingPlay ? t('plays.creatingPlay') : t('plays.createPlaySubmit')}
+              </Text>
+            </RNPressable>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('plays.createPlaySubmit')}
+              disabled={creatingPlay}
+              hitSlop={12}
+              onPress={() => void handleCreatePlay()}
+              style={[
+                layout.button,
+                {
+                  backgroundColor: creatingPlay ? colors.muted : colors.primary,
+                  marginTop: 8,
+                  opacity: creatingPlay ? 0.85 : 1,
+                  minHeight: 52,
+                },
+              ]}
+            >
+              <Text style={[layout.buttonText, { color: '#fff' }]}>
+                {creatingPlay ? t('plays.creatingPlay') : t('plays.createPlaySubmit')}
+              </Text>
+            </Pressable>
+          )}
         </View>
       ) : (
         <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 8 }}>
@@ -249,6 +393,13 @@ export function PlaysScreen() {
           key={play.id}
           play={play}
           colors={colors}
+          assignmentHint={
+            isPlayer && user
+              ? assignments.filter((a) => a.playId === play.id && a.playerId === user.id).length
+              : isCoach
+                ? assignments.filter((a) => a.playId === play.id).length
+                : 0
+          }
           onOpen={() => setSelectedPlayId(play.id)}
         />
       ))}
@@ -265,6 +416,11 @@ export function PlaysScreen() {
 
       <Text style={[layout.title, { color: colors.primary }]}>{play.title}</Text>
       <Text style={[layout.subtitle, { color: colors.muted }]}>{t('plays.gameIqStub')}</Text>
+      {createOk && selectedPlayId === play.id ? (
+        <Text style={{ color: colors.success, fontWeight: '700', textAlign: 'right', marginBottom: 8 }}>
+          {createOk}
+        </Text>
+      ) : null}
 
       {/*
         Court taps must beat the parent ScrollView. Use Pressable for hit-testing,
@@ -278,7 +434,7 @@ export function PlaysScreen() {
         onMoveShouldSetResponder={() => false}
         onResponderTerminationRequest={() => false}
       >
-        <Pressable
+        <RNPressable
           disabled={!isCoach}
           onPress={(evt) => {
             const { locationX, locationY } = evt.nativeEvent;
@@ -296,7 +452,7 @@ export function PlaysScreen() {
         <View pointerEvents="none" style={styles.paint} />
         <View pointerEvents="none" style={styles.ftLine} />
         {localMarkers.map((m, idx) => (
-          <Pressable
+          <RNPressable
             key={`${m.label}-${idx}-${m.x}-${m.y}`}
             disabled={!isCoach}
             onPress={() => removeMarker(idx)}
@@ -312,7 +468,7 @@ export function PlaysScreen() {
             ]}
           >
             <Text style={{ fontWeight: '800', color: colors.primary }}>{m.label}</Text>
-          </Pressable>
+          </RNPressable>
         ))}
       </View>
       {isCoach ? (
@@ -388,44 +544,35 @@ export function PlaysScreen() {
       ) : null}
 
       <Text style={styles.section}>{t('plays.assignments')}</Text>
-      {playAssignments.map((a) => (
-        <View key={a.id} style={styles.assign}>
-          <Text style={{ fontWeight: '800', textAlign: 'right' }}>
-            {t('plays.pos', { pos: a.positionName, name: a.playerName })}
-          </Text>
-          <Text style={{ color: colors.muted, marginTop: 4, textAlign: 'right' }}>
-            {a.actionPromptQuestion}
-          </Text>
-          {user?.role === 'player' && a.playerId === user.id ? (
-            <>
-              <TextInput
-                textAlign="right"
-                value={answerDrafts[a.id] ?? a.playerAnswer ?? ''}
-                onChangeText={(txt) => setAnswerDrafts((d) => ({ ...d, [a.id]: txt }))}
-                placeholder={t('plays.answerPlaceholder')}
-                placeholderTextColor={colors.muted}
-                style={[styles.input, { borderColor: colors.primary }]}
-              />
-              <Pressable
-                onPress={async () =>
-                  showResult(await answerAssignment(a.id, answerDrafts[a.id] ?? ''))
-                }
-                style={[layout.button, { backgroundColor: colors.secondary, marginTop: 8 }]}
-              >
-                <Text style={[layout.buttonText, { color: colors.primary }]}>
-                  {t('plays.saveAnswer')}
-                </Text>
-              </Pressable>
-            </>
-          ) : (
-            <Text style={{ marginTop: 6, textAlign: 'right' }}>
+      {playAssignments.length === 0 ? (
+        <Text style={{ color: colors.muted, textAlign: 'right' }}>{t('plays.emptyAssignments')}</Text>
+      ) : null}
+      {playAssignments.map((a) =>
+        isPlayer && user && a.playerId === user.id ? (
+          renderAnswerEditor(a)
+        ) : (
+          <View key={a.id} style={styles.assign}>
+            <Text style={{ fontWeight: '800', textAlign: 'right' }}>
+              {t('plays.pos', { pos: a.positionName, name: a.playerName })}
+            </Text>
+            <Text style={{ color: colors.muted, marginTop: 4, textAlign: 'right' }}>
+              {a.actionPromptQuestion}
+            </Text>
+            <Text
+              style={{
+                marginTop: 6,
+                textAlign: 'right',
+                fontWeight: '700',
+                color: a.playerAnswer?.trim() ? colors.success : colors.muted,
+              }}
+            >
               {t('plays.answer', {
-                answer: a.playerAnswer ?? t('plays.waiting'),
+                answer: a.playerAnswer?.trim() ? a.playerAnswer : t('plays.waiting'),
               })}
             </Text>
-          )}
-        </View>
-      ))}
+          </View>
+        ),
+      )}
 
       {isCoach ? (
         <View style={[styles.card, { borderColor: colors.primary }]}>
@@ -433,6 +580,11 @@ export function PlaysScreen() {
           <Text style={{ color: colors.muted, textAlign: 'right', marginBottom: 6 }}>
             {t('plays.pickPlayer')}
           </Text>
+          {tacticalPlayers.length === 0 ? (
+            <Text style={{ color: colors.danger, textAlign: 'right', marginBottom: 8 }}>
+              {t('plays.noPlayersForAssign')}
+            </Text>
+          ) : null}
           <View style={styles.chipRow}>
             {tacticalPlayers.map((p) => (
               <Pressable
@@ -473,8 +625,14 @@ export function PlaysScreen() {
             placeholderTextColor={colors.muted}
             style={[styles.input, { borderColor: colors.primary }]}
           />
+          {assignFeedback ? (
+            <Text style={{ color: colors.success, marginTop: 8, textAlign: 'right', fontWeight: '600' }}>
+              {assignFeedback}
+            </Text>
+          ) : null}
           <Pressable
             onPress={async () => {
+              setAssignFeedback(null);
               const result = await createAssignment({
                 playId: play.id,
                 playerId: selectedPlayerId,
@@ -484,7 +642,8 @@ export function PlaysScreen() {
               showResult(result);
               if (result.ok) {
                 setPromptDraft('');
-                Alert.alert(t('plays.savedOk'));
+                setAssignFeedback(t('plays.assignmentSaved'));
+                if (Platform.OS !== 'web') Alert.alert(t('plays.savedOk'));
               }
             }}
             style={[layout.button, { backgroundColor: colors.primary, marginTop: 8 }]}
@@ -494,7 +653,7 @@ export function PlaysScreen() {
         </View>
       ) : null}
 
-      {user?.role === 'player' && play.allowSuggestions && !feedBlocked ? (
+      {isPlayer && play.allowSuggestions && !feedBlocked ? (
         <>
           <Text style={styles.section}>{t('plays.suggestChange')}</Text>
           <TextInput
@@ -518,13 +677,13 @@ export function PlaysScreen() {
         </>
       ) : null}
 
-      {user?.role === 'player' && !play.allowSuggestions ? (
+      {isPlayer && !play.allowSuggestions ? (
         <Text style={{ marginTop: 10, color: colors.muted, textAlign: 'right' }}>
           {t('plays.suggestionsDisabled')}
         </Text>
       ) : null}
 
-      {user?.role === 'player' && mySuggestions.length > 0 ? (
+      {isPlayer && mySuggestions.length > 0 ? (
         <>
           <Text style={styles.section}>{t('plays.mySuggestions')}</Text>
           {mySuggestions.map((s) => (
@@ -575,6 +734,7 @@ export function PlaysScreen() {
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={layout.scrollContent}
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
     >
       {selectedPlay ? renderDetail(selectedPlay) : renderList()}
     </ScrollView>
@@ -584,10 +744,12 @@ export function PlaysScreen() {
 function PlayListRow({
   play,
   colors,
+  assignmentHint,
   onOpen,
 }: {
   play: TacticalPlay;
   colors: { primary: string; muted: string; success: string };
+  assignmentHint: number;
   onOpen: () => void;
 }) {
   const markerCount = parseBoardJson(play.boardJson).markers.length;
@@ -600,6 +762,7 @@ function PlayListRow({
       <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
         {play.allowSuggestions ? t('plays.suggestionsOn') : t('plays.suggestionsOff')}
         {markerCount > 0 ? ` · ${markerCount}` : ''}
+        {assignmentHint > 0 ? ` · ${t('plays.assignmentCount', { count: assignmentHint })}` : ''}
         {play.mediaUrl ? ` · ${t('plays.mediaLinked')}` : ''}
       </Text>
       <Text style={{ color: colors.primary, fontWeight: '700', textAlign: 'right', marginTop: 8 }}>
@@ -679,6 +842,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#F8FAFC',
     marginBottom: 8,
+    marginTop: 10,
   },
   input: {
     marginTop: 8,
@@ -688,6 +852,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     backgroundColor: '#fff',
     writingDirection: 'rtl',
+  },
+  answerInput: {
+    minHeight: 72,
+    paddingVertical: 10,
+    textAlignVertical: 'top',
   },
   row: { flexDirection: 'row', gap: 8, marginTop: 10 },
   half: { flex: 1 },

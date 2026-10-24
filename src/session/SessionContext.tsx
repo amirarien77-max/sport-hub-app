@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import type { Session } from '@supabase/supabase-js';
@@ -261,10 +262,20 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [carpools, setCarpools] = useState<CarpoolOffer[]>(isDemoMode ? demoCarpools : []);
   const [banner, setBanner] = useState<UrgentBanner>(isDemoMode ? demoBanner : EMPTY_BANNER);
 
+  /** Monotonic gens so a slow hydrate fetch cannot wipe a newer create/answer. */
+  const scheduleGen = useRef(0);
+  const tacticalGen = useRef(0);
+  const healthGen = useRef(0);
+  const hydrateGenRef = useRef(0);
+  /** signIn/signUp already await hydrate — ignore the matching SIGNED_IN event. */
+  const skipNextSignedIn = useRef(false);
+
   const refreshSchedule = useCallback(async (teamId: string) => {
     if (isDemoMode || !supabase) return;
+    const gen = ++scheduleGen.current;
     try {
       const bundle = await fetchScheduleBundle(supabase, teamId);
+      if (gen !== scheduleGen.current) return;
       setEvents(bundle.events);
       setAcks(bundle.acks);
       setAttendance(bundle.attendance);
@@ -277,8 +288,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const refreshTacticalFor = useCallback(async (teamId: string) => {
     if (isDemoMode || !supabase) return;
+    const gen = ++tacticalGen.current;
     try {
       const bundle = await fetchTacticalBundle(supabase, teamId);
+      if (gen !== tacticalGen.current) return;
       setPlays(bundle.plays);
       setAssignments(bundle.assignments);
       setSuggestions(bundle.suggestions);
@@ -304,9 +317,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    const gen = ++healthGen.current;
     try {
       const asStaff = isHealthStaff(profile.role);
       const bundle = await fetchHealthBundle(supabase, { teamId, asStaff });
+      if (gen !== healthGen.current) return;
       if (profile.role === 'player') {
         setReadiness(bundle.readiness.filter((r) => r.playerId === profile.id));
         setPain(bundle.pain.filter((p) => p.playerId === profile.id));
@@ -334,10 +349,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      const myHydrate = ++hydrateGenRef.current;
       const uid = session?.user?.id ?? null;
       setAuthUserId(uid);
 
       if (!uid) {
+        if (myHydrate !== hydrateGenRef.current) return;
         setUser(null);
         setTeam(null);
         setInviteOk(false);
@@ -365,6 +382,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           .eq('auth_id', uid)
           .maybeSingle();
 
+        if (myHydrate !== hydrateGenRef.current) return;
+
         if (error) {
           console.warn('Failed to load profile', error.message);
         }
@@ -387,6 +406,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           .eq('id', mapped.teamId)
           .maybeSingle();
 
+        if (myHydrate !== hydrateGenRef.current) return;
+
         if (teamErr) {
           console.warn('Failed to load team', teamErr.message);
         }
@@ -404,6 +425,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           .select('*')
           .eq('id', mapped.clubId)
           .maybeSingle();
+
+        if (myHydrate !== hydrateGenRef.current) return;
 
         if (clubRow) {
           setBrand(mapClubRow(clubRow));
@@ -425,7 +448,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (err) {
         console.warn('hydrateFromAuth failed', err instanceof Error ? err.message : err);
-        setAuthReady(true);
+        if (myHydrate === hydrateGenRef.current) setAuthReady(true);
       }
     },
     [clearBrand, refreshHealthFor, refreshSchedule, refreshTacticalFor, setBrand],
@@ -438,23 +461,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
 
     let cancelled = false;
-    let hydrateGen = 0;
 
-    const runHydrate = (session: Session | null) => {
-      const gen = ++hydrateGen;
-      void hydrateFromAuth(session).then(() => {
-        if (cancelled || gen !== hydrateGen) return;
-      });
-    };
-
-    supabase.auth.getSession().then(({ data }) => {
-      if (!cancelled) runHydrate(data.session);
-    });
-
+    // INITIAL_SESSION covers cold start. SIGNED_IN from our signIn/signUp is skipped
+    // (those paths await hydrate). Avoid double-fetch races that wiped new plays.
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      // Ignore noisy token refresh storms; INITIAL_SESSION / SIGNED_IN / SIGNED_OUT matter.
+      if (cancelled) return;
       if (event === 'TOKEN_REFRESHED') return;
-      if (!cancelled) runHydrate(session);
+      if (event === 'SIGNED_IN' && skipNextSignedIn.current) {
+        skipNextSignedIn.current = false;
+        return;
+      }
+      void hydrateFromAuth(session);
     });
 
     return () => {
@@ -471,11 +488,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (!email.trim() || !password) {
         return { ok: false, error: t('errors.emailPasswordRequired') };
       }
+      skipNextSignedIn.current = true;
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
-      if (error) return { ok: false, error: error.message };
+      if (error) {
+        skipNextSignedIn.current = false;
+        return { ok: false, error: error.message };
+      }
       // Hydrate profile+team before navigation so index does not send coaches to invite.
       await hydrateFromAuth(data.session);
       return { ok: true };
@@ -491,11 +512,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (!email.trim() || password.length < 6) {
         return { ok: false, error: t('errors.weakPassword') };
       }
+      skipNextSignedIn.current = true;
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
       });
-      if (error) return { ok: false, error: error.message };
+      if (error) {
+        skipNextSignedIn.current = false;
+        return { ok: false, error: error.message };
+      }
       await hydrateFromAuth(data.session);
       return { ok: true };
     },
@@ -853,7 +878,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           boardJson: '{"markers":[]}',
           createdAt: new Date().toISOString(),
         };
-        setPlays((prev) => [play, ...prev]);
+        // Invalidate in-flight tactical fetches so they cannot drop this play.
+        tacticalGen.current += 1;
+        setPlays((prev) => [play, ...prev.filter((p) => p.id !== play.id)]);
         return { ok: true, playId: play.id };
       }
 
@@ -863,7 +890,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           title,
           boardJson: '{"markers":[]}',
         });
-        setPlays((prev) => [play, ...prev]);
+        // Bump gen BEFORE local write so any older refreshTacticalFor is discarded.
+        tacticalGen.current += 1;
+        setPlays((prev) => [play, ...prev.filter((p) => p.id !== play.id)]);
         return { ok: true, playId: play.id };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -900,11 +929,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const updatePlayBoard = useCallback(
     async (playId: string, boardJson: string): Promise<OkOrError> => {
       if (isDemoMode || !supabase) {
+        tacticalGen.current += 1;
         setPlays((prev) => prev.map((p) => (p.id === playId ? { ...p, boardJson } : p)));
         return { ok: true };
       }
       try {
         await updatePlayLive(supabase, playId, { boardJson });
+        tacticalGen.current += 1;
         setPlays((prev) => prev.map((p) => (p.id === playId ? { ...p, boardJson } : p)));
         return { ok: true };
       } catch (err) {
@@ -931,6 +962,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           tacticalPlayers.find((p) => p.id === input.playerId)?.fullName ??
           demoUsers.find((u) => u.id === input.playerId)?.fullName ??
           '—';
+        tacticalGen.current += 1;
         setAssignments((prev) => [
           ...prev,
           {
@@ -947,6 +979,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const row = await createAssignmentLive(supabase, input);
+        tacticalGen.current += 1;
         setAssignments((prev) => [...prev, row]);
         return { ok: true };
       } catch (err) {
@@ -987,21 +1020,35 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const answerAssignment = useCallback(
     async (assignmentId: string, answer: string): Promise<OkOrError> => {
+      const trimmed = answer.trim();
+      if (!trimmed) {
+        return { ok: false, error: t('plays.answerRequired') };
+      }
+
+      const previous = assignments.find((a) => a.id === assignmentId)?.playerAnswer;
+
+      // Prevent a stale tactical refresh from wiping the answer we are saving.
+      tacticalGen.current += 1;
       setAssignments((prev) =>
-        prev.map((a) => (a.id === assignmentId ? { ...a, playerAnswer: answer } : a)),
+        prev.map((a) => (a.id === assignmentId ? { ...a, playerAnswer: trimmed } : a)),
       );
 
       if (isDemoMode || !supabase) return { ok: true };
 
       try {
-        await answerAssignmentLive(supabase, assignmentId, answer);
+        await answerAssignmentLive(supabase, assignmentId, trimmed);
         return { ok: true };
       } catch (err) {
+        setAssignments((prev) =>
+          prev.map((a) =>
+            a.id === assignmentId ? { ...a, playerAnswer: previous } : a,
+          ),
+        );
         const message = err instanceof Error ? err.message : String(err);
         return { ok: false, error: message };
       }
     },
-    [],
+    [assignments],
   );
 
   const submitSuggestion = useCallback(
