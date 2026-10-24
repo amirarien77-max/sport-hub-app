@@ -232,6 +232,7 @@ export function PlaysScreen() {
 
   const runGameIq = async (play: TacticalPlay) => {
     setGameIqLoading(true);
+    setCreateError(null);
     try {
       const viewerRole = isCoach ? 'coach' : isPlayer ? 'player' : 'other';
       const playAssigns = assignments.filter((a) => a.playId === play.id);
@@ -249,6 +250,15 @@ export function PlaysScreen() {
             });
       setGameIq(insight);
       await cachePlayGameIq(play.id, JSON.stringify(insight));
+    } catch (err) {
+      // generateGameIq already falls back offline; this is a last-resort safety net.
+      const fallback = buildOfflineGameIq({
+        play,
+        assignments: assignments.filter((a) => a.playId === play.id),
+        viewerRole: isCoach ? 'coach' : isPlayer ? 'player' : 'other',
+      });
+      setGameIq(fallback);
+      console.warn('runGameIq', err instanceof Error ? err.message : err);
     } finally {
       setGameIqLoading(false);
     }

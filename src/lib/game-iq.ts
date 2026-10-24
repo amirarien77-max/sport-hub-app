@@ -74,15 +74,15 @@ export function buildOfflineGameIq(input: GameIqRequest): GameIqInsight {
 
   const summary =
     input.viewerRole === 'player'
-      ? `מצב אופליין (ללא OpenAI): סיכום קצר ל«${input.play.title}» לפי השיבוצים שלכם.`
-      : `מצב אופליין (ללא OpenAI): תובנות מאמן ל«${input.play.title}» לפי לוח ושיבוצים.`;
+      ? `מצב אופליין (ללא מפתח OpenAI / ללא Edge Function): סיכום קצר ל«${input.play.title}» לפי השיבוצים שלכם.`
+      : `מצב אופליין (ללא מפתח OpenAI / ללא Edge Function): תובנות מאמן ל«${input.play.title}» לפי לוח ושיבוצים.`;
 
   return {
     mode: 'offline_stub',
     playTitle: input.play.title,
     summary,
     coachBullets,
-    playerBullets,
+    playerBullets: playerBullets.slice(0, 5),
     generatedAt: new Date().toISOString(),
   };
 }

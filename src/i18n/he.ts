@@ -270,7 +270,8 @@ export const he = {
     saveMediaUrl: 'שמירת קישור',
     mediaLinked: 'מדיה מקושרת',
     mediaMissing: 'אין קישור מדיה עדיין',
-    gameIqStub: 'Game IQ — תובנות מובנות למאמן ולשחקן (OpenAI כשיש מפתח; אחרת מצב אופליין).',
+    gameIqStub:
+      'Game IQ — תובנות מובנות בעברית למאמן ולשחקן. עם Edge Function + OPENAI_API_KEY: מצב OpenAI; אחרת מצב אופליין ברור (אותו מבנה).',
     gameIqTitle: 'Game IQ',
     gameIqRun: 'הפעלת ניתוח Game IQ',
     gameIqRunning: 'מנתחים…',

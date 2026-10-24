@@ -112,7 +112,11 @@ Deno.serve(async (req) => {
       generatedAt: new Date().toISOString(),
     };
 
-    if (!insight.summary || insight.coachBullets.length === 0) {
+    if (
+      !insight.summary ||
+      insight.coachBullets.length === 0 ||
+      insight.playerBullets.length === 0
+    ) {
       return json({ mode: 'offline_stub', insight: offlineInsight(playTitle, assignments, body) });
     }
 
