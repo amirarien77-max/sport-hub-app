@@ -14,26 +14,58 @@ import {
 } from 'react-native';
 import { t, translateAbsenceReason, translateRsvp } from '@/i18n';
 import { dualAckConflict } from '@/lib/demo-data';
-import { canClaimCarpool, canSubmitRsvp, isAttendanceCoach } from '@/lib/roles';
+import { canClaimCarpool, canOfferCarpool, canSubmitRsvp, isAttendanceCoach } from '@/lib/roles';
 import { useSession } from '@/session/SessionContext';
 import { layout, rtlContainerProps, rtlLayout, rtlText, useTheme } from '@/theme/ThemeContext';
 
 export function ScheduleScreen() {
   const { colors } = useTheme();
-  const { events, acks, setRsvp, absenceReasons, user, carpools, claimCarpoolSeat, banner, acknowledgeBanner } =
-    useSession();
+  const {
+    events,
+    acks,
+    setRsvp,
+    absenceReasons,
+    user,
+    carpools,
+    claimCarpoolSeat,
+    createCarpoolOffer,
+    banner,
+    acknowledgeBanner,
+  } = useSession();
   const [sheetEventId, setSheetEventId] = useState<string | null>(null);
   const [claimingOfferId, setClaimingOfferId] = useState<string | null>(null);
+  const [offerSeats, setOfferSeats] = useState(3);
+  const [offering, setOffering] = useState(false);
 
   const coachView = isAttendanceCoach(user?.role);
   const showRsvp = canSubmitRsvp(user?.role);
   const showClaim = canClaimCarpool(user?.role);
+  const showOffer = canOfferCarpool(user?.role);
+  const offerEventId = events[0]?.id ?? null;
 
   const subtitle = coachView
     ? t('schedule.subtitleCoach')
     : user?.role === 'parent'
       ? t('schedule.subtitleParent')
       : t('schedule.subtitle');
+
+  const onCreateOffer = async () => {
+    if (!offerEventId || offering) return;
+    setOffering(true);
+    try {
+      const result = await Promise.resolve(createCarpoolOffer(offerEventId, offerSeats));
+      if (result.ok) {
+        Alert.alert(
+          t('schedule.offerSuccessTitle'),
+          t('schedule.offerSuccessBody', { available: result.offer.seatsAvailable }),
+        );
+      } else {
+        Alert.alert(t('schedule.offerErrorTitle'), t('schedule.offerErrorBody'));
+      }
+    } finally {
+      setOffering(false);
+    }
+  };
 
   /** תפיסת מושב — RPC אטומי ב־live; מונע לחיצה כפולה עם claimingOfferId. */
   const onClaimSeat = async (offerId: string, isFull: boolean) => {
@@ -194,6 +226,64 @@ export function ScheduleScreen() {
           {t('schedule.carpoolCoachHint')}
         </Text>
       ) : null}
+      {showOffer ? (
+        <View
+          {...rtlContainerProps}
+          style={[styles.card, rtlLayout.box, { borderColor: colors.primary, marginTop: 8 }]}
+        >
+          <Text style={[{ fontWeight: '800', color: colors.primary }, rtlText]}>
+            {t('schedule.offerCarpool')}
+          </Text>
+          <Text style={[{ color: colors.muted, marginTop: 4 }, rtlText]}>
+            {t('schedule.offerCarpoolHint')}
+          </Text>
+          {!offerEventId ? (
+            <Text style={[{ color: colors.muted, marginTop: 8 }, rtlText]}>
+              {t('schedule.offerNoEvent')}
+            </Text>
+          ) : (
+            <>
+              <View style={[rtlLayout.row, { marginTop: 12, alignItems: 'center' }]}>
+                <Pressable
+                  onPress={() => setOfferSeats((n) => Math.max(1, n - 1))}
+                  style={[styles.seatChip, { borderColor: colors.primary }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('schedule.offerSeatsMinus')}
+                >
+                  <Text style={[{ fontWeight: '800', color: colors.primary }, rtlText]}>−</Text>
+                </Pressable>
+                <Text style={[{ fontWeight: '700', flex: 1 }, rtlText]}>
+                  {t('schedule.offerSeats', { n: offerSeats })}
+                </Text>
+                <Pressable
+                  onPress={() => setOfferSeats((n) => Math.min(8, n + 1))}
+                  style={[styles.seatChip, { borderColor: colors.primary }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('schedule.offerSeatsPlus')}
+                >
+                  <Text style={[{ fontWeight: '800', color: colors.primary }, rtlText]}>+</Text>
+                </Pressable>
+              </View>
+              <Pressable
+                disabled={offering}
+                onPress={() => void onCreateOffer()}
+                style={[
+                  layout.button,
+                  {
+                    backgroundColor: colors.primary,
+                    marginTop: 12,
+                    opacity: offering ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Text style={[layout.buttonText, { color: '#fff' }]}>
+                  {offering ? t('schedule.offerCreating') : t('schedule.offerCreate')}
+                </Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+      ) : null}
       {carpools.length === 0 ? (
         <Text style={[{ color: colors.muted, marginTop: 8 }, rtlText]}>
           {t('schedule.emptyCarpool')}
@@ -336,6 +426,15 @@ const styles = StyleSheet.create({
     ...rtlText,
   },
   ackRow: { marginTop: 10, padding: 10, borderRadius: 10 },
+  seatChip: {
+    minWidth: 44,
+    minHeight: 44,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
   sheetBackdrop: {
     flex: 1,
     justifyContent: 'flex-end',
