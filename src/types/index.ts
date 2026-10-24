@@ -124,6 +124,8 @@ export interface TacticalPlay {
   boardJson?: string;
   /** Cached Game IQ insight JSON (OpenAI or offline stub). */
   gameIqJson?: string;
+  /** Cached AI drill video overlay JSON (timed paths/arrows across the clip). */
+  drillOverlayJson?: string;
   allowSuggestions: boolean;
   createdAt: string;
 }

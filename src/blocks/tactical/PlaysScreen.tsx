@@ -4,6 +4,7 @@
  * מאמן: יצירת תרגיל, לחיצות על הלוח (סימוני 1–5), שיבוץ פעולה, מדיה, ביקורת הצעות.
  * שחקן: משימות פעולה + תשובות + הצעות (אם allowSuggestions).
  * Game IQ: כפתור מפעיל Edge/OpenAI או stub עברי; התוצאה נשמרת ב־game_iq_json.
+ * Drill Overlay: העלאת/צילום וידאו + AI שרטוט מתוזמן; נשמר ב־drill_overlay_json.
  *
  * לוח: CourtBoard כופה LTR לנקודות (בלי שיקוף RTL); כלים סימון/חץ + עורך מסך מלא.
  * כפתור יצירה: gesture-handler ב־native, RN Pressable ב־web (מונע quirks של GH).
@@ -23,13 +24,26 @@ import {
 } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import { CourtBoard, CourtEditorModal } from '@/blocks/tactical/CourtBoard';
+import { DrillOverlayPlayer } from '@/blocks/tactical/DrillOverlayPlayer';
 import { t, translateSuggestionStatus } from '@/i18n';
+import {
+  buildOfflineDrillOverlay,
+  generateDrillOverlay,
+  parseDrillOverlayPayload,
+  type DrillOverlayInsight,
+} from '@/lib/drill-overlay';
 import {
   buildOfflineGameIq,
   generateGameIq,
   type GameIqInsight,
 } from '@/lib/game-iq';
-import { pickTacticalMedia, uploadTacticalMedia } from '@/lib/media-upload';
+import {
+  pickTacticalMedia,
+  pickTacticalVideo,
+  recordTacticalVideo,
+  uploadTacticalMedia,
+  type MediaPickResult,
+} from '@/lib/media-upload';
 import { isTacticalCoach } from '@/lib/roles';
 import { isDemoMode, supabase } from '@/lib/supabase';
 import {
@@ -58,6 +72,17 @@ function parseCachedInsight(raw?: string): GameIqInsight | null {
       return null;
     }
     return o;
+  } catch {
+    return null;
+  }
+}
+
+function parseCachedOverlay(raw?: string): DrillOverlayInsight | null {
+  if (!raw?.trim()) return null;
+  try {
+    const o = JSON.parse(raw) as { mode?: string; playTitle?: string };
+    const mode = o.mode === 'openai' ? 'openai' : 'offline_stub';
+    return parseDrillOverlayPayload(o, o.playTitle ?? '', mode);
   } catch {
     return null;
   }
@@ -98,6 +123,7 @@ export function PlaysScreen() {
     updatePlayMedia,
     updatePlayBoard,
     cachePlayGameIq,
+    cachePlayDrillOverlay,
     createAssignment,
     user,
     team,
@@ -107,6 +133,9 @@ export function PlaysScreen() {
   const [selectedPlayId, setSelectedPlayId] = useState<string | null>(null);
   const [gameIq, setGameIq] = useState<GameIqInsight | null>(null);
   const [gameIqLoading, setGameIqLoading] = useState(false);
+  const [drillOverlay, setDrillOverlay] = useState<DrillOverlayInsight | null>(null);
+  const [drillOverlayLoading, setDrillOverlayLoading] = useState(false);
+  const [drillVideoDuration, setDrillVideoDuration] = useState<number | undefined>(undefined);
   const [answerDrafts, setAnswerDrafts] = useState<Record<string, string>>({});
   const [answerStatus, setAnswerStatus] = useState<Record<string, string>>({});
   const [suggestionDraft, setSuggestionDraft] = useState('');
@@ -152,6 +181,8 @@ export function PlaysScreen() {
       setMediaDraft('');
       setNextLabel(1);
       setGameIq(null);
+      setDrillOverlay(null);
+      setDrillVideoDuration(undefined);
       setCourtEditorOpen(false);
       return;
     }
@@ -163,7 +194,15 @@ export function PlaysScreen() {
     setSuggestionDraft('');
     setAssignFeedback(null);
     setGameIq(parseCachedInsight(selectedPlay.gameIqJson));
-  }, [selectedPlay?.id, selectedPlay?.boardJson, selectedPlay?.mediaUrl, selectedPlay?.gameIqJson]);
+    setDrillOverlay(parseCachedOverlay(selectedPlay.drillOverlayJson));
+    setDrillVideoDuration(undefined);
+  }, [
+    selectedPlay?.id,
+    selectedPlay?.boardJson,
+    selectedPlay?.mediaUrl,
+    selectedPlay?.gameIqJson,
+    selectedPlay?.drillOverlayJson,
+  ]);
 
   useEffect(() => {
     if (!selectedPlayerId && tacticalPlayers[0]) {
@@ -234,6 +273,86 @@ export function PlaysScreen() {
       }
     } finally {
       setCreatingPlay(false);
+    }
+  };
+
+  const uploadDrillPick = async (
+    play: TacticalPlay,
+    picked: Extract<MediaPickResult, { ok: true }>,
+  ) => {
+    if (!supabase || !team) return false;
+    setMediaUploading(true);
+    setMediaNote(null);
+    setCreateError(null);
+    try {
+      const uploaded = await uploadTacticalMedia({
+        client: supabase,
+        teamId: team.id,
+        playId: play.id,
+        uri: picked.uri,
+        mimeType: picked.mimeType,
+        fileName: picked.fileName,
+      });
+      if (!uploaded.ok) {
+        setCreateError(t('plays.mediaUploadFailed', { error: uploaded.error }));
+        return false;
+      }
+      setMediaDraft(uploaded.publicUrl);
+      if (picked.durationSec && picked.durationSec > 0) {
+        setDrillVideoDuration(picked.durationSec);
+      }
+      const saved = await updatePlayMedia(play.id, uploaded.publicUrl);
+      if (saved.ok) {
+        setMediaNote(t('plays.drillOverlayUploadOk'));
+        return true;
+      }
+      showResult(saved);
+      return false;
+    } finally {
+      setMediaUploading(false);
+    }
+  };
+
+  // ── Drill Overlay: upload/record + Edge/OpenAI או stub; נגן מצייר לאורך כל הקליפ ──
+  const runDrillOverlay = async (play: TacticalPlay) => {
+    setDrillOverlayLoading(true);
+    try {
+      const insight =
+        isDemoMode || !supabase
+          ? buildOfflineDrillOverlay({
+              play: {
+                id: play.id,
+                title: play.title,
+                boardJson: play.boardJson,
+                mediaUrl: play.mediaUrl,
+              },
+              durationSec: drillVideoDuration,
+            })
+          : await generateDrillOverlay(supabase, {
+              play: {
+                id: play.id,
+                title: play.title,
+                boardJson: play.boardJson,
+                mediaUrl: play.mediaUrl ?? (mediaDraft.trim() || undefined),
+              },
+              durationSec: drillVideoDuration,
+            });
+      setDrillOverlay(insight);
+      await cachePlayDrillOverlay(play.id, JSON.stringify(insight));
+    } catch (err) {
+      const fallback = buildOfflineDrillOverlay({
+        play: {
+          id: play.id,
+          title: play.title,
+          boardJson: play.boardJson,
+          mediaUrl: play.mediaUrl,
+        },
+        durationSec: drillVideoDuration,
+      });
+      setDrillOverlay(fallback);
+      console.warn('runDrillOverlay', err instanceof Error ? err.message : err);
+    } finally {
+      setDrillOverlayLoading(false);
     }
   };
 
@@ -488,6 +607,131 @@ export function PlaysScreen() {
       ) : null}
 
       <View {...rtlContainerProps} style={[styles.card, rtlLayout.box, { borderColor: colors.secondary }]}>
+        <Text style={styles.playTitle}>{t('plays.drillOverlayTitle')}</Text>
+        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
+          {t('plays.drillOverlayHint')}
+        </Text>
+        {isCoach ? (
+          <View style={{ marginTop: 8, gap: 8 }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('plays.drillOverlayRecord')}
+              disabled={mediaUploading || isDemoMode || !supabase || !team}
+              onPress={async () => {
+                if (!supabase || !team) return;
+                const picked = await recordTacticalVideo();
+                if (!picked.ok) {
+                  if (!picked.cancelled) {
+                    setCreateError(
+                      picked.error === 'camera_permission_denied'
+                        ? t('plays.drillOverlayCameraDenied')
+                        : t('plays.mediaUploadFailed', { error: picked.error ?? 'record' }),
+                    );
+                  }
+                  return;
+                }
+                await uploadDrillPick(play, picked);
+              }}
+              style={[
+                layout.button,
+                {
+                  backgroundColor:
+                    mediaUploading || isDemoMode ? colors.muted : colors.primary,
+                  minHeight: 48,
+                },
+              ]}
+            >
+              <Text style={[layout.buttonText, { color: '#fff' }]}>
+                {mediaUploading
+                  ? t('plays.drillOverlayUploading')
+                  : isDemoMode
+                    ? t('plays.mediaUploadDemoOnly')
+                    : t('plays.drillOverlayRecord')}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('plays.drillOverlayPickVideo')}
+              disabled={mediaUploading || isDemoMode || !supabase || !team}
+              onPress={async () => {
+                if (!supabase || !team) return;
+                const picked = await pickTacticalVideo();
+                if (!picked.ok) {
+                  if (!picked.cancelled) {
+                    setCreateError(
+                      picked.error === 'permission_denied'
+                        ? t('plays.mediaPermissionDenied')
+                        : t('plays.mediaUploadFailed', { error: picked.error ?? 'pick' }),
+                    );
+                  }
+                  return;
+                }
+                await uploadDrillPick(play, picked);
+              }}
+              style={[
+                layout.button,
+                {
+                  backgroundColor:
+                    mediaUploading || isDemoMode ? colors.muted : colors.secondary,
+                  minHeight: 48,
+                },
+              ]}
+            >
+              <Text style={[layout.buttonText, { color: '#fff' }]}>
+                {t('plays.drillOverlayPickVideo')}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('plays.drillOverlayRun')}
+          disabled={drillOverlayLoading}
+          onPress={() => void runDrillOverlay(play)}
+          style={[
+            layout.button,
+            {
+              backgroundColor: drillOverlayLoading ? colors.muted : colors.primary,
+              marginTop: 10,
+              minHeight: 48,
+            },
+          ]}
+        >
+          <Text style={[layout.buttonText, { color: '#fff' }]}>
+            {drillOverlayLoading ? t('plays.drillOverlayRunning') : t('plays.drillOverlayRun')}
+          </Text>
+        </Pressable>
+        {drillOverlay ? (
+          <View style={{ marginTop: 12 }}>
+            <Text
+              style={{
+                textAlign: 'right',
+                fontWeight: '700',
+                color: drillOverlay.mode === 'openai' ? colors.success : colors.muted,
+              }}
+            >
+              {drillOverlay.mode === 'openai'
+                ? t('plays.drillOverlayModeOpenAI')
+                : t('plays.drillOverlayModeOffline')}
+              {play.drillOverlayJson ? ` · ${t('plays.drillOverlayCached')}` : ''}
+            </Text>
+            <Text style={{ textAlign: 'right', marginTop: 8, fontWeight: '600' }}>
+              {drillOverlay.summary}
+            </Text>
+            <DrillOverlayPlayer
+              mediaUrl={play.mediaUrl ?? (mediaDraft.trim() || undefined)}
+              overlay={drillOverlay}
+              allowPlaceholder
+            />
+          </View>
+        ) : (
+          <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 10 }}>
+            {t('plays.drillOverlayEmpty')}
+          </Text>
+        )}
+      </View>
+
+      <View {...rtlContainerProps} style={[styles.card, rtlLayout.box, { borderColor: colors.secondary, marginTop: 14 }]}>
         <Text style={styles.playTitle}>{t('plays.gameIqTitle')}</Text>
         <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
           {t('plays.gameIqStub')}

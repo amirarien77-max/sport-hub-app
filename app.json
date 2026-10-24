@@ -34,16 +34,19 @@
         {
           "supportsRTL": true,
           "forcesRTL": true,
-          "supportedLocales": ["he"]
+          "supportedLocales": [
+            "he"
+          ]
         }
       ],
       [
         "expo-image-picker",
         {
           "photosPermission": "לאפשר בחירת תמונה או וידאו לתרגיל טקטי.",
-          "cameraPermission": false
+          "cameraPermission": "לאפשר צילום וידאו של תרגיל לשרטוט AI."
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true
