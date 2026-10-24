@@ -53,9 +53,11 @@ import {
   acknowledgeUrgentBanner,
   claimCarpoolSeatLive,
   createCarpoolOfferLive,
+  createEventLive,
   ensureParentPlayerLink,
   fetchScheduleBundle,
   lockAttendanceRecords,
+  updateEventLive,
   upsertAttendanceMark,
   upsertRsvp,
 } from '@/lib/schedule-live';
@@ -192,6 +194,21 @@ type SessionContextValue = {
   refreshPendingConsent: () => Promise<PendingConsentPlayer[]>;
   markPlayerConsented: (playerId: string) => Promise<OkOrError>;
   resendParentalConsentSms: (player: PendingConsentPlayer) => Promise<OkOrError>;
+  /** Coach calendar: create practice/game. */
+  createSessionEvent: (input: {
+    title: string;
+    startsAt: string;
+    location: string;
+    type: 'practice' | 'game';
+  }) => Promise<OkOrError>;
+  /** Coach calendar: update event (demo always; live needs events UPDATE RLS). */
+  updateSessionEvent: (input: {
+    id: string;
+    title: string;
+    startsAt: string;
+    location: string;
+    type: 'practice' | 'game';
+  }) => Promise<OkOrError>;
   signOut: () => void;
 };
 
@@ -1390,6 +1407,104 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
   }, [banner.id, user]);
 
+  const createSessionEvent = useCallback(
+    async (input: {
+      title: string;
+      startsAt: string;
+      location: string;
+      type: 'practice' | 'game';
+    }): Promise<OkOrError> => {
+      if (!team) return { ok: false, error: t('errors.redeemInviteFirst') };
+      if (!isAttendanceCoach(user?.role)) {
+        return { ok: false, error: 'not_staff' };
+      }
+
+      if (isDemoMode || !supabase) {
+        scheduleGen.current += 1;
+        const event: SessionEvent = {
+          id: `event-demo-${Date.now()}`,
+          teamId: team.id,
+          title: input.title.trim(),
+          startsAt: input.startsAt,
+          location: input.location.trim(),
+          type: input.type,
+        };
+        setEvents((prev) =>
+          [...prev, event].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+        );
+        return { ok: true };
+      }
+
+      try {
+        scheduleGen.current += 1;
+        const event = await createEventLive(supabase, {
+          teamId: team.id,
+          title: input.title,
+          startsAt: input.startsAt,
+          location: input.location,
+          type: input.type,
+        });
+        setEvents((prev) =>
+          [...prev, event].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+        );
+        return { ok: true };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: t('calendar.createFailed', { error: message }) };
+      }
+    },
+    [team, user?.role],
+  );
+
+  const updateSessionEvent = useCallback(
+    async (input: {
+      id: string;
+      title: string;
+      startsAt: string;
+      location: string;
+      type: 'practice' | 'game';
+    }): Promise<OkOrError> => {
+      if (!isAttendanceCoach(user?.role)) {
+        return { ok: false, error: 'not_staff' };
+      }
+
+      if (isDemoMode || !supabase) {
+        scheduleGen.current += 1;
+        setEvents((prev) =>
+          prev
+            .map((e) =>
+              e.id === input.id
+                ? {
+                    ...e,
+                    title: input.title.trim(),
+                    startsAt: input.startsAt,
+                    location: input.location.trim(),
+                    type: input.type,
+                  }
+                : e,
+            )
+            .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+        );
+        return { ok: true };
+      }
+
+      try {
+        scheduleGen.current += 1;
+        const event = await updateEventLive(supabase, input);
+        setEvents((prev) =>
+          prev
+            .map((e) => (e.id === input.id ? event : e))
+            .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+        );
+        return { ok: true };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: t('calendar.updateFailed', { error: message }) };
+      }
+    },
+    [user?.role],
+  );
+
   const switchDemoRole = useCallback(
     (role: UserProfile['role']) => {
       if (!isDemoMode) return;
@@ -1515,6 +1630,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       refreshPendingConsent,
       markPlayerConsented,
       resendParentalConsentSms,
+      createSessionEvent,
+      updateSessionEvent,
       signOut,
     }),
     [
@@ -1563,6 +1680,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       refreshPendingConsent,
       markPlayerConsented,
       resendParentalConsentSms,
+      createSessionEvent,
+      updateSessionEvent,
       signOut,
     ],
   );

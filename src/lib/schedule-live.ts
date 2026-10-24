@@ -462,3 +462,68 @@ export async function acknowledgeUrgentBanner(
     throw new Error(error.message);
   }
 }
+
+/** Staff create practice/game (RLS: events_insert_staff). */
+export async function createEventLive(
+  client: SupabaseClient,
+  input: {
+    teamId: string;
+    title: string;
+    startsAt: string;
+    location: string;
+    type: 'practice' | 'game';
+  },
+): Promise<SessionEvent> {
+  const title = input.title.trim();
+  if (!title) throw new Error('title_required');
+
+  const { data, error } = await client
+    .from('events')
+    .insert({
+      team_id: input.teamId,
+      title,
+      starts_at: input.startsAt,
+      location: input.location.trim() || null,
+      type: input.type,
+    })
+    .select('id, team_id, title, starts_at, location, type')
+    .single();
+
+  if (error) throw new Error(error.message);
+  return mapEventRow(data as EventRow);
+}
+
+/**
+ * Staff update event fields.
+ * Note: live DB currently has INSERT+SELECT policies only — UPDATE may fail until RLS is added.
+ */
+export async function updateEventLive(
+  client: SupabaseClient,
+  input: {
+    id: string;
+    title?: string;
+    startsAt?: string;
+    location?: string;
+    type?: 'practice' | 'game';
+  },
+): Promise<SessionEvent> {
+  const patch: Record<string, unknown> = {};
+  if (input.title !== undefined) {
+    const title = input.title.trim();
+    if (!title) throw new Error('title_required');
+    patch.title = title;
+  }
+  if (input.startsAt !== undefined) patch.starts_at = input.startsAt;
+  if (input.location !== undefined) patch.location = input.location.trim() || null;
+  if (input.type !== undefined) patch.type = input.type;
+
+  const { data, error } = await client
+    .from('events')
+    .update(patch)
+    .eq('id', input.id)
+    .select('id, team_id, title, starts_at, location, type')
+    .single();
+
+  if (error) throw new Error(error.message);
+  return mapEventRow(data as EventRow);
+}

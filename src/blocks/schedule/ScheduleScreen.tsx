@@ -1,6 +1,6 @@
 /**
  * מסך לו״ז (מודול 2): אירועים, Dual-Ack (שחקן/הורה), carpool, באנר דחוף.
- * מאמן רואה סיכום RSVP בלבד (ללא כפתורי בחירה). קונפליקט Dual-Ack מודגש ב־UI.
+ * PRD v1.1: תצוגת חודש אינטראקטיבית + רשימה. מאמן עורך; שחקן/הורה קריאה + צבעי RSVP.
  */
 import { useMemo, useState } from 'react';
 import {
@@ -12,6 +12,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { MonthCalendar, canEditCalendar } from '@/blocks/schedule/MonthCalendar';
 import { t, translateAbsenceReason, translateRsvp } from '@/i18n';
 import { dualAckConflict } from '@/lib/demo-data';
 import { canClaimCarpool, canOfferCarpool, canSubmitRsvp, isAttendanceCoach } from '@/lib/roles';
@@ -31,13 +32,17 @@ export function ScheduleScreen() {
     createCarpoolOffer,
     banner,
     acknowledgeBanner,
+    createSessionEvent,
+    updateSessionEvent,
   } = useSession();
   const [sheetEventId, setSheetEventId] = useState<string | null>(null);
   const [claimingOfferId, setClaimingOfferId] = useState<string | null>(null);
   const [offerSeats, setOfferSeats] = useState(3);
   const [offering, setOffering] = useState(false);
+  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
 
   const coachView = isAttendanceCoach(user?.role);
+  const calendarEdit = canEditCalendar(user?.role);
   const showRsvp = canSubmitRsvp(user?.role);
   const showClaim = canClaimCarpool(user?.role);
   const showOffer = canOfferCarpool(user?.role);
@@ -142,13 +147,79 @@ export function ScheduleScreen() {
         </Text>
       ) : null}
 
-      {events.length === 0 ? (
+      <View style={[rtlLayout.row, { marginTop: 12 }]}>
+        <Pressable
+          onPress={() => setViewMode('calendar')}
+          style={[
+            styles.viewChip,
+            {
+              borderColor: colors.primary,
+              backgroundColor: viewMode === 'calendar' ? colors.secondary : '#fff',
+            },
+          ]}
+        >
+          <Text
+            style={[
+              {
+                color: viewMode === 'calendar' ? '#fff' : colors.primary,
+                fontWeight: '700',
+              },
+              rtlText,
+            ]}
+          >
+            {t('schedule.viewCalendar')}
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setViewMode('list')}
+          style={[
+            styles.viewChip,
+            {
+              borderColor: colors.primary,
+              backgroundColor: viewMode === 'list' ? colors.secondary : '#fff',
+            },
+          ]}
+        >
+          <Text
+            style={[
+              {
+                color: viewMode === 'list' ? '#fff' : colors.primary,
+                fontWeight: '700',
+              },
+              rtlText,
+            ]}
+          >
+            {t('schedule.viewList')}
+          </Text>
+        </Pressable>
+      </View>
+
+      {viewMode === 'calendar' ? (
+        <MonthCalendar
+          events={events}
+          acks={acks}
+          userId={user?.id}
+          role={user?.role}
+          canEdit={calendarEdit}
+          onCreateEvent={createSessionEvent}
+          onUpdateEvent={updateSessionEvent}
+        />
+      ) : null}
+
+      {viewMode === 'list' ? (
+        <Text style={[layout.title, { color: colors.primary, fontSize: 20, marginTop: 16 }]}>
+          {t('schedule.listTitle')}
+        </Text>
+      ) : null}
+
+      {viewMode === 'list' && events.length === 0 ? (
         <Text style={[{ color: colors.muted, marginTop: 12 }, rtlText]}>
           {t('schedule.emptyEvents')}
         </Text>
       ) : null}
 
-      {events.map((event) => {
+      {viewMode === 'list'
+        ? events.map((event) => {
         const related = acks.filter((a) => a.eventId === event.id);
         return (
           <View
@@ -216,7 +287,8 @@ export function ScheduleScreen() {
             })}
           </View>
         );
-      })}
+      })
+        : null}
 
       <Text style={[layout.title, { color: colors.primary, fontSize: 22, marginTop: 12 }]}>
         {t('schedule.carpool')}
@@ -410,6 +482,14 @@ const styles = StyleSheet.create({
     marginTop: 14,
     borderWidth: 2,
     minHeight: 48,
+  },
+  viewChip: {
+    minHeight: 40,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   card: {
     marginTop: 16,
