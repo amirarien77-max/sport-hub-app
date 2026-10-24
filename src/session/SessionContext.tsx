@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import type { Session } from '@supabase/supabase-js';
@@ -29,7 +30,7 @@ import {
   insertPainLive,
   upsertReadinessLive,
 } from '@/lib/health-live';
-import { isHealthStaff } from '@/lib/roles';
+import { isHealthStaff, isTacticalCoach } from '@/lib/roles';
 import {
   acknowledgeUrgentBanner,
   claimCarpoolSeatLive,
@@ -39,6 +40,15 @@ import {
   upsertAttendanceMark,
   upsertRsvp,
 } from '@/lib/schedule-live';
+import {
+  answerAssignmentLive,
+  createAssignmentLive,
+  createPlayLive,
+  fetchTacticalBundle,
+  reviewSuggestionLive,
+  submitSuggestionLive,
+  updatePlayLive,
+} from '@/lib/tactical-live';
 import { ABSENCE_REASON_KEYS, t, translateRole } from '@/i18n';
 import { isDemoMode, supabase } from '@/lib/supabase';
 import type {
@@ -65,6 +75,7 @@ import type {
 import { useTheme } from '@/theme/ThemeContext';
 
 type OkOrError = { ok: true } | { ok: false; error: string };
+type CreatePlayResult = { ok: true; playId: string } | { ok: false; error: string };
 
 const EMPTY_BANNER: UrgentBanner = {
   id: '',
@@ -121,10 +132,21 @@ type SessionContextValue = {
     severity: PainSeverity,
   ) => Promise<OkOrError> | OkOrError;
   refreshHealth: () => Promise<void>;
-  togglePlaySuggestions: (playId: string) => void;
-  answerAssignment: (assignmentId: string, answer: string) => void;
-  submitSuggestion: (playId: string, text: string) => void;
-  reviewSuggestion: (id: string, status: SuggestionStatus) => void;
+  refreshTactical: () => Promise<void>;
+  tacticalPlayers: { id: string; fullName: string }[];
+  createPlay: (title: string) => Promise<CreatePlayResult>;
+  updatePlayMedia: (playId: string, mediaUrl: string) => Promise<OkOrError>;
+  updatePlayBoard: (playId: string, boardJson: string) => Promise<OkOrError>;
+  createAssignment: (input: {
+    playId: string;
+    playerId: string;
+    positionName: string;
+    actionPromptQuestion: string;
+  }) => Promise<OkOrError>;
+  togglePlaySuggestions: (playId: string) => void | Promise<OkOrError>;
+  answerAssignment: (assignmentId: string, answer: string) => void | Promise<OkOrError>;
+  submitSuggestion: (playId: string, text: string) => void | Promise<OkOrError>;
+  reviewSuggestion: (id: string, status: SuggestionStatus) => void | Promise<OkOrError>;
   claimCarpoolSeat: (
     offerId: string,
   ) =>
@@ -225,16 +247,35 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       ? demoUsers.filter((u) => u.role === 'player').map((u) => ({ id: u.id, fullName: u.fullName }))
       : [],
   );
-  const [plays, setPlays] = useState<TacticalPlay[]>(demoPlays);
-  const [assignments, setAssignments] = useState<PlayAssignment[]>(demoAssignments);
-  const [suggestions, setSuggestions] = useState<PlaySuggestion[]>(demoSuggestions);
+  const [plays, setPlays] = useState<TacticalPlay[]>(isDemoMode ? demoPlays : []);
+  const [assignments, setAssignments] = useState<PlayAssignment[]>(
+    isDemoMode ? demoAssignments : [],
+  );
+  const [suggestions, setSuggestions] = useState<PlaySuggestion[]>(
+    isDemoMode ? demoSuggestions : [],
+  );
+  const [tacticalPlayers, setTacticalPlayers] = useState<{ id: string; fullName: string }[]>(
+    isDemoMode
+      ? demoUsers.filter((u) => u.role === 'player').map((u) => ({ id: u.id, fullName: u.fullName }))
+      : [],
+  );
   const [carpools, setCarpools] = useState<CarpoolOffer[]>(isDemoMode ? demoCarpools : []);
   const [banner, setBanner] = useState<UrgentBanner>(isDemoMode ? demoBanner : EMPTY_BANNER);
 
+  /** Monotonic gens so a slow hydrate fetch cannot wipe a newer create/answer. */
+  const scheduleGen = useRef(0);
+  const tacticalGen = useRef(0);
+  const healthGen = useRef(0);
+  const hydrateGenRef = useRef(0);
+  /** signIn/signUp already await hydrate — ignore the matching SIGNED_IN event. */
+  const skipNextSignedIn = useRef(false);
+
   const refreshSchedule = useCallback(async (teamId: string) => {
     if (isDemoMode || !supabase) return;
+    const gen = ++scheduleGen.current;
     try {
       const bundle = await fetchScheduleBundle(supabase, teamId);
+      if (gen !== scheduleGen.current) return;
       setEvents(bundle.events);
       setAcks(bundle.acks);
       setAttendance(bundle.attendance);
@@ -244,6 +285,26 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       console.warn('Failed to load schedule', err instanceof Error ? err.message : err);
     }
   }, []);
+
+  const refreshTacticalFor = useCallback(async (teamId: string) => {
+    if (isDemoMode || !supabase) return;
+    const gen = ++tacticalGen.current;
+    try {
+      const bundle = await fetchTacticalBundle(supabase, teamId);
+      if (gen !== tacticalGen.current) return;
+      setPlays(bundle.plays);
+      setAssignments(bundle.assignments);
+      setSuggestions(bundle.suggestions);
+      setTacticalPlayers(bundle.players);
+    } catch (err) {
+      console.warn('Failed to load tactical', err instanceof Error ? err.message : err);
+    }
+  }, []);
+
+  const refreshTactical = useCallback(async () => {
+    if (!team) return;
+    await refreshTacticalFor(team.id);
+  }, [refreshTacticalFor, team]);
 
   const refreshHealthFor = useCallback(async (profile: UserProfile, teamId: string) => {
     if (isDemoMode || !supabase) return;
@@ -256,9 +317,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    const gen = ++healthGen.current;
     try {
       const asStaff = isHealthStaff(profile.role);
       const bundle = await fetchHealthBundle(supabase, { teamId, asStaff });
+      if (gen !== healthGen.current) return;
       if (profile.role === 'player') {
         setReadiness(bundle.readiness.filter((r) => r.playerId === profile.id));
         setPain(bundle.pain.filter((p) => p.playerId === profile.id));
@@ -286,10 +349,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      const myHydrate = ++hydrateGenRef.current;
       const uid = session?.user?.id ?? null;
       setAuthUserId(uid);
 
       if (!uid) {
+        if (myHydrate !== hydrateGenRef.current) return;
         setUser(null);
         setTeam(null);
         setInviteOk(false);
@@ -301,59 +366,92 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setReadiness([]);
         setPain([]);
         setHealthPlayers([]);
+        setPlays([]);
+        setAssignments([]);
+        setSuggestions([]);
+        setTacticalPlayers([]);
         clearBrand();
         setAuthReady(true);
         return;
       }
 
-      const { data: profile, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('auth_id', uid)
-        .maybeSingle();
+      try {
+        const { data: profile, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('auth_id', uid)
+          .maybeSingle();
 
-      if (error) {
-        console.warn('Failed to load profile', error.message);
-      }
+        if (myHydrate !== hydrateGenRef.current) return;
 
-      if (!profile) {
-        setUser(null);
-        setTeam(null);
-        setInviteOk(false);
-        setAuthReady(true);
-        return;
-      }
+        if (error) {
+          console.warn('Failed to load profile', error.message);
+        }
 
-      const mapped = mapUserRow(profile);
-      setUser(mapped);
+        if (!profile) {
+          // New account still needs invite/profile — clear local identity.
+          // Do not wipe on transient fetch errors (handled above via warn).
+          setUser(null);
+          setTeam(null);
+          setInviteOk(false);
+          setAuthReady(true);
+          return;
+        }
 
-      const { data: teamRow } = await supabase
-        .from('teams')
-        .select('*')
-        .eq('id', mapped.teamId)
-        .maybeSingle();
+        const mapped = mapUserRow(profile);
 
-      if (teamRow) {
-        const mappedTeam = mapTeamRow(teamRow);
+        const { data: teamRow, error: teamErr } = await supabase
+          .from('teams')
+          .select('*')
+          .eq('id', mapped.teamId)
+          .maybeSingle();
+
+        if (myHydrate !== hydrateGenRef.current) return;
+
+        if (teamErr) {
+          console.warn('Failed to load team', teamErr.message);
+        }
+
+        // Apply user+team together so coach create UI never mounts with team=null
+        // (createPlay then fails; Alert is a no-op on web → looks like a dead tap).
+        const mappedTeam = teamRow ? mapTeamRow(teamRow) : null;
+        setUser(mapped);
         setTeam(mappedTeam);
-        setInviteOk(true);
-        await refreshSchedule(mappedTeam.id);
-        await refreshHealthFor(mapped, mappedTeam.id);
+        setInviteOk(Boolean(mappedTeam));
+        setAuthReady(true);
+
+        const { data: clubRow } = await supabase
+          .from('clubs')
+          .select('*')
+          .eq('id', mapped.clubId)
+          .maybeSingle();
+
+        if (myHydrate !== hydrateGenRef.current) return;
+
+        if (clubRow) {
+          setBrand(mapClubRow(clubRow));
+        }
+
+        // Bundle loads must NOT block authReady — a hung RLS query previously
+        // left the app on an infinite spinner after login.
+        if (mappedTeam) {
+          void Promise.all([
+            refreshSchedule(mappedTeam.id),
+            refreshHealthFor(mapped, mappedTeam.id),
+            refreshTacticalFor(mappedTeam.id),
+          ]).catch((err) => {
+            console.warn(
+              'post-hydrate bundle refresh failed',
+              err instanceof Error ? err.message : err,
+            );
+          });
+        }
+      } catch (err) {
+        console.warn('hydrateFromAuth failed', err instanceof Error ? err.message : err);
+        if (myHydrate === hydrateGenRef.current) setAuthReady(true);
       }
-
-      const { data: clubRow } = await supabase
-        .from('clubs')
-        .select('*')
-        .eq('id', mapped.clubId)
-        .maybeSingle();
-
-      if (clubRow) {
-        setBrand(mapClubRow(clubRow));
-      }
-
-      setAuthReady(true);
     },
-    [clearBrand, refreshHealthFor, refreshSchedule, setBrand],
+    [clearBrand, refreshHealthFor, refreshSchedule, refreshTacticalFor, setBrand],
   );
 
   useEffect(() => {
@@ -364,11 +462,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     let cancelled = false;
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!cancelled) void hydrateFromAuth(data.session);
-    });
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    // INITIAL_SESSION covers cold start. SIGNED_IN from our signIn/signUp is skipped
+    // (those paths await hydrate). Avoid double-fetch races that wiped new plays.
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (cancelled) return;
+      if (event === 'TOKEN_REFRESHED') return;
+      if (event === 'SIGNED_IN' && skipNextSignedIn.current) {
+        skipNextSignedIn.current = false;
+        return;
+      }
       void hydrateFromAuth(session);
     });
 
@@ -378,35 +480,52 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     };
   }, [hydrateFromAuth]);
 
-  const signIn = useCallback(async (email: string, password: string): Promise<OkOrError> => {
-    if (isDemoMode || !supabase) {
-      return { ok: false, error: t('errors.demoAuthDisabled') };
-    }
-    if (!email.trim() || !password) {
-      return { ok: false, error: t('errors.emailPasswordRequired') };
-    }
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
-  }, []);
+  const signIn = useCallback(
+    async (email: string, password: string): Promise<OkOrError> => {
+      if (isDemoMode || !supabase) {
+        return { ok: false, error: t('errors.demoAuthDisabled') };
+      }
+      if (!email.trim() || !password) {
+        return { ok: false, error: t('errors.emailPasswordRequired') };
+      }
+      skipNextSignedIn.current = true;
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      if (error) {
+        skipNextSignedIn.current = false;
+        return { ok: false, error: error.message };
+      }
+      // Hydrate profile+team before navigation so index does not send coaches to invite.
+      await hydrateFromAuth(data.session);
+      return { ok: true };
+    },
+    [hydrateFromAuth],
+  );
 
-  const signUp = useCallback(async (email: string, password: string): Promise<OkOrError> => {
-    if (isDemoMode || !supabase) {
-      return { ok: false, error: t('errors.demoAuthDisabled') };
-    }
-    if (!email.trim() || password.length < 6) {
-      return { ok: false, error: t('errors.weakPassword') };
-    }
-    const { error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-    });
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
-  }, []);
+  const signUp = useCallback(
+    async (email: string, password: string): Promise<OkOrError> => {
+      if (isDemoMode || !supabase) {
+        return { ok: false, error: t('errors.demoAuthDisabled') };
+      }
+      if (!email.trim() || password.length < 6) {
+        return { ok: false, error: t('errors.weakPassword') };
+      }
+      skipNextSignedIn.current = true;
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
+      if (error) {
+        skipNextSignedIn.current = false;
+        return { ok: false, error: error.message };
+      }
+      await hydrateFromAuth(data.session);
+      return { ok: true };
+    },
+    [hydrateFromAuth],
+  );
 
   const redeemInvite = useCallback(
     async (code: string): Promise<OkOrError> => {
@@ -513,6 +632,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setUser(mappedUser);
       await refreshSchedule(team.id);
       await refreshHealthFor(mappedUser, team.id);
+      await refreshTacticalFor(team.id);
 
       // Refresh team flags after role insert (fitness/physio trigger).
       const { data: freshTeam } = await supabase
@@ -524,7 +644,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
       return { ok: true };
     },
-    [authUserId, inviteOk, refreshHealthFor, refreshSchedule, team],
+    [authUserId, inviteOk, refreshHealthFor, refreshSchedule, refreshTacticalFor, team],
   );
 
   const setRsvp = useCallback(
@@ -734,40 +854,263 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [user],
   );
 
-  const togglePlaySuggestions = useCallback((playId: string) => {
-    setPlays((prev) =>
-      prev.map((p) => (p.id === playId ? { ...p, allowSuggestions: !p.allowSuggestions } : p)),
-    );
-  }, []);
+  const createPlay = useCallback(
+    async (title: string): Promise<CreatePlayResult> => {
+      if (!user) {
+        return { ok: false, error: t('errors.signInBeforeProfile') };
+      }
+      if (!team) {
+        return { ok: false, error: t('errors.redeemInviteFirst') };
+      }
+      if (!isTacticalCoach(user.role)) {
+        return { ok: false, error: t('plays.coachOnlyCreate') };
+      }
+      if (!title.trim()) {
+        return { ok: false, error: t('errors.playTitleRequired') };
+      }
 
-  const answerAssignment = useCallback((assignmentId: string, answer: string) => {
-    setAssignments((prev) =>
-      prev.map((a) => (a.id === assignmentId ? { ...a, playerAnswer: answer } : a)),
-    );
-  }, []);
+      if (isDemoMode || !supabase) {
+        const play: TacticalPlay = {
+          id: `play-${Date.now()}`,
+          teamId: team.id,
+          title: title.trim(),
+          allowSuggestions: true,
+          boardJson: '{"markers":[]}',
+          createdAt: new Date().toISOString(),
+        };
+        // Invalidate in-flight tactical fetches so they cannot drop this play.
+        tacticalGen.current += 1;
+        setPlays((prev) => [play, ...prev.filter((p) => p.id !== play.id)]);
+        return { ok: true, playId: play.id };
+      }
+
+      try {
+        const play = await createPlayLive(supabase, {
+          teamId: team.id,
+          title,
+          boardJson: '{"markers":[]}',
+        });
+        // Bump gen BEFORE local write so any older refreshTacticalFor is discarded.
+        tacticalGen.current += 1;
+        setPlays((prev) => [play, ...prev.filter((p) => p.id !== play.id)]);
+        return { ok: true, playId: play.id };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn('createPlay failed', message);
+        return { ok: false, error: message };
+      }
+    },
+    [team, user],
+  );
+
+  const updatePlayMedia = useCallback(
+    async (playId: string, mediaUrl: string): Promise<OkOrError> => {
+      const trimmed = mediaUrl.trim();
+      if (isDemoMode || !supabase) {
+        setPlays((prev) =>
+          prev.map((p) => (p.id === playId ? { ...p, mediaUrl: trimmed || undefined } : p)),
+        );
+        return { ok: true };
+      }
+      try {
+        await updatePlayLive(supabase, playId, { mediaUrl: trimmed || null });
+        setPlays((prev) =>
+          prev.map((p) => (p.id === playId ? { ...p, mediaUrl: trimmed || undefined } : p)),
+        );
+        return { ok: true };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: message };
+      }
+    },
+    [],
+  );
+
+  const updatePlayBoard = useCallback(
+    async (playId: string, boardJson: string): Promise<OkOrError> => {
+      if (isDemoMode || !supabase) {
+        tacticalGen.current += 1;
+        setPlays((prev) => prev.map((p) => (p.id === playId ? { ...p, boardJson } : p)));
+        return { ok: true };
+      }
+      try {
+        await updatePlayLive(supabase, playId, { boardJson });
+        tacticalGen.current += 1;
+        setPlays((prev) => prev.map((p) => (p.id === playId ? { ...p, boardJson } : p)));
+        return { ok: true };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: message };
+      }
+    },
+    [],
+  );
+
+  const createAssignment = useCallback(
+    async (input: {
+      playId: string;
+      playerId: string;
+      positionName: string;
+      actionPromptQuestion: string;
+    }): Promise<OkOrError> => {
+      if (!input.positionName.trim() || !input.actionPromptQuestion.trim() || !input.playerId) {
+        return { ok: false, error: t('errors.nameRequired') };
+      }
+
+      if (isDemoMode || !supabase) {
+        const playerName =
+          tacticalPlayers.find((p) => p.id === input.playerId)?.fullName ??
+          demoUsers.find((u) => u.id === input.playerId)?.fullName ??
+          '—';
+        tacticalGen.current += 1;
+        setAssignments((prev) => [
+          ...prev,
+          {
+            id: `assign-${Date.now()}`,
+            playId: input.playId,
+            playerId: input.playerId,
+            playerName,
+            positionName: input.positionName.trim(),
+            actionPromptQuestion: input.actionPromptQuestion.trim(),
+          },
+        ]);
+        return { ok: true };
+      }
+
+      try {
+        const row = await createAssignmentLive(supabase, input);
+        tacticalGen.current += 1;
+        setAssignments((prev) => [...prev, row]);
+        return { ok: true };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: message };
+      }
+    },
+    [tacticalPlayers],
+  );
+
+  const togglePlaySuggestions = useCallback(
+    async (playId: string): Promise<OkOrError> => {
+      const current = plays.find((p) => p.id === playId);
+      if (!current) return { ok: false, error: 'not_found' };
+      const next = !current.allowSuggestions;
+
+      setPlays((prev) =>
+        prev.map((p) => (p.id === playId ? { ...p, allowSuggestions: next } : p)),
+      );
+
+      if (isDemoMode || !supabase) return { ok: true };
+
+      try {
+        await updatePlayLive(supabase, playId, { allowSuggestions: next });
+        return { ok: true };
+      } catch (err) {
+        setPlays((prev) =>
+          prev.map((p) =>
+            p.id === playId ? { ...p, allowSuggestions: current.allowSuggestions } : p,
+          ),
+        );
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: message };
+      }
+    },
+    [plays],
+  );
+
+  const answerAssignment = useCallback(
+    async (assignmentId: string, answer: string): Promise<OkOrError> => {
+      const trimmed = answer.trim();
+      if (!trimmed) {
+        return { ok: false, error: t('plays.answerRequired') };
+      }
+
+      const previous = assignments.find((a) => a.id === assignmentId)?.playerAnswer;
+
+      // Prevent a stale tactical refresh from wiping the answer we are saving.
+      tacticalGen.current += 1;
+      setAssignments((prev) =>
+        prev.map((a) => (a.id === assignmentId ? { ...a, playerAnswer: trimmed } : a)),
+      );
+
+      if (isDemoMode || !supabase) return { ok: true };
+
+      try {
+        await answerAssignmentLive(supabase, assignmentId, trimmed);
+        return { ok: true };
+      } catch (err) {
+        setAssignments((prev) =>
+          prev.map((a) =>
+            a.id === assignmentId ? { ...a, playerAnswer: previous } : a,
+          ),
+        );
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: message };
+      }
+    },
+    [assignments],
+  );
 
   const submitSuggestion = useCallback(
-    (playId: string, text: string) => {
-      if (!user || !text.trim()) return;
-      setSuggestions((prev) => [
-        {
-          id: `sug-${Date.now()}`,
+    async (playId: string, text: string): Promise<OkOrError> => {
+      if (!user || !text.trim()) {
+        return { ok: false, error: t('errors.nameRequired') };
+      }
+
+      if (isDemoMode || !supabase) {
+        setSuggestions((prev) => [
+          {
+            id: `sug-${Date.now()}`,
+            playId,
+            playerId: user.id,
+            playerName: user.fullName,
+            suggestionText: text.trim(),
+            status: 'pending',
+            createdAt: new Date().toISOString(),
+          },
+          ...prev,
+        ]);
+        return { ok: true };
+      }
+
+      try {
+        const row = await submitSuggestionLive(supabase, {
           playId,
           playerId: user.id,
-          playerName: user.fullName,
-          suggestionText: text.trim(),
-          status: 'pending',
-          createdAt: new Date().toISOString(),
-        },
-        ...prev,
-      ]);
+          text,
+        });
+        setSuggestions((prev) => [row, ...prev]);
+        return { ok: true };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: message };
+      }
     },
     [user],
   );
 
-  const reviewSuggestion = useCallback((id: string, status: SuggestionStatus) => {
-    setSuggestions((prev) => prev.map((s) => (s.id === id ? { ...s, status } : s)));
-  }, []);
+  const reviewSuggestion = useCallback(
+    async (id: string, status: SuggestionStatus): Promise<OkOrError> => {
+      const previous = suggestions.find((s) => s.id === id)?.status;
+      setSuggestions((prev) => prev.map((s) => (s.id === id ? { ...s, status } : s)));
+
+      if (isDemoMode || !supabase) return { ok: true };
+
+      try {
+        await reviewSuggestionLive(supabase, id, status);
+        return { ok: true };
+      } catch (err) {
+        if (previous) {
+          setSuggestions((prev) =>
+            prev.map((s) => (s.id === id ? { ...s, status: previous } : s)),
+          );
+        }
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: message };
+      }
+    },
+    [suggestions],
+  );
 
   const claimCarpoolSeat = useCallback(
     async (offerId: string) => {
@@ -877,6 +1220,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setHealthPlayers(
         demoUsers.filter((u) => u.role === 'player').map((u) => ({ id: u.id, fullName: u.fullName })),
       );
+      setPlays(demoPlays);
+      setAssignments(demoAssignments);
+      setSuggestions(demoSuggestions);
+      setTacticalPlayers(
+        demoUsers.filter((u) => u.role === 'player').map((u) => ({ id: u.id, fullName: u.fullName })),
+      );
       setBrand(resolveInvite(DEMO_INVITE_CODE)!);
     },
     [setBrand],
@@ -907,6 +1256,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setReadiness([]);
       setPain([]);
       setHealthPlayers([]);
+      setPlays([]);
+      setAssignments([]);
+      setSuggestions([]);
+      setTacticalPlayers([]);
     }
     clearBrand();
     if (!isDemoMode && supabase) {
@@ -927,6 +1280,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       plays,
       assignments,
       suggestions,
+      tacticalPlayers,
       carpools,
       banner,
       absenceReasons: ABSENCE_REASON_KEYS,
@@ -944,6 +1298,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       submitReadiness,
       submitPain,
       refreshHealth,
+      refreshTactical,
+      createPlay,
+      updatePlayMedia,
+      updatePlayBoard,
+      createAssignment,
       togglePlaySuggestions,
       answerAssignment,
       submitSuggestion,
@@ -966,6 +1325,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       plays,
       assignments,
       suggestions,
+      tacticalPlayers,
       carpools,
       banner,
       authReady,
@@ -981,6 +1341,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       submitReadiness,
       submitPain,
       refreshHealth,
+      refreshTactical,
+      createPlay,
+      updatePlayMedia,
+      updatePlayBoard,
+      createAssignment,
       togglePlaySuggestions,
       answerAssignment,
       submitSuggestion,

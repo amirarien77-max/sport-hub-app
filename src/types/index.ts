@@ -95,6 +95,8 @@ export interface TacticalPlay {
   teamId: string;
   title: string;
   mediaUrl?: string;
+  /** JSON sketch markers for the court board stub (`{"markers":[...]}`). */
+  boardJson?: string;
   allowSuggestions: boolean;
   createdAt: string;
 }
