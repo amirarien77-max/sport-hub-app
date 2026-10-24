@@ -95,7 +95,7 @@ export interface TacticalPlay {
   teamId: string;
   title: string;
   mediaUrl?: string;
-  /** JSON sketch markers for the court board stub (`{"markers":[...]}`). */
+  /** JSON court sketch: markers + arrows (`{"markers":[...],"arrows":[...]}`). */
   boardJson?: string;
   /** Cached Game IQ insight JSON (OpenAI or offline stub). */
   gameIqJson?: string;
