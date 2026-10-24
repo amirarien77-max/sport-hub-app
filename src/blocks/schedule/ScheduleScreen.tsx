@@ -75,15 +75,27 @@ export function ScheduleScreen() {
       {pendingBanner ? (
         <View
           {...rtlContainerProps}
-          style={[styles.banner, rtlLayout.box, { backgroundColor: colors.accent }]}
+          style={[
+            styles.banner,
+            rtlLayout.box,
+            {
+              // Solid Hapoel primary (not accent #F5F5F5) — accent washed out on light bg.
+              backgroundColor: colors.primary,
+              borderColor: colors.secondary,
+            },
+          ]}
         >
           <Text style={styles.bannerTitle}>{t('schedule.urgent')}</Text>
           <Text style={styles.bannerBody}>{banner.message}</Text>
           <Pressable
             onPress={() => void acknowledgeBanner()}
-            style={[layout.button, { backgroundColor: '#fff', marginTop: 10 }]}
+            style={[
+              layout.button,
+              styles.bannerAckBtn,
+              { backgroundColor: '#FFFFFF', borderColor: colors.secondary },
+            ]}
           >
-            <Text style={[layout.buttonText, { color: colors.accent }]}>
+            <Text style={[layout.buttonText, { color: colors.secondary }]}>
               {t('schedule.acknowledge')}
             </Text>
           </Pressable>
@@ -283,20 +295,31 @@ function ReasonSheet({
 }
 
 const styles = StyleSheet.create({
-  banner: { borderRadius: 14, padding: 14, marginBottom: 16 },
+  banner: {
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 2,
+  },
   bannerTitle: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontWeight: '800',
-    fontSize: 14,
-    textTransform: 'uppercase',
+    fontSize: 15,
+    letterSpacing: 0.3,
     ...rtlText,
   },
   bannerBody: {
-    color: '#fff',
-    marginTop: 6,
+    color: '#FFFFFF',
+    marginTop: 8,
     fontSize: 16,
-    lineHeight: 22,
+    lineHeight: 24,
+    fontWeight: '600',
     ...rtlText,
+  },
+  bannerAckBtn: {
+    marginTop: 14,
+    borderWidth: 2,
+    minHeight: 48,
   },
   card: {
     marginTop: 16,
