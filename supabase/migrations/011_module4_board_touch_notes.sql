@@ -1,6 +1,7 @@
--- Module 4 follow-up: no schema change required for board taps (client fix).
--- Re-assert tactical write policies + grants so live coaches can INSERT/UPDATE
--- after 010. Safe to re-run.
+-- =============================================================================
+-- 011_module4_board_touch_notes: אין שינוי סכמה ללחיצות לוח (תיקון קליינט).
+-- מאשר מחדש מדיניות כתיבה + grants אחרי 010. Safe to re-run.
+-- =============================================================================
 
 -- Ensure board_json exists (idempotent).
 ALTER TABLE tactical_plays

@@ -1,3 +1,14 @@
+/**
+ * SessionContext — מקור האמת בצד הלקוח לכל מודולי ה־PRD.
+ *
+ * מצבי הפעלה:
+ * - דמו: isDemoMode → נתונים מ־demo-data, בלי auth אמיתי.
+ * - live: hydrate מ־auth + users/teams/clubs, ואז באנדלים (לו״ז / בריאות / טקטי).
+ *
+ * דורות (scheduleGen / tacticalGen / healthGen / hydrateGen): מונעים ש־fetch איטי
+ * ידרוס create/answer חדשים. tacticalGen מקופץ לפני כתיבה מקומית אחרי createPlay.
+ * אל תשנו את הסדר הזה בלי להבין את מרוצי ה־hydrate.
+ */
 import React, {
   createContext,
   useCallback,
@@ -353,6 +364,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     await refreshHealthFor(user, team.id);
   }, [refreshHealthFor, team, user]);
 
+  // ── Hydrate: auth → profile → team → brand → באנדלים ברקע (לא חוסם authReady) ──
   const hydrateFromAuth = useCallback(
     async (session: Session | null) => {
       if (!supabase || isDemoMode) {
@@ -539,6 +551,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [hydrateFromAuth],
   );
 
+  // ── Onboarding: הזמנה → פרופיל (+ SMS להורה אם מתחת ל־13) ──
   const redeemInvite = useCallback(
     async (code: string): Promise<OkOrError> => {
       // HAP-U16-2026 canonical; MAC-U16-2026 legacy alias → same team.
@@ -754,6 +767,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [brand.name, team],
   );
 
+  // ── מודול 2: Dual-Ack / נוכחות / carpool / באנר ──
   const setRsvp = useCallback(
     async (eventId: string, choice: RsvpChoice, reason?: string, asParent = false) => {
       if (!user) return;
@@ -869,6 +883,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [attendance],
   );
 
+  // ── מודול 3: מוכנות + כאב (שחקן כותב; צוות קורא דרך refreshHealth) ──
   const submitReadiness = useCallback(
     async (rpe: number, sleepHours: number, waterLiters: number): Promise<OkOrError> => {
       if (!user) return { ok: false, error: t('errors.signInBeforeProfile') };
@@ -961,6 +976,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [user],
   );
 
+  // ── מודול 4: יצירת תרגיל / לוח / שיבוץ / תשובה / Game IQ cache ──
   const createPlay = useCallback(
     async (title: string): Promise<CreatePlayResult> => {
       if (!user) {

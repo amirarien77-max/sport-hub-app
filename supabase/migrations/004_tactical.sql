@@ -1,4 +1,6 @@
--- Tactical board block (PRD §5)
+-- =============================================================================
+-- 004_tactical: תרגילים, שיבוצים, הצעות (מודול 4). board_json / game_iq ב־010–012.
+-- =============================================================================
 
 CREATE TABLE tactical_plays (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

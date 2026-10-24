@@ -1,3 +1,9 @@
+/**
+ * מסך בריאות (מודול 3):
+ * - שחקן: RPE + שינה/מים (תקרה 24) + מפת כאב
+ * - צוות: לוח סיכון (buildPlayerRiskRows) לפי coachHealthAccess
+ * - הורה: ללא נתונים רפואיים (מסך הסבר בלבד)
+ */
 import { useMemo, useState } from 'react';
 import {
   Alert,

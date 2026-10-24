@@ -1,3 +1,8 @@
+/**
+ * מיתוג מועדון (צבעים מ־clubs) + סגנונות layout משותפים עם RTL.
+ * אחרי redeemInvite / hydrate — setBrand מעדכן primary וכו׳ ל־הפועל ירושלים.
+ * ייצוא מחדש של rtl* לנוחות ייבוא ממסכים.
+ */
 import React, { createContext, useContext, useMemo, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { he, t } from '@/i18n';

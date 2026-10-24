@@ -1,7 +1,8 @@
 /**
- * Game IQ — structured coach/player insights for a tactical play.
+ * Game IQ Edge Function — תובנות מאמן/שחקן לתרגיל טקטי.
  * Secret: OPENAI_API_KEY (Dashboard → Edge Functions → Secrets).
- * Without the key, returns Hebrew offline_stub (same shape as client fallback).
+ * בלי מפתח / שגיאת OpenAI / JSON פגום → offline_stub בעברית (אותו shape כמו בקליינט).
+ * אחרי הצלחה: best-effort update ל־tactical_plays.game_iq_json.
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 

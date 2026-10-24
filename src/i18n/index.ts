@@ -1,3 +1,7 @@
+/**
+ * i18n עברית בלבד + הפעלת RTL בטעינת המודול.
+ * כל מחרוזות ה־UI עוברות דרך `t('dotted.key')`; מפות תרגום לתפקידים/RSVP וכו׳.
+ */
 import { I18nManager, Platform } from 'react-native';
 import { he } from './he';
 

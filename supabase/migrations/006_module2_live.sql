@@ -1,5 +1,8 @@
--- Module 2 live: RLS writes for Dual-Ack / attendance / carpool / urgent banner
--- + seed schedule rows for MAC-U16 team. Safe to re-run (IF NOT EXISTS / ON CONFLICT).
+-- =============================================================================
+-- 006_module2_live: מדיניות כתיבה למודול 2 + helpers SECURITY DEFINER
+-- (current_app_user_id / team / role) — מונעים recursion על users.
+-- Safe to re-run (IF NOT EXISTS / ON CONFLICT).
+-- =============================================================================
 
 -- ── Helpers (SECURITY DEFINER avoids recursive RLS on users) ─────────────────
 CREATE OR REPLACE FUNCTION public.current_app_user_id()

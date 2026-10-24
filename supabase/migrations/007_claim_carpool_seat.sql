@@ -1,4 +1,7 @@
--- Atomic carpool seat claim (avoids silent 0-row UPDATE under RLS + client race).
+-- =============================================================================
+-- 007_claim_carpool_seat: RPC אטומי לתפיסת מושב (SECURITY DEFINER).
+-- הלקוח מעדיף את זה; נסיגה ל־UPDATE מותנה אם הפונקציה חסרה.
+-- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.claim_carpool_seat(p_offer_id uuid)
 RETURNS TABLE (id uuid, seats_taken int, seats_available int)

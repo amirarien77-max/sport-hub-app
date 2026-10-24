@@ -1,3 +1,7 @@
+/**
+ * רשת נוכחות במגרש — לחיצה מחזורית null → present → excused → no_show.
+ * «נעילה» שומרת סימונים ומחזירה רשימת no_show. צוות בלבד (טאב מוסתר לאחרים).
+ */
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { t, translateAttendanceMark } from '@/i18n';

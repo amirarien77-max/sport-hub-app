@@ -1,3 +1,8 @@
+/**
+ * מודול 3 (live): מוכנות יומית + מפת כאב + חישוב סיכון למאמן.
+ * sleep/water מוגבלים ל־0–24 (גם ב־DB וגם ב־clamp24). הורים לא אמורים
+ * לקבל SELECT רפואי — SessionContext מנקה להם את הבאנדל.
+ */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PainReport, PainSeverity, ReadinessReport, Role } from '@/types';
 
@@ -54,6 +59,7 @@ export function mapPainRow(row: PainRow): PainReport {
   };
 }
 
+/** תקרת שינה/מים לפי PRD — מעל 24 נחתך (לא נזרק). */
 function clamp24(n: number): number {
   return Math.min(24, Math.max(0, n));
 }
@@ -160,12 +166,13 @@ export async function insertPainLive(
   return mapPainRow(data as PainRow);
 }
 
+/** חלון «כאב כרוני»: ≥2 דיווחים לאותו אזור בתוך 7 ימים → watch/high. */
 const CHRONIC_DAYS = 7;
 const CHRONIC_COUNT = 2;
 
 /**
- * Red/yellow risk from load (high RPE) and chronic / disabling pain.
- * reasons keys are i18n paths under health.riskReasons.*
+ * לוח סיכון מאמן: אדום/צהוב לפי עומס (RPE) וכאב כרוני/מגביל.
+ * מפתחות reasons → i18n תחת health.riskReasons.*
  */
 export function buildPlayerRiskRows(
   players: { id: string; fullName: string }[],
