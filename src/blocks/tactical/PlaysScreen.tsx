@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Keyboard,
-  LayoutChangeEvent,
   Platform,
   Pressable as RNPressable,
   ScrollView,
@@ -12,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
+import { CourtBoard, CourtEditorModal } from '@/blocks/tactical/CourtBoard';
 import { t, translateSuggestionStatus } from '@/i18n';
 import {
   buildOfflineGameIq,
@@ -24,6 +24,7 @@ import { isDemoMode, supabase } from '@/lib/supabase';
 import {
   parseBoardJson,
   serializeBoardJson,
+  type BoardArrow,
   type BoardMarker,
 } from '@/lib/tactical-live';
 import { useSession } from '@/session/SessionContext';
@@ -98,8 +99,9 @@ export function PlaysScreen() {
   const [promptDraft, setPromptDraft] = useState('');
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
   const [localMarkers, setLocalMarkers] = useState<BoardMarker[]>([]);
-  const [courtSize, setCourtSize] = useState({ w: 1, h: 1 });
+  const [localArrows, setLocalArrows] = useState<BoardArrow[]>([]);
   const [nextLabel, setNextLabel] = useState(1);
+  const [courtEditorOpen, setCourtEditorOpen] = useState(false);
   const [creatingPlay, setCreatingPlay] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createOk, setCreateOk] = useState<string | null>(null);
@@ -127,14 +129,17 @@ export function PlaysScreen() {
   useEffect(() => {
     if (!selectedPlay) {
       setLocalMarkers([]);
+      setLocalArrows([]);
       setMediaDraft('');
       setNextLabel(1);
       setGameIq(null);
+      setCourtEditorOpen(false);
       return;
     }
-    const markers = parseBoardJson(selectedPlay.boardJson).markers;
-    setLocalMarkers(markers);
-    setNextLabel(nextMarkerLabel(markers));
+    const board = parseBoardJson(selectedPlay.boardJson);
+    setLocalMarkers(board.markers);
+    setLocalArrows(board.arrows);
+    setNextLabel(nextMarkerLabel(board.markers));
     setMediaDraft(selectedPlay.mediaUrl ?? '');
     setSuggestionDraft('');
     setAssignFeedback(null);
@@ -163,33 +168,11 @@ export function PlaysScreen() {
     [isPlayer, playSuggestions, selectedPlay, user],
   );
 
-  const onCourtLayout = (e: LayoutChangeEvent) => {
-    const { width, height } = e.nativeEvent.layout;
-    setCourtSize({ w: Math.max(1, width), h: Math.max(1, height) });
-  };
-
-  const addMarkerAt = (locationX: number, locationY: number) => {
-    if (!isCoach || !selectedPlay) return;
-    const x = Math.min(100, Math.max(0, Math.round((locationX / courtSize.w) * 100)));
-    const y = Math.min(100, Math.max(0, Math.round((locationY / courtSize.h) * 100)));
-    const label = String(nextLabel);
-    const next = [...localMarkers, { x, y, label }].slice(-12);
-    setLocalMarkers(next);
-    setNextLabel(nextMarkerLabel(next));
-  };
-
-  const removeMarker = (idx: number) => {
-    if (!isCoach) return;
-    const next = localMarkers.filter((_, i) => i !== idx);
-    setLocalMarkers(next);
-    setNextLabel(nextMarkerLabel(next));
-  };
-
   const saveBoard = async () => {
     if (!selectedPlay) return;
     const result = await updatePlayBoard(
       selectedPlay.id,
-      serializeBoardJson({ markers: localMarkers }),
+      serializeBoardJson({ markers: localMarkers, arrows: localArrows }),
     );
     if (result.ok) {
       setAssignFeedback(t('plays.savedOk'));
@@ -544,76 +527,66 @@ export function PlaysScreen() {
       </View>
 
       {/*
-        Court taps must beat the parent ScrollView. Use Pressable for hit-testing,
-        keep decorations pointerEvents=none, and refuse responder termination so
-        vertical scroll does not swallow the tap.
+        Inline preview: larger hit area; coach opens almost full-screen editor.
+        Court surface forces LTR so RTL text layout does not mirror coordinates.
       */}
-      <View
-        style={styles.court}
-        onLayout={onCourtLayout}
-        onStartShouldSetResponder={() => true}
-        onMoveShouldSetResponder={() => false}
-        onResponderTerminationRequest={() => false}
-      >
-        <RNPressable
-          disabled={!isCoach}
-          onPress={(evt) => {
-            const { locationX, locationY } = evt.nativeEvent;
-            addMarkerAt(locationX, locationY);
-          }}
-          style={StyleSheet.absoluteFill}
-          accessibilityRole="button"
-          accessibilityLabel={t('plays.courtSketch')}
-        />
-        <View pointerEvents="none" style={styles.courtLabelWrap}>
-          <Text style={styles.courtLabel}>
-            {isCoach ? t('plays.courtSketch') : t('plays.courtHintPlayer')}
+      <CourtBoard
+        markers={localMarkers}
+        arrows={localArrows}
+        editable={false}
+        height={280}
+        onOpenFullscreen={() => setCourtEditorOpen(true)}
+      />
+      {isCoach ? (
+        <>
+          <Text style={[{ color: colors.muted, marginTop: 6 }, rtlText]}>
+            {t('plays.courtPreviewHint')}
           </Text>
-        </View>
-        <View pointerEvents="none" style={styles.paint} />
-        <View pointerEvents="none" style={styles.ftLine} />
-        {localMarkers.map((m, idx) => (
-          <RNPressable
-            key={`${m.label}-${idx}-${m.x}-${m.y}`}
-            disabled={!isCoach}
-            onPress={() => removeMarker(idx)}
-            style={[
-              styles.marker,
-              {
-                left: (m.x / 100) * courtSize.w - 18,
-                top: (m.y / 100) * courtSize.h - 18,
-                backgroundColor: colors.secondary,
-                borderColor: colors.primary,
-                zIndex: 2,
-              },
-            ]}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('plays.openCourtEditor')}
+            onPress={() => setCourtEditorOpen(true)}
+            style={[layout.button, { backgroundColor: colors.primary, marginTop: 10, minHeight: 48 }]}
           >
-            <Text style={{ fontWeight: '800', color: colors.primary }}>{m.label}</Text>
-          </RNPressable>
-        ))}
-      </View>
-      {isCoach ? (
-        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 6 }}>
-          {t('plays.courtHintCoach')}
+            <Text style={[layout.buttonText, { color: '#fff' }]}>{t('plays.openCourtEditor')}</Text>
+          </Pressable>
+          <View style={[rtlLayout.splitRow, { marginTop: 10, gap: 8 }]}>
+            <Pressable
+              onPress={() => {
+                setLocalMarkers([]);
+                setLocalArrows([]);
+                setNextLabel(1);
+              }}
+              style={[layout.button, rtlLayout.half, { backgroundColor: colors.muted }]}
+            >
+              <Text style={[layout.buttonText, { color: '#fff' }]}>{t('plays.clearBoard')}</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void saveBoard()}
+              style={[layout.button, rtlLayout.half, { backgroundColor: colors.primary }]}
+            >
+              <Text style={[layout.buttonText, { color: '#fff' }]}>{t('plays.saveBoard')}</Text>
+            </Pressable>
+          </View>
+        </>
+      ) : (
+        <Text style={[{ color: colors.muted, marginTop: 6 }, rtlText]}>
+          {t('plays.courtHintPlayer')}
         </Text>
-      ) : null}
+      )}
 
-      {isCoach ? (
-        <View style={[rtlLayout.splitRow, { marginTop: 10, gap: 8 }]}>
-          <Pressable
-            onPress={() => setLocalMarkers([])}
-            style={[layout.button, rtlLayout.half, { backgroundColor: colors.muted }]}
-          >
-            <Text style={[layout.buttonText, { color: '#fff' }]}>{t('plays.clearBoard')}</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => void saveBoard()}
-            style={[layout.button, rtlLayout.half, { backgroundColor: colors.primary }]}
-          >
-            <Text style={[layout.buttonText, { color: '#fff' }]}>{t('plays.saveBoard')}</Text>
-          </Pressable>
-        </View>
-      ) : null}
+      <CourtEditorModal
+        visible={courtEditorOpen}
+        markers={localMarkers}
+        arrows={localArrows}
+        editable={isCoach}
+        nextLabel={nextLabel}
+        onNextLabel={setNextLabel}
+        onChangeMarkers={setLocalMarkers}
+        onChangeArrows={setLocalArrows}
+        onClose={() => setCourtEditorOpen(false)}
+        onSave={() => void saveBoard()}
+      />
 
       <View style={[styles.card, { borderColor: colors.primary, marginTop: 14 }]}>
         <Text style={styles.playTitle}>{t('plays.mediaStubTitle')}</Text>
@@ -934,7 +907,8 @@ function PlayListRow({
   assignmentHint: number;
   onOpen: () => void;
 }) {
-  const markerCount = parseBoardJson(play.boardJson).markers.length;
+  const board = parseBoardJson(play.boardJson);
+  const boardBits = board.markers.length + board.arrows.length;
   return (
     <Pressable
       onPress={onOpen}
@@ -943,7 +917,7 @@ function PlayListRow({
       <Text style={styles.playTitle}>{play.title}</Text>
       <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
         {play.allowSuggestions ? t('plays.suggestionsOn') : t('plays.suggestionsOff')}
-        {markerCount > 0 ? ` · ${markerCount}` : ''}
+        {boardBits > 0 ? ` · ${boardBits}` : ''}
         {assignmentHint > 0 ? ` · ${t('plays.assignmentCount', { count: assignmentHint })}` : ''}
         {play.mediaUrl ? ` · ${t('plays.mediaLinked')}` : ''}
       </Text>
@@ -964,53 +938,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   playTitle: { fontSize: 18, fontWeight: '800', ...rtlText },
-  court: {
-    marginTop: 12,
-    height: 220,
-    borderRadius: 12,
-    backgroundColor: '#1B4332',
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  courtLabelWrap: {
-    position: 'absolute',
-    top: 10,
-    right: 12,
-    left: 12,
-    zIndex: 1,
-  },
-  courtLabel: {
-    color: '#D8F3DC',
-    fontWeight: '600',
-    ...rtlText,
-  },
-  paint: {
-    position: 'absolute',
-    bottom: 0,
-    left: '30%',
-    width: '40%',
-    height: '45%',
-    borderWidth: 2,
-    borderColor: 'rgba(216,243,220,0.45)',
-    borderBottomWidth: 0,
-  },
-  ftLine: {
-    position: 'absolute',
-    bottom: '45%',
-    left: '30%',
-    width: '40%',
-    height: 2,
-    backgroundColor: 'rgba(216,243,220,0.45)',
-  },
-  marker: {
-    position: 'absolute',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   section: {
     marginTop: 16,
     marginBottom: 8,
