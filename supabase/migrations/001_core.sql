@@ -4,9 +4,9 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE clubs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name VARCHAR(120) NOT NULL,
-  primary_color VARCHAR(7) NOT NULL DEFAULT '#0B1F3A',
-  secondary_color VARCHAR(7) NOT NULL DEFAULT '#F5B700',
-  accent_color VARCHAR(7) NOT NULL DEFAULT '#2A9D8F',
+  primary_color VARCHAR(7) NOT NULL DEFAULT '#C8102E',
+  secondary_color VARCHAR(7) NOT NULL DEFAULT '#1A1A1A',
+  accent_color VARCHAR(7) NOT NULL DEFAULT '#F5F5F5',
   logo_url TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );

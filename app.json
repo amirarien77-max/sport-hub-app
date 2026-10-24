@@ -14,7 +14,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0B1F3A",
+        "backgroundColor": "#C8102E",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -35,6 +35,13 @@
           "supportsRTL": true,
           "forcesRTL": true,
           "supportedLocales": ["he"]
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "לאפשר בחירת תמונה או וידאו לתרגיל טקטי.",
+          "cameraPermission": false
         }
       ]
     ],

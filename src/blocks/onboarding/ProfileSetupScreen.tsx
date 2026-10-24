@@ -27,11 +27,13 @@ export function ProfileSetupScreen() {
   const [dob, setDob] = useState('2012-04-12');
   const [parentPhone, setParentPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const onSubmit = async () => {
     setBusy(true);
     setError(null);
+    setNote(null);
     const result = await completeOnboarding({
       fullName,
       role,
@@ -41,6 +43,12 @@ export function ProfileSetupScreen() {
     setBusy(false);
     if (!result.ok) {
       setError(result.error);
+      return;
+    }
+    if (result.note) {
+      setNote(result.note);
+      // Brief pause so Hebrew SMS status is readable before navigation.
+      setTimeout(() => router.replace('/(tabs)/schedule'), 1200);
       return;
     }
     router.replace('/(tabs)/schedule');
@@ -110,6 +118,9 @@ export function ProfileSetupScreen() {
 
       {error ? (
         <Text style={{ color: colors.danger, marginTop: 8, textAlign: 'right' }}>{error}</Text>
+      ) : null}
+      {note ? (
+        <Text style={{ color: colors.success, marginTop: 8, textAlign: 'right' }}>{note}</Text>
       ) : null}
 
       {busy ? (

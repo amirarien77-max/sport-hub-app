@@ -1,6 +1,8 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { t, translateConsent, translateRole } from '@/i18n';
+import type { PendingConsentPlayer } from '@/lib/consent-live';
 import { isAttendanceCoach } from '@/lib/roles';
 import { isDemoMode } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
@@ -9,7 +11,32 @@ import type { Role } from '@/types';
 
 export default function ProfileRoute() {
   const { colors, brand } = useTheme();
-  const { user, team, switchDemoRole, signOut } = useSession();
+  const {
+    user,
+    team,
+    switchDemoRole,
+    signOut,
+    refreshPendingConsent,
+    markPlayerConsented,
+    resendParentalConsentSms,
+  } = useSession();
+
+  const [pending, setPending] = useState<PendingConsentPlayer[]>([]);
+  const [consentBusyId, setConsentBusyId] = useState<string | null>(null);
+  const [consentNote, setConsentNote] = useState<string | null>(null);
+
+  const loadPending = useCallback(async () => {
+    if (!isAttendanceCoach(user?.role)) {
+      setPending([]);
+      return;
+    }
+    const rows = await refreshPendingConsent();
+    setPending(rows);
+  }, [refreshPendingConsent, user?.role]);
+
+  useEffect(() => {
+    void loadPending();
+  }, [loadPending]);
 
   const roleHint = isAttendanceCoach(user?.role)
     ? t('profile.coachToolsHint')
@@ -44,6 +71,79 @@ export default function ProfileRoute() {
         {roleHint}
       </Text>
 
+      {isAttendanceCoach(user?.role) ? (
+        <View style={[styles.consentCard, { borderColor: colors.primary }]}>
+          <Text style={[styles.label, { marginTop: 0 }]}>{t('profile.pendingConsentTitle')}</Text>
+          {consentNote ? (
+            <Text style={{ color: colors.success, textAlign: 'right', marginBottom: 8 }}>
+              {consentNote}
+            </Text>
+          ) : null}
+          {pending.length === 0 ? (
+            <Text style={{ color: colors.muted, textAlign: 'right' }}>
+              {t('profile.pendingConsentEmpty')}
+            </Text>
+          ) : (
+            pending.map((p) => (
+              <View key={p.id} style={styles.pendingRow}>
+                <Text style={{ fontWeight: '700', textAlign: 'right', color: colors.text }}>
+                  {p.fullName}
+                </Text>
+                <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 2 }}>
+                  {t('profile.pendingConsentPhone', { phone: p.parentPhone ?? '—' })}
+                </Text>
+                {consentBusyId === p.id ? (
+                  <ActivityIndicator style={{ marginTop: 8 }} color={colors.primary} />
+                ) : (
+                  <View style={{ gap: 8, marginTop: 8 }}>
+                    <Pressable
+                      onPress={async () => {
+                        setConsentBusyId(p.id);
+                        setConsentNote(null);
+                        const result = await markPlayerConsented(p.id);
+                        setConsentBusyId(null);
+                        if (result.ok) {
+                          setConsentNote(result.note ?? t('profile.markConsentedDone'));
+                          await loadPending();
+                        } else {
+                          setConsentNote(t('profile.markConsentedFailed', { error: result.error }));
+                        }
+                      }}
+                      style={[layout.button, { backgroundColor: colors.primary, minHeight: 44 }]}
+                    >
+                      <Text style={[layout.buttonText, { color: '#fff' }]}>
+                        {t('profile.markConsented')}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={async () => {
+                        setConsentBusyId(p.id);
+                        setConsentNote(null);
+                        const result = await resendParentalConsentSms(p);
+                        setConsentBusyId(null);
+                        if (result.ok) {
+                          setConsentNote(result.note ?? t('profile.smsModeSimulated'));
+                        } else {
+                          setConsentNote(t('profile.markConsentedFailed', { error: result.error }));
+                        }
+                      }}
+                      style={[
+                        layout.button,
+                        { backgroundColor: colors.secondary, minHeight: 44 },
+                      ]}
+                    >
+                      <Text style={[layout.buttonText, { color: '#fff' }]}>
+                        {t('profile.resendSms')}
+                      </Text>
+                    </Pressable>
+                  </View>
+                )}
+              </View>
+            ))
+          )}
+        </View>
+      ) : null}
+
       {isDemoMode ? (
         <>
           <Text style={styles.label}>{t('profile.switchDemoRole')}</Text>
@@ -60,7 +160,12 @@ export default function ProfileRoute() {
                   },
                 ]}
               >
-                <Text style={{ color: colors.primary, fontWeight: '700' }}>
+                <Text
+                  style={{
+                    color: user?.role === role ? '#fff' : colors.primary,
+                    fontWeight: '700',
+                  }}
+                >
                   {translateRole(role)}
                 </Text>
               </Pressable>
@@ -89,6 +194,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 12,
     borderWidth: 1.5,
+  },
+  consentCard: {
+    marginTop: 20,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    backgroundColor: '#fff',
+  },
+  pendingRow: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E2E8F0',
   },
   label: {
     marginTop: 24,

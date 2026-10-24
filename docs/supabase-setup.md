@@ -25,7 +25,7 @@ Open **SQL Editor** in the Supabase dashboard and run these files **in order** (
 3. `supabase/migrations/003_health.sql`
 4. `supabase/migrations/004_tactical.sql`
 5. `supabase/migrations/005_live_auth.sql` (invite lookup + self profile insert policies)
-6. `supabase/seed.sql` (demo club/team with invite `MAC-U16-2026`)
+6. `supabase/seed.sql` (demo club **הפועל ירושלים**, invite `HAP-U16-2026`)
 7. `supabase/migrations/006_module2_live.sql` (Dual-Ack / attendance / carpool / urgent banner RLS + seed events)
 8. `supabase/migrations/007_claim_carpool_seat.sql` (atomic RPC for carpool seat claim)
 9. `supabase/migrations/008_fix_rls_recursion.sql` (SECURITY DEFINER helpers; health staff read)
@@ -33,12 +33,31 @@ Open **SQL Editor** in the Supabase dashboard and run these files **in order** (
 11. `supabase/migrations/010_module4_tactical_live.sql` (tactical RLS writes, board_json, seed Horns play)
 12. `supabase/migrations/011_module4_board_touch_notes.sql` (re-assert coach INSERT/UPDATE policies + grants)
 13. `supabase/migrations/012_game_iq.sql` (`game_iq_json` cache column on `tactical_plays`)
+14. `supabase/migrations/013_hapoel_brand_and_sms_consent.sql` (Hapoel brand + parental SMS consent table/RPC)
+15. `supabase/migrations/014_tactical_media_storage.sql` (Storage bucket `tactical-media` + RLS)
 
-Skip any file you have already applied. This agent cannot apply SQL to your cloud DB without the database password or service role.
+Skip any file you have already applied.
+
+### Demo invite codes
+
+| Code | Role |
+|------|------|
+| `HAP-U16-2026` | Canonical (הפועל ירושלים) |
+| `MAC-U16-2026` | Legacy alias — app maps it to `HAP-U16-2026` |
 
 ### Game IQ Edge Function (optional OpenAI)
 
 Deploy `supabase/functions/game-iq` and set secret `OPENAI_API_KEY` in the Supabase dashboard. Without the function or key, the app uses a clear Hebrew **offline stub** (same structured coach/player bullets). Never put OpenAI keys in `EXPO_PUBLIC_*`.
+
+### Parental consent SMS (optional Twilio)
+
+Deploy `supabase/functions/parental-consent-sms` and set Edge secrets:
+
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+- `TWILIO_FROM_NUMBER`
+
+Without Twilio, the app **simulates** send (logs Hebrew payload) and coaches can **סמן כמאושר על ידי הורה** on the profile screen.
 
 Enable **Email** auth under Authentication → Providers if it is not already on.
 
@@ -56,7 +75,7 @@ npx expo start
 The in-app UI is Hebrew (RTL). Button labels below match the Hebrew screens:
 
 1. On **התחברות**, choose **יצירת חשבון** (or **התחברות**) with email + password.  
-2. Redeem invite code `MAC-U16-2026` (after seed) — the code itself stays Latin.  
+2. Redeem invite code `HAP-U16-2026` (after seed; `MAC-U16-2026` still works as alias) — codes stay Latin.  
 3. Complete your profile (**כניסה למרכז**) — the app links `auth.users` to `public.users` via `auth_id`.
 
 With `EXPO_PUBLIC_DEMO_MODE=true` (or missing URL/key), the app stays in in-memory demo mode and does not call Supabase.

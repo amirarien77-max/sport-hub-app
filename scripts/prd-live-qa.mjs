@@ -46,9 +46,9 @@ async function run() {
     const { data: team } = await sb
       .from('teams')
       .select('id, invite_code, club_id, name')
-      .eq('invite_code', 'MAC-U16-2026')
+      .eq('invite_code', 'HAP-U16-2026')
       .maybeSingle();
-    record('M1', 'invite MAC-U16-2026 exists (anon read)', Boolean(team), team?.name);
+    record('M1', 'invite HAP-U16-2026 exists (anon read)', Boolean(team), team?.name);
     if (team) {
       const { data: club } = await sb
         .from('clubs')

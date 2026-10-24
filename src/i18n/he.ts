@@ -1,4 +1,4 @@
-/** Hebrew UI copy for Basketball Hub. Invite code MAC-U16-2026 stays untranslated. */
+/** Hebrew UI copy for Basketball Hub. Invite codes HAP-U16-2026 / MAC-U16-2026 stay Latin. */
 
 export const he = {
   tabs: {
@@ -110,12 +110,14 @@ export const he = {
     subtitle: 'הזינו את קוד ההזמנה של המועדון כדי להצטרף. הצבעים יוחלו ברגע שהקוד תקין.',
     continue: 'המשך',
     demoCode: 'קוד דמו: {code}',
-    afterSeed: 'אחרי seed.sql, נסו את הקוד {code}.',
+    afterSeed: 'אחרי seed.sql, נסו את הקוד {code} (או MAC-U16-2026 ככינוי ישן).',
+    legacyAliasHint: 'כינוי ישן שעדיין עובד: MAC-U16-2026',
   },
 
   profileSetup: {
     title: 'הצטרפות ל־{name}',
-    subtitle: 'שחקנים מתחת לגיל 13 צריכים טלפון של הורה ונשארים מחוץ לפיד הקבוצה עד אישור ב-SMS.',
+    subtitle:
+      'שחקנים מתחת לגיל 13 צריכים טלפון של הורה. נשלח SMS לאישור (או סימולציה בפיתוח) — עד אז הפיד הקבוצתי נעול.',
     fullName: 'שם מלא',
     role: 'תפקיד',
     dob: 'תאריך לידה (YYYY-MM-DD)',
@@ -123,6 +125,10 @@ export const he = {
     parentPhonePlaceholder: '+972...',
     enterHub: 'כניסה למרכז',
     quickPersonas: 'דמויות דמו מהירות',
+    smsSimulated:
+      'SMS בסימולציה (אין Twilio): הפרטים נרשמו ביומן. המאמן יכול לסמן «אושר הורה» בפרופיל.',
+    smsSent: 'הודעת SMS נשלחה להורה (Twilio).',
+    smsPendingNote: 'סטטוס: ממתין לאישור הורה — הפיד נעול עד לאישור.',
   },
 
   schedule: {
@@ -230,6 +236,15 @@ export const he = {
     coachToolsHint: 'כמאמן: מסך נוכחות לסימון במגרש, ולוח סיכון בבריאות.',
     playerToolsHint: 'כשחקן: RSVP בלו״ז, דיווח מוכנות ומפת כאב בבריאות.',
     parentToolsHint: 'כהורה: RSVP בלו״ז ושמירת מקום בטרמפים.',
+    pendingConsentTitle: 'אישור הורים (מתחת לגיל 13)',
+    pendingConsentEmpty: 'אין שחקנים ממתינים לאישור הורה.',
+    pendingConsentPhone: 'טלפון הורה: {phone}',
+    markConsented: 'סמן כמאושר על ידי הורה',
+    markConsentedDone: 'ההסכמה עודכנה — השחקן פעיל.',
+    markConsentedFailed: 'לא הצלחנו לעדכן הסכמה: {error}',
+    resendSms: 'שליחת SMS מחדש / סימולציה',
+    smsModeTwilio: 'מצב Twilio',
+    smsModeSimulated: 'מצב סימולציה (ללא Twilio)',
   },
 
   plays: {
@@ -263,11 +278,17 @@ export const he = {
     courtHintPlayer: 'סקיצת המאמן — עמדות על המגרש.',
     clearBoard: 'ניקוי לוח',
     saveBoard: 'שמירת לוח',
-    mediaStubTitle: 'מדיה / וידאו (זמני)',
+    mediaStubTitle: 'מדיה / וידאו',
     mediaStubHint:
-      'צינור העלאת וידאו מלא יגיע בהמשך. בינתיים ניתן לשמור קישור חיצוני (YouTube / Drive).',
+      'העלאה ל־Supabase Storage (דלי tactical-media) או קישור חיצוני. במצב דמו — קישור בלבד.',
     mediaUrlPlaceholder: 'https://… קישור מדיה',
     saveMediaUrl: 'שמירת קישור',
+    mediaUpload: 'העלאת תמונה / וידאו',
+    mediaUploading: 'מעלים…',
+    mediaUploadOk: 'הקובץ הועלה ונשמר בתרגיל.',
+    mediaUploadFailed: 'העלאה נכשלה: {error}',
+    mediaUploadDemoOnly: 'העלאה זמינה במצב חי (לא בדמו)',
+    mediaPermissionDenied: 'אין הרשאה לספריית המדיה במכשיר.',
     mediaLinked: 'מדיה מקושרת',
     mediaMissing: 'אין קישור מדיה עדיין',
     gameIqStub:
@@ -310,10 +331,10 @@ export const he = {
     demoAuthDisabled: 'התחברות חיה כבויה במצב דמו.',
     emailPasswordRequired: 'נדרשים אימייל וסיסמה.',
     weakPassword: 'השתמשו באימייל תקין ובסיסמה של לפחות 6 תווים.',
-    invalidInviteDemo: 'קוד הזמנה לא תקין. נסו MAC-U16-2026 במצב דמו.',
+    invalidInviteDemo: 'קוד הזמנה לא תקין. נסו HAP-U16-2026 (או MAC-U16-2026) במצב דמו.',
     signInBeforeInvite: 'התחברו לפני הזנת קוד הזמנה.',
     invalidInviteLive:
-      'קוד הזמנה לא תקין. הריצו את seed.sql כדי ש־MAC-U16-2026 יהיה קיים, או השתמשו בקוד המועדון שלכם.',
+      'קוד הזמנה לא תקין. הריצו את seed.sql כדי ש־HAP-U16-2026 יהיה קיים (MAC-U16-2026 עדיין עובד ככינוי), או השתמשו בקוד המועדון שלכם.',
     redeemInviteFirst: 'הזינו קוד הזמנה קודם.',
     nameRequired: 'שם הוא שדה חובה.',
     playTitleRequired: 'יש להזין שם לתרגיל לפני יצירה.',
@@ -324,8 +345,8 @@ export const he = {
   },
 
   demo: {
-    brandDefault: 'מרכז הכדורסל',
-    clubName: 'מכבי נוער',
+    brandDefault: 'הפועל ירושלים',
+    clubName: 'הפועל ירושלים',
     teamName: 'נערים U16',
     eventPractice: 'אימון — פיק אנד רול',
     eventGame: 'משחק מול הרצליה',

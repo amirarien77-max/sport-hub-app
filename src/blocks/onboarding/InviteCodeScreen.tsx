@@ -42,7 +42,7 @@ export function InviteCodeScreen() {
         autoCapitalize="characters"
         autoCorrect={false}
         textAlign="center"
-        placeholder="MAC-U16-2026"
+        placeholder="HAP-U16-2026"
         placeholderTextColor={colors.muted}
         value={code}
         onChangeText={setCode}
@@ -69,6 +69,9 @@ export function InviteCodeScreen() {
         <Pressable onPress={() => setCode(DEMO_INVITE_CODE)} style={styles.hint}>
           <Text style={{ color: colors.muted, textAlign: 'right' }}>
             {t('invite.demoCode', { code: DEMO_INVITE_CODE })}
+          </Text>
+          <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
+            {t('invite.legacyAliasHint')}
           </Text>
         </Pressable>
       ) : (
