@@ -16,7 +16,7 @@ import { t, translateAbsenceReason, translateRsvp } from '@/i18n';
 import { dualAckConflict } from '@/lib/demo-data';
 import { canClaimCarpool, canSubmitRsvp, isAttendanceCoach } from '@/lib/roles';
 import { useSession } from '@/session/SessionContext';
-import { layout, rtlLayout, rtlText, useTheme } from '@/theme/ThemeContext';
+import { layout, rtlContainerProps, rtlLayout, rtlText, useTheme } from '@/theme/ThemeContext';
 
 export function ScheduleScreen() {
   const { colors } = useTheme();
@@ -66,13 +66,17 @@ export function ScheduleScreen() {
 
   return (
     <ScrollView
+      {...rtlContainerProps}
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={layout.scrollContent}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled
     >
       {pendingBanner ? (
-        <View style={[styles.banner, { backgroundColor: colors.accent }]}>
+        <View
+          {...rtlContainerProps}
+          style={[styles.banner, rtlLayout.box, { backgroundColor: colors.accent }]}
+        >
           <Text style={styles.bannerTitle}>{t('schedule.urgent')}</Text>
           <Text style={styles.bannerBody}>{banner.message}</Text>
           <Pressable
@@ -103,7 +107,11 @@ export function ScheduleScreen() {
       {events.map((event) => {
         const related = acks.filter((a) => a.eventId === event.id);
         return (
-          <View key={event.id} style={[styles.card, { borderColor: colors.primary }]}>
+          <View
+            key={event.id}
+            {...rtlContainerProps}
+            style={[styles.card, rtlLayout.box, { borderColor: colors.primary }]}
+          >
             <Text style={styles.eventTitle}>{event.title}</Text>
             <Text style={[{ color: colors.muted }, rtlText]}>
               {new Date(event.startsAt).toLocaleString('he-IL')} · {event.location}
@@ -184,7 +192,11 @@ export function ScheduleScreen() {
         const claiming = claimingOfferId === offer.id;
         const disabled = isFull || claiming || claimingOfferId != null;
         return (
-          <View key={offer.id} style={[styles.card, { borderColor: colors.secondary }]}>
+          <View
+            key={offer.id}
+            {...rtlContainerProps}
+            style={[styles.card, rtlLayout.box, { borderColor: colors.secondary }]}
+          >
             <Text style={[{ fontWeight: '700' }, rtlText]}>{offer.parentName}</Text>
             <Text style={[{ color: colors.muted }, rtlText]}>
               {t('schedule.seatsTaken', {
@@ -292,6 +304,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1.5,
     backgroundColor: '#fff',
+    writingDirection: 'rtl',
   },
   eventTitle: {
     fontSize: 18,

@@ -15,6 +15,8 @@ export {
   rtlLayout,
   rtlTextAlign,
   rtlRowDirection,
+  rtlContainerProps,
+  rtlAlignStart,
   isAppRtl,
 } from '@/theme/rtl';
 
@@ -86,6 +88,8 @@ export const layout = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 24,
+    writingDirection: 'rtl',
+    alignItems: 'stretch',
   },
   /**
    * ScrollView contentContainerStyle — no flex:1 (that prevents scrolling
@@ -96,6 +100,8 @@ export const layout = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 48,
     flexGrow: 1,
+    writingDirection: 'rtl',
+    alignItems: 'stretch',
   },
   title: {
     fontSize: 28,

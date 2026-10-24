@@ -188,7 +188,8 @@ function CourtSurface({
       style={[
         styles.court,
         fill ? styles.courtFill : { height: height ?? 220 },
-        Platform.OS !== 'web' ? styles.courtLtr : null,
+        // Inline only — StyleSheet `direction` is rejected on RN web at create time.
+        Platform.OS !== 'web' ? ({ direction: 'ltr' } as const) : null,
       ]}
       onLayout={onLayout}
       onStartShouldSetResponder={() => true}
@@ -514,10 +515,6 @@ const styles = StyleSheet.create({
     flex: 1,
     marginTop: 8,
     minHeight: 280,
-  },
-  /** Physical coordinate space — markers/arrows must not flip under app RTL. */
-  courtLtr: {
-    direction: 'ltr',
   },
   courtLabelWrap: {
     position: 'absolute',

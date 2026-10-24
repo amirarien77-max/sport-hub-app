@@ -1,6 +1,6 @@
 /**
  * מסך בריאות (מודול 3):
- * - שחקן: RPE + שינה/מים (תקרה 24) + מפת כאב
+ * - שחקן: רמת קושי (1–10) + שינה/מים (תקרה 24) + מפת כאב
  * - צוות: לוח סיכון (buildPlayerRiskRows) לפי coachHealthAccess
  * - הורה: ללא נתונים רפואיים (מסך הסבר בלבד)
  */
@@ -24,7 +24,15 @@ import { buildPlayerRiskRows, type PlayerRiskLevel } from '@/lib/health-live';
 import { canLogReadiness, coachHealthAccess, isHealthStaff } from '@/lib/roles';
 import { isDemoMode } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
-import { layout, rtlInput, rtlLayout, rtlText, rtlTextAlign, useTheme } from '@/theme/ThemeContext';
+import {
+  layout,
+  rtlContainerProps,
+  rtlInput,
+  rtlLayout,
+  rtlText,
+  rtlTextAlign,
+  useTheme,
+} from '@/theme/ThemeContext';
 import type { PainSeverity } from '@/types';
 
 const BODY_REGIONS: Record<string, string[]> = {
@@ -207,6 +215,7 @@ export function ReadinessScreen() {
 
   return (
     <ScrollView
+      {...rtlContainerProps}
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={layout.scrollContent}
       keyboardShouldPersistTaps="handled"
@@ -215,7 +224,14 @@ export function ReadinessScreen() {
       <Text style={[layout.subtitle, { color: colors.muted }]}>{subtitle}</Text>
 
       {isParent ? (
-        <View style={[styles.panel, { borderColor: colors.muted, backgroundColor: '#F8FAFC' }]}>
+        <View
+          {...rtlContainerProps}
+          style={[
+            styles.panel,
+            rtlLayout.box,
+            { borderColor: colors.muted, backgroundColor: '#F8FAFC' },
+          ]}
+        >
           <Text style={[{color: colors.muted, lineHeight: 22}, rtlText]}>
             {t('health.parentBlocked')}
           </Text>
@@ -223,7 +239,10 @@ export function ReadinessScreen() {
       ) : null}
 
       {isCoach && access !== 'none' ? (
-        <View style={[styles.panel, { borderColor: colors.warning }]}>
+        <View
+          {...rtlContainerProps}
+          style={[styles.panel, rtlLayout.box, { borderColor: colors.warning }]}
+        >
           <Text style={[{fontWeight: '800', color: colors.primary}, rtlText]}>
             {t('health.coachBoard')}
           </Text>
@@ -278,8 +297,10 @@ export function ReadinessScreen() {
             riskRows.map((row) => (
               <View
                 key={row.playerId}
+                {...rtlContainerProps}
                 style={[
                   styles.riskCard,
+                  rtlLayout.box,
                   {
                     borderColor: riskColor(row.level),
                     backgroundColor:
@@ -515,12 +536,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1.5,
     backgroundColor: '#FFFBEB',
+    writingDirection: 'rtl',
   },
   riskCard: {
     marginTop: 10,
     padding: 10,
     borderRadius: 10,
     borderWidth: 1.5,
+    writingDirection: 'rtl',
   },
 
 

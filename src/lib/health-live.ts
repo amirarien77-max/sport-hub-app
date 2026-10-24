@@ -171,7 +171,7 @@ const CHRONIC_DAYS = 7;
 const CHRONIC_COUNT = 2;
 
 /**
- * לוח סיכון מאמן: אדום/צהוב לפי עומס (RPE) וכאב כרוני/מגביל.
+ * לוח סיכון מאמן: אדום/צהוב לפי עומס (רמת קושי / rpe) וכאב כרוני/מגביל.
  * מפתחות reasons → i18n תחת health.riskReasons.*
  */
 export function buildPlayerRiskRows(

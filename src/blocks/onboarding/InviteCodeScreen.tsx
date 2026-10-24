@@ -16,7 +16,7 @@ import { t } from '@/i18n';
 import { DEMO_INVITE_CODE } from '@/lib/demo-data';
 import { isDemoMode } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
-import { layout, rtlInput, rtlText, useTheme } from '@/theme/ThemeContext';
+import { layout, rtlContainerProps, rtlInput, rtlText, useTheme } from '@/theme/ThemeContext';
 
 export function InviteCodeScreen() {
   const { colors, brand } = useTheme();
@@ -38,7 +38,10 @@ export function InviteCodeScreen() {
   };
 
   return (
-    <View style={[layout.screen, { backgroundColor: colors.background }]}>
+    <View
+      {...rtlContainerProps}
+      style={[layout.screen, { backgroundColor: colors.background }]}
+    >
       <Text style={[layout.title, { color: colors.primary }]}>{brand.name}</Text>
       <Text style={[layout.subtitle, { color: colors.muted }]}>{t('invite.subtitle')}</Text>
 
