@@ -6,9 +6,9 @@ import type { ClubBrand } from '@/types';
 const defaultBrand: ClubBrand = {
   id: 'default',
   name: he.demo.brandDefault,
-  primaryColor: '#0B1F3A',
-  secondaryColor: '#F5B700',
-  accentColor: '#2A9D8F',
+  primaryColor: '#C8102E',
+  secondaryColor: '#1A1A1A',
+  accentColor: '#F5F5F5',
 };
 
 type ThemeContextValue = {

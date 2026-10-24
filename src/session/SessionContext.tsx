@@ -9,6 +9,12 @@ import React, {
 } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import {
+  listPendingConsentPlayers,
+  markParentalConsentLive,
+  requestParentalConsentSms,
+  type PendingConsentPlayer,
+} from '@/lib/consent-live';
+import {
   DEMO_INVITE_CODE,
   demoAcks,
   demoAssignments,
@@ -25,12 +31,13 @@ import {
   isUnder13,
   resolveInvite,
 } from '@/lib/demo-data';
+import { normalizeInviteCode } from '@/lib/invite-codes';
 import {
   fetchHealthBundle,
   insertPainLive,
   upsertReadinessLive,
 } from '@/lib/health-live';
-import { isHealthStaff, isTacticalCoach } from '@/lib/roles';
+import { isAttendanceCoach, isHealthStaff, isTacticalCoach } from '@/lib/roles';
 import {
   acknowledgeUrgentBanner,
   claimCarpoolSeatLive,
@@ -74,7 +81,7 @@ import type {
 } from '@/types';
 import { useTheme } from '@/theme/ThemeContext';
 
-type OkOrError = { ok: true } | { ok: false; error: string };
+type OkOrError = { ok: true; note?: string } | { ok: false; error: string };
 type CreatePlayResult = { ok: true; playId: string } | { ok: false; error: string };
 
 const EMPTY_BANNER: UrgentBanner = {
@@ -158,6 +165,10 @@ type SessionContextValue = {
   switchDemoRole: (role: UserProfile['role']) => void;
   /** Demo-only: flip team fitness/physio flags to test head-coach inheritance. */
   toggleDemoMedicalStaff: (kind: 'fitness' | 'physio') => void;
+  /** Coach: under-13 players awaiting parental SMS consent. */
+  refreshPendingConsent: () => Promise<PendingConsentPlayer[]>;
+  markPlayerConsented: (playerId: string) => Promise<OkOrError>;
+  resendParentalConsentSms: (player: PendingConsentPlayer) => Promise<OkOrError>;
   signOut: () => void;
 };
 
@@ -228,7 +239,7 @@ function nextAttendanceMark(mark: AttendanceMark): AttendanceMark {
 }
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  const { setBrand, clearBrand } = useTheme();
+  const { setBrand, clearBrand, brand } = useTheme();
   const [authReady, setAuthReady] = useState(isDemoMode);
   const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [inviteOk, setInviteOk] = useState(false);
@@ -530,7 +541,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const redeemInvite = useCallback(
     async (code: string): Promise<OkOrError> => {
-      const normalized = code.trim().toUpperCase();
+      // HAP-U16-2026 canonical; MAC-U16-2026 legacy alias → same team.
+      const normalized = normalizeInviteCode(code);
 
       if (isDemoMode || !supabase) {
         const brand = resolveInvite(normalized);
@@ -608,7 +620,23 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           consentStatus: under13 ? 'pending_parental_consent' : 'active',
         };
         setUser(profile);
-        return { ok: true };
+        let note: string | undefined;
+        if (under13 && input.parentPhone?.trim()) {
+          const sms = await requestParentalConsentSms({
+            client: null,
+            playerId: profile.id,
+            teamId: team.id,
+            parentPhone: input.parentPhone.trim(),
+            playerName: profile.fullName,
+            clubName: brand.name,
+          });
+          note = sms.ok
+            ? sms.mode === 'twilio'
+              ? t('profileSetup.smsSent')
+              : t('profileSetup.smsSimulated')
+            : t('profileSetup.smsPendingNote');
+        }
+        return { ok: true, note };
       }
 
       if (!authUserId) {
@@ -643,9 +671,87 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
       if (freshTeam) setTeam(mapTeamRow(freshTeam));
 
-      return { ok: true };
+      let note: string | undefined;
+      if (under13 && mappedUser.parentPhone) {
+        const sms = await requestParentalConsentSms({
+          client: supabase,
+          playerId: mappedUser.id,
+          teamId: team.id,
+          parentPhone: mappedUser.parentPhone,
+          playerName: mappedUser.fullName,
+          clubName: brand.name,
+        });
+        note = sms.ok
+          ? sms.mode === 'twilio'
+            ? t('profileSetup.smsSent')
+            : t('profileSetup.smsSimulated')
+          : t('profileSetup.smsPendingNote');
+      }
+
+      return { ok: true, note };
     },
-    [authUserId, inviteOk, refreshHealthFor, refreshSchedule, refreshTacticalFor, team],
+    [authUserId, brand.name, inviteOk, refreshHealthFor, refreshSchedule, refreshTacticalFor, team],
+  );
+
+  const refreshPendingConsent = useCallback(async (): Promise<PendingConsentPlayer[]> => {
+    if (!team || !isAttendanceCoach(user?.role)) return [];
+    if (isDemoMode || !supabase) {
+      return demoUsers
+        .filter((u) => u.consentStatus === 'pending_parental_consent' && u.role === 'player')
+        .map((u) => ({
+          id: u.id,
+          fullName: u.fullName,
+          parentPhone: u.parentPhone ?? null,
+          consentStatus: u.consentStatus,
+        }));
+    }
+    try {
+      return await listPendingConsentPlayers(supabase, team.id);
+    } catch (err) {
+      console.warn('refreshPendingConsent', err instanceof Error ? err.message : err);
+      return [];
+    }
+  }, [team, user?.role]);
+
+  const markPlayerConsented = useCallback(
+    async (playerId: string): Promise<OkOrError> => {
+      if (!isAttendanceCoach(user?.role)) {
+        return { ok: false, error: 'not_staff' };
+      }
+      if (isDemoMode || !supabase) {
+        return { ok: true, note: t('profile.markConsentedDone') };
+      }
+      try {
+        await markParentalConsentLive(supabase, playerId);
+        return { ok: true, note: t('profile.markConsentedDone') };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: message };
+      }
+    },
+    [user?.role],
+  );
+
+  const resendParentalConsentSms = useCallback(
+    async (player: PendingConsentPlayer): Promise<OkOrError> => {
+      if (!team || !player.parentPhone) {
+        return { ok: false, error: t('errors.under13Phone') };
+      }
+      const sms = await requestParentalConsentSms({
+        client: isDemoMode ? null : supabase,
+        playerId: player.id,
+        teamId: team.id,
+        parentPhone: player.parentPhone,
+        playerName: player.fullName,
+        clubName: brand.name,
+      });
+      if (!sms.ok) return { ok: false, error: sms.error };
+      return {
+        ok: true,
+        note: sms.mode === 'twilio' ? t('profileSetup.smsSent') : t('profileSetup.smsSimulated'),
+      };
+    },
+    [brand.name, team],
   );
 
   const setRsvp = useCallback(
@@ -1337,6 +1443,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       acknowledgeBanner,
       switchDemoRole,
       toggleDemoMedicalStaff,
+      refreshPendingConsent,
+      markPlayerConsented,
+      resendParentalConsentSms,
       signOut,
     }),
     [
@@ -1381,6 +1490,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       acknowledgeBanner,
       switchDemoRole,
       toggleDemoMedicalStaff,
+      refreshPendingConsent,
+      markPlayerConsented,
+      resendParentalConsentSms,
       signOut,
     ],
   );

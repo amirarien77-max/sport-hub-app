@@ -15,14 +15,16 @@ import type {
   UserProfile,
 } from '@/types';
 
-export const DEMO_INVITE_CODE = 'MAC-U16-2026';
+import { DEMO_INVITE_CODE, isDemoInviteCode } from '@/lib/invite-codes';
+
+export { DEMO_INVITE_CODE } from '@/lib/invite-codes';
 
 export const demoClub: ClubBrand = {
-  id: 'club-maccabi',
+  id: 'club-hapoel-jerusalem',
   name: he.demo.clubName,
-  primaryColor: '#0B1F3A',
-  secondaryColor: '#F5B700',
-  accentColor: '#E63946',
+  primaryColor: '#C8102E',
+  secondaryColor: '#1A1A1A',
+  accentColor: '#F5F5F5',
 };
 
 export const demoTeam: Team = {
@@ -190,7 +192,7 @@ export const demoBanner: UrgentBanner = {
 };
 
 export function resolveInvite(code: string): ClubBrand | null {
-  if (code.trim().toUpperCase() === DEMO_INVITE_CODE) {
+  if (isDemoInviteCode(code)) {
     return demoClub;
   }
   return null;

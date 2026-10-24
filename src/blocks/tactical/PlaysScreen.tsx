@@ -18,6 +18,7 @@ import {
   generateGameIq,
   type GameIqInsight,
 } from '@/lib/game-iq';
+import { pickTacticalMedia, uploadTacticalMedia } from '@/lib/media-upload';
 import { isTacticalCoach } from '@/lib/roles';
 import { isDemoMode, supabase } from '@/lib/supabase';
 import {
@@ -79,6 +80,7 @@ export function PlaysScreen() {
     cachePlayGameIq,
     createAssignment,
     user,
+    team,
     banner,
   } = useSession();
 
@@ -90,6 +92,8 @@ export function PlaysScreen() {
   const [suggestionDraft, setSuggestionDraft] = useState('');
   const [newPlayTitle, setNewPlayTitle] = useState('');
   const [mediaDraft, setMediaDraft] = useState('');
+  const [mediaUploading, setMediaUploading] = useState(false);
+  const [mediaNote, setMediaNote] = useState<string | null>(null);
   const [positionDraft, setPositionDraft] = useState('1');
   const [promptDraft, setPromptDraft] = useState('');
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
@@ -616,8 +620,69 @@ export function PlaysScreen() {
         <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
           {t('plays.mediaStubHint')}
         </Text>
+        {mediaNote ? (
+          <Text style={{ color: colors.success, textAlign: 'right', marginTop: 6 }}>{mediaNote}</Text>
+        ) : null}
         {isCoach ? (
           <>
+            <Pressable
+              disabled={mediaUploading || isDemoMode || !supabase || !team}
+              onPress={async () => {
+                if (!supabase || !team) return;
+                setMediaUploading(true);
+                setMediaNote(null);
+                setCreateError(null);
+                try {
+                  const picked = await pickTacticalMedia();
+                  if (!picked.ok) {
+                    if (!picked.cancelled) {
+                      setCreateError(
+                        picked.error === 'permission_denied'
+                          ? t('plays.mediaPermissionDenied')
+                          : t('plays.mediaUploadFailed', { error: picked.error ?? 'pick' }),
+                      );
+                    }
+                    return;
+                  }
+                  const uploaded = await uploadTacticalMedia({
+                    client: supabase,
+                    teamId: team.id,
+                    playId: play.id,
+                    uri: picked.uri,
+                    mimeType: picked.mimeType,
+                    fileName: picked.fileName,
+                  });
+                  if (!uploaded.ok) {
+                    setCreateError(t('plays.mediaUploadFailed', { error: uploaded.error }));
+                    return;
+                  }
+                  setMediaDraft(uploaded.publicUrl);
+                  const saved = await updatePlayMedia(play.id, uploaded.publicUrl);
+                  if (saved.ok) {
+                    setMediaNote(t('plays.mediaUploadOk'));
+                  } else {
+                    showResult(saved);
+                  }
+                } finally {
+                  setMediaUploading(false);
+                }
+              }}
+              style={[
+                layout.button,
+                {
+                  backgroundColor: mediaUploading ? colors.muted : colors.primary,
+                  marginTop: 10,
+                },
+              ]}
+            >
+              <Text style={[layout.buttonText, { color: '#fff' }]}>
+                {mediaUploading
+                  ? t('plays.mediaUploading')
+                  : isDemoMode
+                    ? t('plays.mediaUploadDemoOnly')
+                    : t('plays.mediaUpload')}
+              </Text>
+            </Pressable>
             <TextInput
               textAlign="right"
               autoCapitalize="none"
@@ -625,13 +690,13 @@ export function PlaysScreen() {
               onChangeText={setMediaDraft}
               placeholder={t('plays.mediaUrlPlaceholder')}
               placeholderTextColor={colors.muted}
-              style={[styles.input, { borderColor: colors.primary }]}
+              style={[styles.input, { borderColor: colors.primary, marginTop: 10 }]}
             />
             <Pressable
               onPress={async () => showResult(await updatePlayMedia(play.id, mediaDraft))}
               style={[layout.button, { backgroundColor: colors.secondary, marginTop: 8 }]}
             >
-              <Text style={[layout.buttonText, { color: colors.primary }]}>
+              <Text style={[layout.buttonText, { color: '#fff' }]}>
                 {t('plays.saveMediaUrl')}
               </Text>
             </Pressable>
