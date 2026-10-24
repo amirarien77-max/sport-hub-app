@@ -13,7 +13,14 @@ import { t, translateRole } from '@/i18n';
 import type { Role } from '@/types';
 import { isDemoMode } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
-import { layout, useTheme } from '@/theme/ThemeContext';
+import {
+  layout,
+  rtlInput,
+  rtlLayout,
+  rtlText,
+  rtlTextAlign,
+  useTheme,
+} from '@/theme/ThemeContext';
 
 /** Coach roles first so live testers don't miss מאמן when picking a persona. */
 const ROLE_VALUES: Role[] = ['head_coach', 'assistant_coach', 'player', 'parent'];
@@ -65,16 +72,16 @@ export function ProfileSetupScreen() {
       </Text>
       <Text style={[layout.subtitle, { color: colors.muted }]}>{t('profileSetup.subtitle')}</Text>
 
-      <Text style={styles.label}>{t('profileSetup.fullName')}</Text>
+      <Text style={layout.label}>{t('profileSetup.fullName')}</Text>
       <TextInput
-        textAlign="right"
+        textAlign={rtlTextAlign}
         value={fullName}
         onChangeText={setFullName}
         style={[styles.input, { borderColor: colors.primary, color: colors.text }]}
       />
 
-      <Text style={styles.label}>{t('profileSetup.role')}</Text>
-      <View style={styles.row}>
+      <Text style={layout.label}>{t('profileSetup.role')}</Text>
+      <View style={rtlLayout.row}>
         {ROLE_VALUES.map((value) => (
           <Pressable
             key={value}
@@ -87,7 +94,7 @@ export function ProfileSetupScreen() {
               },
             ]}
           >
-            <Text style={{ color: role === value ? '#fff' : colors.primary, fontWeight: '700' }}>
+            <Text style={[{ color: role === value ? '#fff' : colors.primary, fontWeight: '700' }, rtlText]}>
               {translateRole(value)}
             </Text>
           </Pressable>
@@ -96,17 +103,17 @@ export function ProfileSetupScreen() {
 
       {role === 'player' ? (
         <>
-          <Text style={styles.label}>{t('profileSetup.dob')}</Text>
+          <Text style={layout.label}>{t('profileSetup.dob')}</Text>
           <TextInput
-            textAlign="right"
+            textAlign={rtlTextAlign}
             value={dob}
             onChangeText={setDob}
             style={[styles.input, { borderColor: colors.primary, color: colors.text }]}
           />
-          <Text style={styles.label}>{t('profileSetup.parentPhone')}</Text>
+          <Text style={layout.label}>{t('profileSetup.parentPhone')}</Text>
           <TextInput
             keyboardType="phone-pad"
-            textAlign="right"
+            textAlign={rtlTextAlign}
             value={parentPhone}
             onChangeText={setParentPhone}
             placeholder={t('profileSetup.parentPhonePlaceholder')}
@@ -117,7 +124,7 @@ export function ProfileSetupScreen() {
       ) : null}
 
       {error ? (
-        <Text style={{ color: colors.danger, marginTop: 8, textAlign: 'right' }}>{error}</Text>
+        <Text style={[{ color: colors.danger, marginTop: 8 }, rtlText]}>{error}</Text>
       ) : null}
       {note ? (
         <Text style={{ color: colors.success, marginTop: 8, textAlign: 'right' }}>{note}</Text>
@@ -138,8 +145,8 @@ export function ProfileSetupScreen() {
 
       {isDemoMode ? (
         <>
-          <Text style={[styles.label, { marginTop: 28 }]}>{t('profileSetup.quickPersonas')}</Text>
-          <View style={styles.row}>
+          <Text style={[layout.label, { marginTop: 28 }]}>{t('profileSetup.quickPersonas')}</Text>
+          <View style={rtlLayout.row}>
             {(['player', 'parent', 'head_coach'] as Role[]).map((r) => (
               <Pressable
                 key={r}
@@ -149,7 +156,9 @@ export function ProfileSetupScreen() {
                 }}
                 style={[styles.chip, { borderColor: colors.accent }]}
               >
-                <Text style={{ color: colors.accent, fontWeight: '700' }}>{translateRole(r)}</Text>
+                <Text style={[{ color: colors.accent, fontWeight: '700' }, rtlText]}>
+                  {translateRole(r)}
+                </Text>
               </Pressable>
             ))}
           </View>
@@ -160,14 +169,6 @@ export function ProfileSetupScreen() {
 }
 
 const styles = StyleSheet.create({
-  label: {
-    marginTop: 18,
-    marginBottom: 8,
-    fontWeight: '700',
-    color: '#334155',
-    textAlign: 'right',
-    writingDirection: 'rtl',
-  },
   input: {
     minHeight: 48,
     borderWidth: 1.5,
@@ -175,9 +176,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     fontSize: 16,
     backgroundColor: '#fff',
-    writingDirection: 'rtl',
+    ...rtlInput,
   },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     minHeight: 40,
     paddingHorizontal: 12,

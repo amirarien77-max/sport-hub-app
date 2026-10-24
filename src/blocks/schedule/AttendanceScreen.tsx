@@ -3,7 +3,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { t, translateAttendanceMark } from '@/i18n';
 import { isAttendanceCoach } from '@/lib/roles';
 import { useSession } from '@/session/SessionContext';
-import { layout, useTheme } from '@/theme/ThemeContext';
+import { layout, rtlRowDirection, rtlText, useTheme } from '@/theme/ThemeContext';
 import type { AttendanceMark } from '@/types';
 
 const MARK_COLORS: Record<Exclude<AttendanceMark, null>, string> = {
@@ -39,13 +39,13 @@ export function AttendanceScreen() {
       <Text style={[layout.subtitle, { color: colors.muted }]}>{t('attendance.subtitle')}</Text>
 
       {!eventId ? (
-        <Text style={{ marginTop: 16, color: colors.muted, textAlign: 'right' }}>
+        <Text style={[{ marginTop: 16, color: colors.muted }, rtlText]}>
           {t('attendance.noEvent')}
         </Text>
       ) : null}
 
       {eventId && rows.length === 0 ? (
-        <Text style={{ marginTop: 16, color: colors.muted, textAlign: 'right' }}>
+        <Text style={[{ marginTop: 16, color: colors.muted }, rtlText]}>
           {t('attendance.emptyPlayers')}
         </Text>
       ) : null}
@@ -85,7 +85,7 @@ export function AttendanceScreen() {
       </Pressable>
 
       {lockedNote ? (
-        <Text style={{ marginTop: 12, color: colors.muted, textAlign: 'right' }}>{lockedNote}</Text>
+        <Text style={[{ marginTop: 12, color: colors.muted }, rtlText]}>{lockedNote}</Text>
       ) : null}
     </ScrollView>
   );
@@ -94,7 +94,7 @@ export function AttendanceScreen() {
 const styles = StyleSheet.create({
   grid: {
     marginTop: 20,
-    flexDirection: 'row',
+    flexDirection: rtlRowDirection,
     flexWrap: 'wrap',
     gap: 12,
   },
@@ -105,12 +105,12 @@ const styles = StyleSheet.create({
     padding: 12,
     justifyContent: 'space-between',
   },
-  cellName: { color: '#fff', fontWeight: '800', fontSize: 16, textAlign: 'right' },
+  cellName: { color: '#fff', fontWeight: '800', fontSize: 16, ...rtlText },
   cellMark: {
     color: '#fff',
     textTransform: 'uppercase',
     fontSize: 12,
     fontWeight: '700',
-    textAlign: 'right',
+    ...rtlText,
   },
 });

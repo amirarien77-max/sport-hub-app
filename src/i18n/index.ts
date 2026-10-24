@@ -76,9 +76,12 @@ export function translateBodySubRegion(label: string): string {
   return fromMap(he.bodySubRegions as Record<string, string>, label);
 }
 
+/** Expo Router / root layout direction for Hebrew-only UI. */
+export const APP_DIRECTION = 'rtl' as const;
+
 /**
  * Force RTL for Hebrew. Config plugin also sets forcesRTL for native builds;
- * runtime call helps Expo Go after a reload.
+ * runtime call helps Expo Go after a reload. Web sets `<html dir="rtl" lang="he">`.
  */
 export function enableHebrewRtl(): void {
   try {
@@ -93,6 +96,9 @@ export function enableHebrewRtl(): void {
   if (Platform.OS === 'web' && typeof document !== 'undefined') {
     document.documentElement.setAttribute('dir', 'rtl');
     document.documentElement.setAttribute('lang', 'he');
+    if (document.body) {
+      document.body.setAttribute('dir', 'rtl');
+    }
   }
 }
 

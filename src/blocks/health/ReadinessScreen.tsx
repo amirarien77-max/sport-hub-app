@@ -18,7 +18,7 @@ import { buildPlayerRiskRows, type PlayerRiskLevel } from '@/lib/health-live';
 import { canLogReadiness, coachHealthAccess, isHealthStaff } from '@/lib/roles';
 import { isDemoMode } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
-import { layout, useTheme } from '@/theme/ThemeContext';
+import { layout, rtlInput, rtlLayout, rtlText, rtlTextAlign, useTheme } from '@/theme/ThemeContext';
 import type { PainSeverity } from '@/types';
 
 const BODY_REGIONS: Record<string, string[]> = {
@@ -210,7 +210,7 @@ export function ReadinessScreen() {
 
       {isParent ? (
         <View style={[styles.panel, { borderColor: colors.muted, backgroundColor: '#F8FAFC' }]}>
-          <Text style={{ color: colors.muted, textAlign: 'right', lineHeight: 22 }}>
+          <Text style={[{color: colors.muted, lineHeight: 22}, rtlText]}>
             {t('health.parentBlocked')}
           </Text>
         </View>
@@ -218,10 +218,10 @@ export function ReadinessScreen() {
 
       {isCoach && access !== 'none' ? (
         <View style={[styles.panel, { borderColor: colors.warning }]}>
-          <Text style={{ fontWeight: '800', color: colors.primary, textAlign: 'right' }}>
+          <Text style={[{fontWeight: '800', color: colors.primary}, rtlText]}>
             {t('health.coachBoard')}
           </Text>
-          <Text style={{ color: colors.muted, marginTop: 4, textAlign: 'right' }}>
+          <Text style={[{color: colors.muted, marginTop: 4}, rtlText]}>
             {t('health.access', { access: accessLabel(access) })}
             {user?.role === 'head_coach' && !team?.hasFitnessStaff && !team?.hasPhysioStaff
               ? t('health.inheritedWrite')
@@ -232,7 +232,7 @@ export function ReadinessScreen() {
           </Text>
 
           {isDemoMode ? (
-            <View style={styles.demoRow}>
+            <View style={[rtlLayout.row, { marginTop: 10 }]}>
               <Pressable
                 onPress={() => toggleDemoMedicalStaff('fitness')}
                 style={[
@@ -265,7 +265,7 @@ export function ReadinessScreen() {
           ) : null}
 
           {riskRows.length === 0 ? (
-            <Text style={{ marginTop: 8, color: colors.muted, textAlign: 'right' }}>
+            <Text style={[{marginTop: 8, color: colors.muted}, rtlText]}>
               {t('health.emptyPainCoach')}
             </Text>
           ) : (
@@ -285,15 +285,15 @@ export function ReadinessScreen() {
                   },
                 ]}
               >
-                <View style={styles.riskHeader}>
-                  <Text style={{ fontWeight: '800', color: colors.primary, textAlign: 'right', flex: 1 }}>
+                <View style={[rtlLayout.row, { alignItems: 'center', flexWrap: 'nowrap' }]}>
+                  <Text style={[{fontWeight: '800', color: colors.primary, flex: 1}, rtlText]}>
                     {row.playerName}
                   </Text>
                   <Text style={{ fontWeight: '800', color: riskColor(row.level) }}>
                     {riskLabel(row.level)}
                   </Text>
                 </View>
-                <Text style={{ marginTop: 4, color: colors.muted, textAlign: 'right', fontSize: 13 }}>
+                <Text style={[{marginTop: 4, color: colors.muted, fontSize: 13}, rtlText]}>
                   {row.latestRpe != null
                     ? t('health.coachRpeLine', {
                         rpe: row.latestRpe,
@@ -303,19 +303,16 @@ export function ReadinessScreen() {
                     : t('health.noReadinessYet')}
                 </Text>
                 {row.reasons.length > 0 ? (
-                  <Text style={{ marginTop: 4, color: riskColor(row.level), textAlign: 'right', fontSize: 13 }}>
+                  <Text style={[{marginTop: 4, color: riskColor(row.level), fontSize: 13}, rtlText]}>
                     {row.reasons.map(reasonLabel).join(' · ')}
                   </Text>
                 ) : null}
                 {row.openPain.map((p) => (
                   <Text
                     key={p.id}
-                    style={{
-                      marginTop: 6,
+                    style={[{marginTop: 6,
                       color: p.severity === 'disabling' ? colors.danger : colors.warning,
-                      textAlign: 'right',
-                      fontWeight: '600',
-                    }}
+                      fontWeight: '600'}, rtlText]}
                   >
                     {translateBodyRegion(p.region)} / {translateBodySubRegion(p.subRegion)} —{' '}
                     {translatePainSeverity(p.severity)}
@@ -330,7 +327,7 @@ export function ReadinessScreen() {
       {isPlayer ? (
         <>
           <Text style={styles.section}>{t('health.todaysRpe')}</Text>
-          <View style={styles.rpeGrid}>
+          <View style={rtlLayout.row}>
             {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
               <Pressable
                 key={n}
@@ -352,7 +349,7 @@ export function ReadinessScreen() {
           <Text style={styles.hint}>{t('health.sleepWaterHint')}</Text>
           <TextInput
             keyboardType="decimal-pad"
-            textAlign="right"
+            textAlign={rtlTextAlign}
             value={sleep}
             onChangeText={onSleepChange}
             style={[
@@ -368,7 +365,7 @@ export function ReadinessScreen() {
           <Text style={styles.hint}>{t('health.sleepWaterHint')}</Text>
           <TextInput
             keyboardType="decimal-pad"
-            textAlign="right"
+            textAlign={rtlTextAlign}
             value={water}
             onChangeText={onWaterChange}
             style={[
@@ -398,7 +395,7 @@ export function ReadinessScreen() {
           <Text style={[styles.section, { marginTop: 24 }]}>{t('health.painMap')}</Text>
           <Text style={styles.hint}>{t('health.painMapHint')}</Text>
           {!region ? (
-            <View style={styles.regionGrid}>
+            <View style={[rtlLayout.row, { marginTop: 8 }]}>
               {Object.keys(BODY_REGIONS).map((key) => (
                 <Pressable
                   key={key}
@@ -419,14 +416,14 @@ export function ReadinessScreen() {
                   setSubRegion(null);
                 }}
               >
-                <Text style={{ color: colors.accent, fontWeight: '700', textAlign: 'right' }}>
+                <Text style={[{color: colors.accent, fontWeight: '700'}, rtlText]}>
                   {t('health.backToBody')}
                 </Text>
               </Pressable>
               <Text style={[styles.hint, { marginTop: 8 }]}>
                 {t('health.zoomedRegion', { region: translateBodyRegion(region) })}
               </Text>
-              <View style={styles.regionGrid}>
+              <View style={[rtlLayout.row, { marginTop: 8 }]}>
                 {BODY_REGIONS[region].map((sub) => (
                   <Pressable
                     key={sub}
@@ -445,14 +442,14 @@ export function ReadinessScreen() {
                   </Pressable>
                 ))}
               </View>
-              <View style={styles.row}>
+              <View style={[rtlLayout.splitRow, { marginTop: 12 }]}>
                 {(['soreness', 'disabling'] as PainSeverity[]).map((s) => (
                   <Pressable
                     key={s}
                     onPress={() => setSeverity(s)}
                     style={[
                       layout.button,
-                      styles.half,
+                      rtlLayout.half,
                       {
                         backgroundColor: severity === s ? colors.danger : '#fff',
                         borderWidth: 1,
@@ -493,7 +490,7 @@ export function ReadinessScreen() {
       ) : null}
 
       {isPlayer && readiness[0] ? (
-        <Text style={{ marginTop: 16, color: colors.muted, textAlign: 'right' }}>
+        <Text style={[{marginTop: 16, color: colors.muted}, rtlText]}>
           {t('health.lastReady', {
             rpe: readiness[0].rpe,
             sleep: readiness[0].sleepHours,
@@ -519,17 +516,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1.5,
   },
-  riskHeader: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    gap: 8,
-  },
-  demoRow: {
-    flexDirection: 'row-reverse',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 10,
-  },
+
+
   demoChip: {
     minHeight: 36,
     paddingHorizontal: 10,
@@ -542,22 +530,21 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontWeight: '800',
     color: '#334155',
-    textAlign: 'right',
-    writingDirection: 'rtl',
+    ...rtlText,
   },
   hint: {
     marginBottom: 6,
     fontSize: 13,
     color: '#64748B',
-    textAlign: 'right',
+    ...rtlText,
   },
   error: {
     marginTop: 6,
     fontSize: 13,
     fontWeight: '600',
-    textAlign: 'right',
+    ...rtlText,
   },
-  rpeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+
   rpeBtn: {
     width: 56,
     height: 56,
@@ -573,9 +560,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     backgroundColor: '#fff',
     fontSize: 16,
-    writingDirection: 'rtl',
+    ...rtlInput,
   },
-  regionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+
   region: {
     minHeight: 48,
     paddingHorizontal: 12,
@@ -585,6 +572,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#fff',
   },
-  row: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  half: { flex: 1 },
+
 });

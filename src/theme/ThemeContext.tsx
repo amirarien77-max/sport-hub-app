@@ -1,7 +1,17 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { he, t } from '@/i18n';
+import { rtlText } from '@/theme/rtl';
 import type { ClubBrand } from '@/types';
+
+export {
+  rtlText,
+  rtlInput,
+  rtlLayout,
+  rtlTextAlign,
+  rtlRowDirection,
+  isAppRtl,
+} from '@/theme/rtl';
 
 const defaultBrand: ClubBrand = {
   id: 'default',
@@ -86,15 +96,21 @@ export const layout = StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
     letterSpacing: -0.5,
-    textAlign: 'right',
-    writingDirection: 'rtl',
+    ...rtlText,
   },
   subtitle: {
     fontSize: 15,
     lineHeight: 22,
     marginTop: 6,
-    textAlign: 'right',
-    writingDirection: 'rtl',
+    ...rtlText,
+  },
+  /** Form labels / section headers. */
+  label: {
+    marginTop: 18,
+    marginBottom: 8,
+    fontWeight: '700',
+    color: '#334155',
+    ...rtlText,
   },
   button: {
     minHeight: 48,
@@ -108,5 +124,9 @@ export const layout = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     writingDirection: 'rtl',
+  },
+  /** Default body copy under Hebrew RTL. */
+  body: {
+    ...rtlText,
   },
 });

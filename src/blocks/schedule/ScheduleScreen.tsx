@@ -12,7 +12,7 @@ import { t, translateAbsenceReason, translateRsvp } from '@/i18n';
 import { dualAckConflict } from '@/lib/demo-data';
 import { canClaimCarpool, canSubmitRsvp, isAttendanceCoach } from '@/lib/roles';
 import { useSession } from '@/session/SessionContext';
-import { layout, useTheme } from '@/theme/ThemeContext';
+import { layout, rtlLayout, rtlText, useTheme } from '@/theme/ThemeContext';
 
 export function ScheduleScreen() {
   const { colors } = useTheme();
@@ -84,13 +84,13 @@ export function ScheduleScreen() {
       <Text style={[layout.title, { color: colors.primary }]}>{t('schedule.title')}</Text>
       <Text style={[layout.subtitle, { color: colors.muted }]}>{subtitle}</Text>
       {coachView ? (
-        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 8 }}>
+        <Text style={[{ color: colors.muted, marginTop: 8 }, rtlText]}>
           {t('schedule.coachReadOnlyHint')}
         </Text>
       ) : null}
 
       {events.length === 0 ? (
-        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 12 }}>
+        <Text style={[{ color: colors.muted, marginTop: 12 }, rtlText]}>
           {t('schedule.emptyEvents')}
         </Text>
       ) : null}
@@ -100,17 +100,17 @@ export function ScheduleScreen() {
         return (
           <View key={event.id} style={[styles.card, { borderColor: colors.primary }]}>
             <Text style={styles.eventTitle}>{event.title}</Text>
-            <Text style={{ color: colors.muted, textAlign: 'right' }}>
+            <Text style={[{ color: colors.muted }, rtlText]}>
               {new Date(event.startsAt).toLocaleString('he-IL')} · {event.location}
             </Text>
 
             {showRsvp ? (
-              <View style={styles.row}>
+              <View style={[rtlLayout.splitRow, { marginTop: 12 }]}>
                 <Pressable
                   onPress={() =>
                     void setRsvp(event.id, 'attending', undefined, user?.role === 'parent')
                   }
-                  style={[layout.button, styles.half, { backgroundColor: colors.success }]}
+                  style={[layout.button, rtlLayout.half, { backgroundColor: colors.success }]}
                 >
                   <Text style={[layout.buttonText, { color: '#fff' }]}>
                     {t('schedule.attending')}
@@ -118,7 +118,7 @@ export function ScheduleScreen() {
                 </Pressable>
                 <Pressable
                   onPress={() => setSheetEventId(event.id)}
-                  style={[layout.button, styles.half, { backgroundColor: colors.danger }]}
+                  style={[layout.button, rtlLayout.half, { backgroundColor: colors.danger }]}
                 >
                   <Text style={[layout.buttonText, { color: '#fff' }]}>
                     {t('schedule.notAttending')}
@@ -137,7 +137,7 @@ export function ScheduleScreen() {
                     { backgroundColor: conflict ? '#FEF3C7' : '#F8FAFC' },
                   ]}
                 >
-                  <Text style={{ fontWeight: '700', textAlign: 'right' }}>
+                  <Text style={[{ fontWeight: '700' }, rtlText]}>
                     {ack.playerName ??
                       (ack.playerId === 'user-player-roi'
                         ? 'Roi'
@@ -146,11 +146,11 @@ export function ScheduleScreen() {
                           : ack.playerId.slice(0, 8))}
                     {conflict ? ` · ${t('schedule.conflict')}` : ''}
                   </Text>
-                  <Text style={{ color: colors.muted, textAlign: 'right' }}>
+                  <Text style={[{ color: colors.muted }, rtlText]}>
                     {t('schedule.player')}: {translateRsvp(ack.playerChoice)}
                     {ack.playerReason ? ` (${translateAbsenceReason(ack.playerReason)})` : ''}
                   </Text>
-                  <Text style={{ color: colors.muted, textAlign: 'right' }}>
+                  <Text style={[{ color: colors.muted }, rtlText]}>
                     {t('schedule.parent')}: {translateRsvp(ack.parentChoice)}
                     {ack.parentReason ? ` (${translateAbsenceReason(ack.parentReason)})` : ''}
                   </Text>
@@ -165,12 +165,12 @@ export function ScheduleScreen() {
         {t('schedule.carpool')}
       </Text>
       {coachView ? (
-        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
+        <Text style={[{ color: colors.muted, marginTop: 4 }, rtlText]}>
           {t('schedule.carpoolCoachHint')}
         </Text>
       ) : null}
       {carpools.length === 0 ? (
-        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 8 }}>
+        <Text style={[{ color: colors.muted, marginTop: 8 }, rtlText]}>
           {t('schedule.emptyCarpool')}
         </Text>
       ) : null}
@@ -180,8 +180,8 @@ export function ScheduleScreen() {
         const disabled = isFull || claiming || claimingOfferId != null;
         return (
           <View key={offer.id} style={[styles.card, { borderColor: colors.secondary }]}>
-            <Text style={{ fontWeight: '700', textAlign: 'right' }}>{offer.parentName}</Text>
-            <Text style={{ color: colors.muted, textAlign: 'right' }}>
+            <Text style={[{ fontWeight: '700' }, rtlText]}>{offer.parentName}</Text>
+            <Text style={[{ color: colors.muted }, rtlText]}>
               {t('schedule.seatsTaken', {
                 taken: offer.seatsTaken,
                 available: offer.seatsAvailable,
@@ -272,9 +272,15 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 14,
     textTransform: 'uppercase',
-    textAlign: 'right',
+    ...rtlText,
   },
-  bannerBody: { color: '#fff', marginTop: 6, fontSize: 16, lineHeight: 22, textAlign: 'right' },
+  bannerBody: {
+    color: '#fff',
+    marginTop: 6,
+    fontSize: 16,
+    lineHeight: 22,
+    ...rtlText,
+  },
   card: {
     marginTop: 16,
     padding: 14,
@@ -282,9 +288,12 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     backgroundColor: '#fff',
   },
-  eventTitle: { fontSize: 18, fontWeight: '800', marginBottom: 4, textAlign: 'right' },
-  row: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  half: { flex: 1 },
+  eventTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 4,
+    ...rtlText,
+  },
   ackRow: { marginTop: 10, padding: 10, borderRadius: 10 },
   sheetBackdrop: {
     flex: 1,
