@@ -18,6 +18,7 @@ import type {
   Team,
   UrgentBanner,
   UserProfile,
+  WeeklyScheduleSlot,
 } from '@/types';
 
 import { DEMO_INVITE_CODE, isDemoInviteCode } from '@/lib/invite-codes';
@@ -95,6 +96,42 @@ export const demoEvents: SessionEvent[] = [
     startsAt: new Date(Date.now() + 1000 * 60 * 60 * 72).toISOString(),
     location: he.demo.locationAway,
     type: 'game',
+  },
+];
+
+/** Recurring weekly grid (Sun–Sat) — Hapoel Jerusalem U16 demo. */
+export const demoWeeklySlots: WeeklyScheduleSlot[] = [
+  {
+    id: 'weekly-sun',
+    teamId: demoTeam.id,
+    dayOfWeek: 0,
+    startTime: '17:00',
+    endTime: '18:30',
+    location: he.demo.weeklyLocationA,
+  },
+  {
+    id: 'weekly-tue',
+    teamId: demoTeam.id,
+    dayOfWeek: 2,
+    startTime: '17:00',
+    endTime: '18:30',
+    location: he.demo.weeklyLocationA,
+  },
+  {
+    id: 'weekly-thu',
+    teamId: demoTeam.id,
+    dayOfWeek: 4,
+    startTime: '16:30',
+    endTime: '18:00',
+    location: he.demo.weeklyLocationB,
+  },
+  {
+    id: 'weekly-fri',
+    teamId: demoTeam.id,
+    dayOfWeek: 5,
+    startTime: '09:00',
+    endTime: '10:30',
+    location: he.demo.weeklyLocationA,
   },
 ];
 

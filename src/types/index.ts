@@ -60,6 +60,22 @@ export interface SessionEvent {
   type: 'practice' | 'game';
 }
 
+/** Recurring weekly grid slot (Israeli week: 0=Sunday … 6=Saturday). */
+export type WeekDayIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+export interface WeeklyScheduleSlot {
+  id: string;
+  teamId: string;
+  dayOfWeek: WeekDayIndex;
+  /** HH:MM (24h) */
+  startTime: string;
+  /** HH:MM (24h) */
+  endTime: string;
+  location: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface DualAck {
   eventId: string;
   playerId: string;

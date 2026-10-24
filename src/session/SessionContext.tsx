@@ -39,6 +39,7 @@ import {
   demoSuggestions,
   demoTeam,
   demoUsers,
+  demoWeeklySlots,
   isUnder13,
   resolveInvite,
 } from '@/lib/demo-data';
@@ -61,6 +62,13 @@ import {
   upsertAttendanceMark,
   upsertRsvp,
 } from '@/lib/schedule-live';
+import {
+  deleteWeeklySlot as deleteWeeklySlotLive,
+  fetchWeeklySchedule,
+  insertWeeklySlot,
+  updateWeeklySlot,
+  type WeeklySlotInput,
+} from '@/lib/weekly-schedule-live';
 import {
   answerAssignmentLive,
   createAssignmentLive,
@@ -89,6 +97,8 @@ import type {
   Team,
   UrgentBanner,
   UserProfile,
+  WeeklyScheduleSlot,
+  WeekDayIndex,
   Role,
   ConsentStatus,
   ClubBrand,
@@ -112,6 +122,7 @@ type SessionContextValue = {
   events: SessionEvent[];
   acks: DualAck[];
   attendance: AttendanceRow[];
+  weeklySlots: WeeklyScheduleSlot[];
   readiness: ReadinessReport[];
   pain: PainReport[];
   plays: TacticalPlay[];
@@ -186,6 +197,11 @@ type SessionContextValue = {
       >
     | { ok: true; offer: CarpoolOffer }
     | { ok: false; reason: 'error'; message?: string };
+  /** Coach CRUD for recurring weekly schedule rows; players/parents read via weeklySlots. */
+  upsertWeeklySlot: (
+    input: WeeklySlotInput & { id?: string },
+  ) => Promise<OkOrError> | OkOrError;
+  deleteWeeklySlot: (slotId: string) => Promise<OkOrError> | OkOrError;
   acknowledgeBanner: () => void | Promise<void>;
   switchDemoRole: (role: UserProfile['role']) => void;
   /** Demo-only: flip team fitness/physio flags to test head-coach inheritance. */
@@ -290,6 +306,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [attendance, setAttendance] = useState<AttendanceRow[]>(
     isDemoMode ? demoAttendance : [],
   );
+  const [weeklySlots, setWeeklySlots] = useState<WeeklyScheduleSlot[]>(
+    isDemoMode ? demoWeeklySlots : [],
+  );
   const [readiness, setReadiness] = useState<ReadinessReport[]>(
     isDemoMode ? demoReadiness : [],
   );
@@ -326,13 +345,23 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (isDemoMode || !supabase) return;
     const gen = ++scheduleGen.current;
     try {
-      const bundle = await fetchScheduleBundle(supabase, teamId);
+      const [bundle, slots] = await Promise.all([
+        fetchScheduleBundle(supabase, teamId),
+        fetchWeeklySchedule(supabase, teamId).catch((err) => {
+          console.warn(
+            'Failed to load weekly schedule',
+            err instanceof Error ? err.message : err,
+          );
+          return [] as WeeklyScheduleSlot[];
+        }),
+      ]);
       if (gen !== scheduleGen.current) return;
       setEvents(bundle.events);
       setAcks(bundle.acks);
       setAttendance(bundle.attendance);
       setCarpools(bundle.carpools);
       setBanner(bundle.banner ?? EMPTY_BANNER);
+      setWeeklySlots(slots);
     } catch (err) {
       console.warn('Failed to load schedule', err instanceof Error ? err.message : err);
     }
@@ -1505,6 +1534,96 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [user?.role],
   );
 
+  const upsertWeeklySlot = useCallback(
+    async (input: WeeklySlotInput & { id?: string }): Promise<OkOrError> => {
+      if (!user || !team) return { ok: false, error: t('weeklySchedule.saveError') };
+      if (!isAttendanceCoach(user.role)) {
+        return { ok: false, error: t('weeklySchedule.saveError') };
+      }
+
+      const payload: WeeklySlotInput = {
+        dayOfWeek: input.dayOfWeek as WeekDayIndex,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        location: input.location,
+      };
+
+      if (isDemoMode || !supabase) {
+        setWeeklySlots((prev) => {
+          if (input.id) {
+            return prev.map((s) =>
+              s.id === input.id
+                ? {
+                    ...s,
+                    dayOfWeek: payload.dayOfWeek,
+                    startTime: payload.startTime,
+                    endTime: payload.endTime,
+                    location: payload.location,
+                  }
+                : s,
+            );
+          }
+          const next: WeeklyScheduleSlot = {
+            id: `weekly-local-${Date.now()}`,
+            teamId: team.id,
+            dayOfWeek: payload.dayOfWeek,
+            startTime: payload.startTime,
+            endTime: payload.endTime,
+            location: payload.location,
+          };
+          return [...prev, next];
+        });
+        return { ok: true };
+      }
+
+      try {
+        const saved = input.id
+          ? await updateWeeklySlot(supabase, input.id, payload)
+          : await insertWeeklySlot(supabase, team.id, user.id, payload);
+        setWeeklySlots((prev) => {
+          const without = prev.filter((s) => s.id !== saved.id);
+          return [...without, saved].sort((a, b) => {
+            if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek;
+            return a.startTime.localeCompare(b.startTime);
+          });
+        });
+        return { ok: true };
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : t('weeklySchedule.saveError'),
+        };
+      }
+    },
+    [team, user],
+  );
+
+  const deleteWeeklySlot = useCallback(
+    async (slotId: string): Promise<OkOrError> => {
+      if (!user || !isAttendanceCoach(user.role)) {
+        return { ok: false, error: t('weeklySchedule.deleteError') };
+      }
+
+      if (isDemoMode || !supabase) {
+        setWeeklySlots((prev) => prev.filter((s) => s.id !== slotId));
+        return { ok: true };
+      }
+
+      try {
+        await deleteWeeklySlotLive(supabase, slotId);
+        setWeeklySlots((prev) => prev.filter((s) => s.id !== slotId));
+        return { ok: true };
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : t('weeklySchedule.deleteError'),
+        };
+      }
+    },
+    [user],
+  );
+
+
   const switchDemoRole = useCallback(
     (role: UserProfile['role']) => {
       if (!isDemoMode) return;
@@ -1527,6 +1646,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setEvents(demoEvents);
       setAcks(demoAcks);
       setAttendance(demoAttendance);
+      setWeeklySlots(demoWeeklySlots);
       setCarpools(demoCarpools);
       setBanner(demoBanner);
       setReadiness(demoReadiness);
@@ -1565,6 +1685,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setEvents([]);
       setAcks([]);
       setAttendance([]);
+      setWeeklySlots([]);
       setCarpools([]);
       setBanner(EMPTY_BANNER);
       setReadiness([]);
@@ -1588,6 +1709,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       events,
       acks,
       attendance,
+      weeklySlots,
       readiness,
       pain,
       healthPlayers,
@@ -1624,6 +1746,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       reviewSuggestion,
       claimCarpoolSeat,
       createCarpoolOffer,
+      upsertWeeklySlot,
+      deleteWeeklySlot,
       acknowledgeBanner,
       switchDemoRole,
       toggleDemoMedicalStaff,
@@ -1640,6 +1764,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       events,
       acks,
       attendance,
+      weeklySlots,
       readiness,
       pain,
       healthPlayers,
@@ -1674,6 +1799,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       reviewSuggestion,
       claimCarpoolSeat,
       createCarpoolOffer,
+      upsertWeeklySlot,
+      deleteWeeklySlot,
       acknowledgeBanner,
       switchDemoRole,
       toggleDemoMedicalStaff,

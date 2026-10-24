@@ -72,6 +72,11 @@ export function translateSuggestionStatus(status: string): string {
   return fromMap(he.suggestionStatus as Record<string, string>, status);
 }
 
+/** Israeli week day label: 0=Sunday … 6=Saturday. */
+export function translateWeekDay(dayOfWeek: number): string {
+  return fromMap(he.weeklySchedule.days as Record<string, string>, String(dayOfWeek));
+}
+
 export function translateBodyRegion(key: string): string {
   return fromMap(he.bodyRegions as Record<string, string>, key, key.replace('_', ' '));
 }
