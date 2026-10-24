@@ -1,3 +1,7 @@
+/**
+ * מסך לו״ז (מודול 2): אירועים, Dual-Ack (שחקן/הורה), carpool, באנר דחוף.
+ * מאמן רואה סיכום RSVP בלבד (ללא כפתורי בחירה). קונפליקט Dual-Ack מודגש ב־UI.
+ */
 import { useMemo, useState } from 'react';
 import {
   Alert,
@@ -31,6 +35,7 @@ export function ScheduleScreen() {
       ? t('schedule.subtitleParent')
       : t('schedule.subtitle');
 
+  /** תפיסת מושב — RPC אטומי ב־live; מונע לחיצה כפולה עם claimingOfferId. */
   const onClaimSeat = async (offerId: string, isFull: boolean) => {
     if (isFull || claimingOfferId) return;
     setClaimingOfferId(offerId);

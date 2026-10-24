@@ -1,3 +1,8 @@
+/**
+ * מודול 4 (live): תרגילים טקטיים, לוח סימונים, שיבוצי פעולה, הצעות שחקנים.
+ * board_json = stub של סימוני עמדה (x/y באחוזים 0–100), לא stroke מלא.
+ * game_iq_json מאוחסן דרך updatePlayLive (עמודת migration 012).
+ */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   PlayAssignment,
@@ -84,6 +89,7 @@ function parseArrows(raw: unknown): BoardArrow[] {
     .slice(0, 20);
 }
 
+/** פענוח בטוח של board_json — JSON פגום → לוח ריק (לא זורקים). כולל arrows[]. */
 export function parseBoardJson(raw?: string | null): BoardData {
   if (!raw?.trim()) return { markers: [], arrows: [] };
   try {
@@ -109,6 +115,7 @@ export function parseBoardJson(raw?: string | null): BoardData {
   }
 }
 
+/** שומר עד 20 סימונים — מונע פיצוץ payload מהקשות חוזרות על הלוח. */
 export function serializeBoardJson(data: BoardData): string {
   return JSON.stringify({
     markers: data.markers.slice(0, 20),

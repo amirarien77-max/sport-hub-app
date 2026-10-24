@@ -1,6 +1,7 @@
 /**
- * Parental consent SMS — Twilio when TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + TWILIO_FROM_NUMBER
- * are set; otherwise returns simulated mode with the Hebrew payload for client logging.
+ * Edge Function: SMS אישור הורי לילדים מתחת ל־13.
+ * Twilio כש־TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + TWILIO_FROM_NUMBER מוגדרים;
+ * אחרת mode=simulated עם payload עברי ללוג בקליינט (לא נכשל את האונבורדינג).
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 

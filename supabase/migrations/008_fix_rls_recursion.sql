@@ -1,6 +1,8 @@
--- Fix infinite RLS recursion on users (and policies that subquery users).
--- Root: users_select_teammates selected from users → re-entered the same policy.
--- Also rewrite member/select policies to use SECURITY DEFINER helpers from 006.
+-- =============================================================================
+-- 008_fix_rls_recursion: תיקון recursion אינסופי על users.
+-- שורש: users_select_teammates עשה SELECT מ־users → אותו policy שוב.
+-- מדיניות member/select עוברות ל־helpers מ־006.
+-- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.current_app_club_id()
 RETURNS UUID

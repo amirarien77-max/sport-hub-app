@@ -1,3 +1,8 @@
+/**
+ * אישור הורי לילדים מתחת ל־13 (מודול מיתוג + SMS).
+ * שולח דרך Edge `parental-consent-sms` או סימולציה; רושם ל־parental_consent_requests.
+ * סימון הסכמה בפועל: RPC `mark_parental_consent` (צוות בלבד).
+ */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   buildParentalConsentSmsBody,

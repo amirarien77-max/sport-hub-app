@@ -1,5 +1,7 @@
--- Module 4 live: tactical board RLS writes, board_json sketch stub,
--- suggestion status constraint, seed play for MAC-U16. Safe to re-run.
+-- =============================================================================
+-- 010_module4_tactical_live: RLS כתיבה ללוח טקטי, עמודת board_json,
+-- constraint לסטטוס הצעות, seed תרגיל. Safe to re-run.
+-- =============================================================================
 
 -- ── Optional sketch / stroke payload (JSON text; no storage bucket yet) ──────
 ALTER TABLE tactical_plays

@@ -1,3 +1,8 @@
+/**
+ * מודול 2 (live): לוח זמנים, Dual-Ack, נוכחות, carpool, באנר דחוף.
+ * ממפה שורות DB → טיפוסי האפליקציה. קריאות SELECT כפופות ל־RLS
+ * (למשל attendance לצוות בלבד — שגיאה נבלעת לשחקן/הורה).
+ */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   AttendanceMark,
@@ -73,6 +78,7 @@ export function mapRsvpRow(row: RsvpRow, playerName?: string): DualAck {
   };
 }
 
+/** טעינה מקבילה של אירועים + RSVP + נוכחות + carpool + באנר דחוף לקבוצה. */
 export async function fetchScheduleBundle(
   client: SupabaseClient,
   teamId: string,
@@ -181,6 +187,10 @@ export async function fetchScheduleBundle(
   return { events, acks, attendance, carpools, banner, teammates };
 }
 
+/**
+ * הורה צריך player_id ל־Dual-Ack. אם אין קישור — יוצרים לילד הראשון בקבוצה (דמו/bootstrap).
+ * בפרודקשן אמיתי עדיף קישור מפורש; כאן זה מאפשר RSVP בלי מסך קישור נפרד.
+ */
 export async function ensureParentPlayerLink(
   client: SupabaseClient,
   parentId: string,
@@ -216,6 +226,10 @@ export async function ensureParentPlayerLink(
   return player.id as string;
 }
 
+/**
+ * Dual-Ack: עמודה נפרדת לשחקן ולהורה על אותו (event_id, player_id).
+ * asParent=true מעדכן רק parent_*; אחרת רק player_*.
+ */
 export async function upsertRsvp(
   client: SupabaseClient,
   input: {
@@ -311,7 +325,11 @@ export type ClaimCarpoolResult =
   | { ok: true; seatsTaken: number; seatsAvailable: number }
   | { ok: false; reason: 'full' | 'not_found' | 'error'; message?: string };
 
-/** Claim one seat. Prefers RPC (atomic); falls back to direct UPDATE. */
+/**
+ * תפיסת מושב carpool.
+ * מעדיף RPC `claim_carpool_seat` (אטומי, migration 007); אם הפונקציה חסרה —
+ * נסיגה ל־UPDATE מותנה ב־seats_taken הישן (optimistic concurrency).
+ */
 export async function claimCarpoolSeatLive(
   client: SupabaseClient,
   offerId: string,

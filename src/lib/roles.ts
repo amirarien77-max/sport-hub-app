@@ -1,3 +1,7 @@
+/**
+ * שערי הרשאות לפי תפקיד — מקור אמת ל־UI ול־Session (לא מחליף RLS בשרת).
+ * תמיד לנרמל מחרוזת תפקיד לפני השוואה (DB / טופס עלולים לשלוח ריווחים/רישיות).
+ */
 import type { Role, Team, UserProfile } from '@/types';
 
 /** Normalize DB / client role strings before gate checks (trim + lower-case). */

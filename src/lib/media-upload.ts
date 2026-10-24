@@ -1,3 +1,8 @@
+/**
+ * העלאת מדיה לתרגיל טקטי (תמונה/וידאו) ל־Storage bucket `tactical-media`.
+ * נתיב: `{teamId}/{playId}/…` — תואם מדיניות RLS ב־migration 014.
+ * דורש development build / הרשאות ספרייה; Expo Go מוגבל לפי חבילה.
+ */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import * as ImagePicker from 'expo-image-picker';
 

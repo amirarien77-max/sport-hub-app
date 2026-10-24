@@ -1,3 +1,8 @@
+/**
+ * נתוני דמו מקומיים (הפועל ירושלים / U16) כש־isDemoMode.
+ * משמשים גם ל־QA בלי Supabase. לא לייבא ללוגיקת live כמקור אמת —
+ * רק כש־supabase === null או לבדיקות תפקיד בדמו.
+ */
 import { he } from '@/i18n';
 import type {
   AttendanceRow,
@@ -198,6 +203,7 @@ export function resolveInvite(code: string): ClubBrand | null {
   return null;
 }
 
+/** מתחת ל־13 → דורש אישור הורה (SMS) לפני feed מלא. */
 export function isUnder13(dateOfBirth?: string): boolean {
   if (!dateOfBirth) return false;
   const dob = new Date(dateOfBirth);
@@ -206,6 +212,7 @@ export function isUnder13(dateOfBirth?: string): boolean {
   return dob > cutoff;
 }
 
+/** Dual-Ack: שחקן והורה בחרו RSVP שונה — מציגים אזהרה בלו״ז. */
 export function dualAckConflict(ack: DualAck): boolean {
   return (
     ack.playerChoice !== null &&

@@ -1,3 +1,7 @@
+/**
+ * טיפוסי דומיין משותפים (camelCase בצד הלקוח).
+ * מיפוי מ־snake_case של Supabase נעשה ב־*-live.ts / SessionContext.
+ */
 export type Role =
   | 'admin'
   | 'head_coach'

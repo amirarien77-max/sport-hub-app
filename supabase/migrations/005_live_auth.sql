@@ -1,5 +1,7 @@
--- Live onboarding: invite lookup + self-service profile insert
--- Run after 001–004 (and ideally after seed.sql so MAC-U16-2026 exists).
+-- =============================================================================
+-- 005_live_auth: lookup הזמנה לפני חברות + insert פרופיל עצמי (auth_id = auth.uid()).
+-- להריץ אחרי 001–004 (ורצוי אחרי seed עם קוד הזמנה).
+-- =============================================================================
 
 -- Shared invite codes are meant to be looked up before membership exists.
 CREATE POLICY teams_select_invite ON teams FOR SELECT

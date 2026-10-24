@@ -1,5 +1,7 @@
--- Game IQ: cache last structured insight JSON on the play (OpenAI or offline stub).
+-- =============================================================================
+-- 012_game_iq: עמודת game_iq_json על tactical_plays (cache ל־OpenAI / stub).
 -- Safe to re-run.
+-- =============================================================================
 
 ALTER TABLE tactical_plays
   ADD COLUMN IF NOT EXISTS game_iq_json TEXT;

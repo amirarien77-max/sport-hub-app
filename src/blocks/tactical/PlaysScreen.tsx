@@ -1,3 +1,14 @@
+/**
+ * מסך תרגילים טקטיים (מודול 4 + Game IQ).
+ *
+ * מאמן: יצירת תרגיל, לחיצות על הלוח (סימוני 1–5), שיבוץ פעולה, מדיה, ביקורת הצעות.
+ * שחקן: משימות פעולה + תשובות + הצעות (אם allowSuggestions).
+ * Game IQ: כפתור מפעיל Edge/OpenAI או stub עברי; התוצאה נשמרת ב־game_iq_json.
+ *
+ * לוח: CourtBoard כופה LTR לנקודות (בלי שיקוף RTL); כלים סימון/חץ + עורך מסך מלא.
+ * כפתור יצירה: gesture-handler ב־native, RN Pressable ב־web (מונע quirks של GH).
+ * Alert.alert הוא no-op ב־web → משוב inline (createError / assignFeedback).
+ */
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -168,6 +179,7 @@ export function PlaysScreen() {
     [isPlayer, playSuggestions, selectedPlay, user],
   );
 
+  // לוח: CourtBoard (LTR coords + חצים + מסך מלא) — לא מיפוי locationX ישן
   const saveBoard = async () => {
     if (!selectedPlay) return;
     const result = await updatePlayBoard(
@@ -217,6 +229,7 @@ export function PlaysScreen() {
     }
   };
 
+  // ── Game IQ: live Edge/OpenAI או stub; תמיד מציגים insight + cache מקומי/DB ──
   const runGameIq = async (play: TacticalPlay) => {
     setGameIqLoading(true);
     setCreateError(null);

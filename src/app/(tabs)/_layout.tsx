@@ -1,3 +1,7 @@
+/**
+ * טאבים ראשיים. כותרת = שם המועדון (מיתוג).
+ * טאב נוכחות מוסתר לשחקן/הורה (`href: null`) — רק צוות אימון.
+ */
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { t } from '@/i18n';
