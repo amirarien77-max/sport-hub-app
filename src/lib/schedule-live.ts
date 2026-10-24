@@ -494,8 +494,7 @@ export async function createEventLive(
 }
 
 /**
- * Staff update event fields.
- * Note: live DB currently has INSERT+SELECT policies only — UPDATE may fail until RLS is added.
+ * Staff update event fields (RLS: events_update_staff — migration 016).
  */
 export async function updateEventLive(
   client: SupabaseClient,
