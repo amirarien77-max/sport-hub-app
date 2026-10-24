@@ -2,6 +2,7 @@
  * מודול 4 (live): תרגילים טקטיים, לוח סימונים, שיבוצי פעולה, הצעות שחקנים.
  * board_json = stub של סימוני עמדה (x/y באחוזים 0–100), לא stroke מלא.
  * game_iq_json מאוחסן דרך updatePlayLive (עמודת migration 012).
+ * drill_overlay_json מאוחסן דרך updatePlayLive (עמודת migration 015).
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
@@ -39,6 +40,7 @@ type PlayRow = {
   allow_suggestions: boolean | null;
   board_json: string | null;
   game_iq_json: string | null;
+  drill_overlay_json: string | null;
   created_at: string;
 };
 
@@ -132,6 +134,7 @@ export function mapPlayRow(row: PlayRow): TacticalPlay {
     allowSuggestions: row.allow_suggestions !== false,
     boardJson: row.board_json ?? undefined,
     gameIqJson: row.game_iq_json ?? undefined,
+    drillOverlayJson: row.drill_overlay_json ?? undefined,
     createdAt: row.created_at,
   };
 }
@@ -178,7 +181,9 @@ export async function fetchTacticalBundle(
   const [playsRes, playersRes] = await Promise.all([
     client
       .from('tactical_plays')
-      .select('id, team_id, title, media_url, allow_suggestions, board_json, game_iq_json, created_at')
+      .select(
+        'id, team_id, title, media_url, allow_suggestions, board_json, game_iq_json, drill_overlay_json, created_at',
+      )
       .eq('team_id', teamId)
       .order('created_at', { ascending: false }),
     client
@@ -250,7 +255,9 @@ export async function createPlayLive(
       board_json: input.boardJson ?? null,
       media_url: input.mediaUrl?.trim() || null,
     })
-    .select('id, team_id, title, media_url, allow_suggestions, board_json, game_iq_json, created_at')
+    .select(
+      'id, team_id, title, media_url, allow_suggestions, board_json, game_iq_json, drill_overlay_json, created_at',
+    )
     .single();
 
   if (error) throw new Error(error.message);
@@ -265,6 +272,7 @@ export async function updatePlayLive(
     mediaUrl?: string | null;
     boardJson?: string | null;
     gameIqJson?: string | null;
+    drillOverlayJson?: string | null;
     title?: string;
   },
 ): Promise<void> {
@@ -273,6 +281,7 @@ export async function updatePlayLive(
   if (patch.mediaUrl !== undefined) row.media_url = patch.mediaUrl;
   if (patch.boardJson !== undefined) row.board_json = patch.boardJson;
   if (patch.gameIqJson !== undefined) row.game_iq_json = patch.gameIqJson;
+  if (patch.drillOverlayJson !== undefined) row.drill_overlay_json = patch.drillOverlayJson;
   if (patch.title !== undefined) row.title = patch.title.trim();
 
   const { error } = await client.from('tactical_plays').update(row).eq('id', playId);

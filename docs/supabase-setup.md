@@ -35,7 +35,11 @@ Open **SQL Editor** in the Supabase dashboard and run these files **in order** (
 13. `supabase/migrations/012_game_iq.sql` (`game_iq_json` cache column on `tactical_plays`)
 14. `supabase/migrations/013_hapoel_brand_and_sms_consent.sql` (Hapoel brand + parental SMS consent table/RPC)
 15. `supabase/migrations/014_tactical_media_storage.sql` (Storage bucket `tactical-media` + RLS)
-16. `supabase/migrations/017_weekly_schedule.sql` (recurring weekly schedule slots + coach RLS)
+16. `supabase/migrations/015_profile_meetings_equipment.sql` (profile sizes, meetings, equipment + Swish)
+17. `supabase/migrations/016_events_update_staff.sql` (events UPDATE for staff + Swish RPC harden)
+18. `supabase/migrations/017_weekly_schedule.sql` (recurring weekly schedule slots + coach RLS)
+19. `supabase/migrations/018_game_venue_contact.sql` (hall_address + contact_phone on events)
+20. `supabase/migrations/019_drill_overlay.sql` (`drill_overlay_json` cache column on `tactical_plays`)
 
 Skip any file you have already applied.
 
@@ -49,6 +53,10 @@ Skip any file you have already applied.
 ### Game IQ Edge Function (optional OpenAI)
 
 Deploy `supabase/functions/game-iq` and set secret `OPENAI_API_KEY` in the Supabase dashboard. Without the function or key, the app uses a clear Hebrew **offline stub** (same structured coach/player bullets). Never put OpenAI keys in `EXPO_PUBLIC_*`.
+
+### Drill Overlay Edge Function (optional OpenAI)
+
+Deploy `supabase/functions/drill-overlay` (same `OPENAI_API_KEY` secret). Apply migration `019_drill_overlay.sql` for the `drill_overlay_json` cache column. Without the function or key, the plays screen shows a Hebrew **demo overlay** timed across the full clip (paths/arrows on the in-app player). See `docs/ai-drill-video-overlay.md` in the project store / repo docs.
 
 ### Parental consent SMS (optional Twilio)
 
