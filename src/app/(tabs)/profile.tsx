@@ -1,3 +1,7 @@
+/**
+ * פרופיל משתמש + כלי מאמן לאישור הורי (רשימת pending + שליחת SMS מחדש).
+ * בדמו: החלפת תפקיד לבדיקת שערי UI בלי התחברות מחדש.
+ */
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';

@@ -1,4 +1,7 @@
--- Core hierarchy: Club > Team > Users (PRD §3)
+-- =============================================================================
+-- 001_core: היררכיה Club > Team > Users + תפקידים + RLS בסיסי (PRD §3).
+-- בסיס לכל המודולים; אל תשנו enums בלי migration המשך.
+-- =============================================================================
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TABLE clubs (

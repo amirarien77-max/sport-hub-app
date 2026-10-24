@@ -1,5 +1,8 @@
--- Demo seed: הפועל ירושלים (Hapoel Jerusalem) — canonical invite HAP-U16-2026
--- Legacy alias MAC-U16-2026 is accepted in the app client (maps to HAP).
+-- =============================================================================
+-- seed: מועדון/קבוצת דמו הפועל ירושלים — invite קנוני HAP-U16-2026.
+-- בצד האפליקציה MAC-U16-2026 עדיין מתקבל כ־alias (normalizeInviteCode).
+-- IDs קבועים לתאימות עם migrations מאוחרות.
+-- =============================================================================
 INSERT INTO clubs (id, name, primary_color, secondary_color, accent_color)
 VALUES (
   '11111111-1111-1111-1111-111111111111',

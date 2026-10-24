@@ -1,5 +1,7 @@
--- Hapoel Jerusalem demo brand + parental SMS consent storage.
--- Safe to re-run.
+-- =============================================================================
+-- 013_hapoel_brand_and_sms_consent: מיתוג הפועל ירושלים + טבלת SMS אישור הורי
+-- + RPC mark_parental_consent. קוד הזמנה → HAP-U16-2026. Safe to re-run.
+-- =============================================================================
 
 -- ── Demo club → הפועל ירושלים (red / black / white) ──────────────────────────
 UPDATE clubs

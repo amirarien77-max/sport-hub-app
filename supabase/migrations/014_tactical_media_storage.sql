@@ -1,5 +1,8 @@
--- Tactical play media bucket (coach upload → media_url). Safe to re-run.
--- Public read of objects; write limited to authenticated team staff via path team_id/.
+-- =============================================================================
+-- 014_tactical_media_storage: bucket `tactical-media` (קריאה ציבורית;
+-- כתיבה לצוות מאומת בנתיב team_id/). המדיה נשמרת ב־tactical_plays.media_url.
+-- Safe to re-run.
+-- =============================================================================
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (

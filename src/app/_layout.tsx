@@ -1,3 +1,7 @@
+/**
+ * Root layout (Expo Router): RTL עברית + Theme + Session + Stack בלי header.
+ * ייבוא `@/i18n` ראשון מפעיל enableHebrewRtl() בטעינה.
+ */
 import '@/i18n';
 
 import { LocaleProvider, Stack } from 'expo-router';

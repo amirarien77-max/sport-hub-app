@@ -1,3 +1,7 @@
+/**
+ * השלמת פרופיל אחרי הזמנה: שם + תפקיד (+ תאריך לידה / טלפון הורה לשחקן).
+ * מתחת ל־13 → consent_status=pending + ניסיון SMS; הערה בעברית לפני מעבר ללו״ז.
+ */
 import { useState } from 'react';
 import {
   ActivityIndicator,

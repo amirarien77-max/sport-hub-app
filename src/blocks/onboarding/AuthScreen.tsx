@@ -1,3 +1,7 @@
+/**
+ * התחברות / הרשמה ב־Supabase Auth.
+ * אחרי הצלחה: router.replace('/') — Index ממתין ל־hydrate ואז מפנה ללו״ז או invite.
+ */
 import { useState } from 'react';
 import {
   ActivityIndicator,
