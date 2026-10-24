@@ -15,6 +15,7 @@ export const he = {
     assistant_coach: 'עוזר מאמן',
     fitness_coach: 'מאמן כושר',
     physio: 'פיזיותרפיסט',
+    equipment_manager: 'אחראי ציוד',
     player: 'שחקן',
     parent: 'הורה',
   },
