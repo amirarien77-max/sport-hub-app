@@ -10,7 +10,14 @@ import type { PendingConsentPlayer } from '@/lib/consent-live';
 import { isAttendanceCoach } from '@/lib/roles';
 import { isDemoMode } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
-import { layout, rtlLayout, rtlText, useTheme } from '@/theme/ThemeContext';
+import {
+  layout,
+  rtlAlignStart,
+  rtlContainerProps,
+  rtlLayout,
+  rtlText,
+  useTheme,
+} from '@/theme/ThemeContext';
 import type { Role } from '@/types';
 
 export default function ProfileRoute() {
@@ -50,12 +57,21 @@ export default function ProfileRoute() {
 
   return (
     <ScrollView
+      {...rtlContainerProps}
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={layout.scrollContent}
     >
       <Text style={[layout.title, { color: colors.primary }]}>{t('profile.title')}</Text>
       <Text style={[layout.subtitle, { color: colors.muted }]}>{user?.fullName}</Text>
-      <View style={[styles.badge, { borderColor: colors.secondary, backgroundColor: '#fff' }]}>
+      <View
+        {...rtlContainerProps}
+        style={[
+          styles.badge,
+          rtlLayout.box,
+          rtlAlignStart,
+          { borderColor: colors.secondary, backgroundColor: '#fff' },
+        ]}
+      >
         <Text style={[{ fontWeight: '800', color: colors.primary }, rtlText]}>
           {t('profile.roleBadge', {
             role: user?.role ? translateRole(user.role) : '—',
@@ -76,7 +92,10 @@ export default function ProfileRoute() {
       </Text>
 
       {isAttendanceCoach(user?.role) ? (
-        <View style={[styles.consentCard, { borderColor: colors.primary }]}>
+        <View
+          {...rtlContainerProps}
+          style={[styles.consentCard, rtlLayout.box, { borderColor: colors.primary }]}
+        >
           <Text style={[styles.label, { marginTop: 0 }]}>{t('profile.pendingConsentTitle')}</Text>
           {consentNote ? (
             <Text style={{ color: colors.success, textAlign: 'right', marginBottom: 8 }}>

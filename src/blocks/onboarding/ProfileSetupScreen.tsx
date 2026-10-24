@@ -19,6 +19,7 @@ import { isDemoMode } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
 import {
   layout,
+  rtlContainerProps,
   rtlInput,
   rtlLayout,
   rtlText,
@@ -67,6 +68,7 @@ export function ProfileSetupScreen() {
 
   return (
     <ScrollView
+      {...rtlContainerProps}
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={layout.scrollContent}
       keyboardShouldPersistTaps="handled"

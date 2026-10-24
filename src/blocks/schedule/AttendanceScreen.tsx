@@ -7,7 +7,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { t, translateAttendanceMark } from '@/i18n';
 import { isAttendanceCoach } from '@/lib/roles';
 import { useSession } from '@/session/SessionContext';
-import { layout, rtlRowDirection, rtlText, useTheme } from '@/theme/ThemeContext';
+import { layout, rtlContainerProps, rtlRowDirection, rtlText, useTheme } from '@/theme/ThemeContext';
 import type { AttendanceMark } from '@/types';
 
 const MARK_COLORS: Record<Exclude<AttendanceMark, null>, string> = {
@@ -27,7 +27,10 @@ export function AttendanceScreen() {
 
   if (!isCoach) {
     return (
-      <View style={[layout.screen, { backgroundColor: colors.background }]}>
+      <View
+        {...rtlContainerProps}
+        style={[layout.screen, { backgroundColor: colors.background }]}
+      >
         <Text style={[layout.title, { color: colors.primary }]}>{t('attendance.title')}</Text>
         <Text style={[layout.subtitle, { color: colors.muted }]}>{t('attendance.playersOnly')}</Text>
       </View>
@@ -36,6 +39,7 @@ export function AttendanceScreen() {
 
   return (
     <ScrollView
+      {...rtlContainerProps}
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={layout.scrollContent}
     >
@@ -108,6 +112,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 12,
     justifyContent: 'space-between',
+    writingDirection: 'rtl',
   },
   cellName: { color: '#fff', fontWeight: '800', fontSize: 16, ...rtlText },
   cellMark: {

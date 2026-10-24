@@ -39,7 +39,15 @@ import {
   type BoardMarker,
 } from '@/lib/tactical-live';
 import { useSession } from '@/session/SessionContext';
-import { layout, rtlInput, rtlLayout, rtlText, rtlTextAlign, useTheme } from '@/theme/ThemeContext';
+import {
+  layout,
+  rtlContainerProps,
+  rtlInput,
+  rtlLayout,
+  rtlText,
+  rtlTextAlign,
+  useTheme,
+} from '@/theme/ThemeContext';
 import type { PlayAssignment, TacticalPlay } from '@/types';
 
 function parseCachedInsight(raw?: string): GameIqInsight | null {
@@ -265,7 +273,7 @@ export function PlaysScreen() {
   };
 
   const renderAnswerEditor = (a: PlayAssignment, showPlayTitle?: string) => (
-    <View key={a.id} style={styles.assign}>
+    <View key={a.id} style={[styles.assign, rtlLayout.box]}>
       {showPlayTitle ? (
         <Text style={{ fontWeight: '700', color: colors.primary, textAlign: 'right' }}>
           {showPlayTitle}
@@ -319,13 +327,13 @@ export function PlaysScreen() {
       <Text style={[layout.subtitle, { color: colors.muted }]}>{t('plays.subtitle')}</Text>
 
       {feedBlocked ? (
-        <View style={[styles.notice, { backgroundColor: '#FEE2E2' }]}>
+        <View {...rtlContainerProps} style={[styles.notice, rtlLayout.box, { backgroundColor: '#FEE2E2' }]}>
           <Text style={{ color: colors.danger, fontWeight: '700', textAlign: 'right' }}>
             {t('plays.feedLocked')}
           </Text>
         </View>
       ) : (
-        <View style={[styles.notice, { backgroundColor: '#ECFDF5' }]}>
+        <View {...rtlContainerProps} style={[styles.notice, rtlLayout.box, { backgroundColor: '#ECFDF5' }]}>
           <Text style={{ color: colors.success, fontWeight: '700', textAlign: 'right' }}>
             {t('plays.feedOpen')}
           </Text>
@@ -338,7 +346,7 @@ export function PlaysScreen() {
       )}
 
       {isPlayer ? (
-        <View style={[styles.card, { borderColor: colors.secondary }]}>
+        <View {...rtlContainerProps} style={[styles.card, rtlLayout.box, { borderColor: colors.secondary }]}>
           <Text style={styles.playTitle}>{t('plays.myActionTasks')}</Text>
           <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
             {t('plays.myActionTasksHint')}
@@ -356,7 +364,7 @@ export function PlaysScreen() {
       <Text style={[styles.section, { color: colors.primary }]}>{t('plays.listTitle')}</Text>
 
       {isCoach ? (
-        <View style={[styles.card, { borderColor: colors.primary }]}>
+        <View {...rtlContainerProps} style={[styles.card, rtlLayout.box, { borderColor: colors.primary }]}>
           <Text style={styles.playTitle}>{t('plays.createPlay')}</Text>
           <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
             {t('plays.createPlayHint')}
@@ -479,7 +487,7 @@ export function PlaysScreen() {
         </Text>
       ) : null}
 
-      <View style={[styles.card, { borderColor: colors.secondary }]}>
+      <View {...rtlContainerProps} style={[styles.card, rtlLayout.box, { borderColor: colors.secondary }]}>
         <Text style={styles.playTitle}>{t('plays.gameIqTitle')}</Text>
         <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
           {t('plays.gameIqStub')}
@@ -601,7 +609,7 @@ export function PlaysScreen() {
         onSave={() => void saveBoard()}
       />
 
-      <View style={[styles.card, { borderColor: colors.primary, marginTop: 14 }]}>
+      <View {...rtlContainerProps} style={[styles.card, rtlLayout.box, { borderColor: colors.primary, marginTop: 14 }]}>
         <Text style={styles.playTitle}>{t('plays.mediaStubTitle')}</Text>
         <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
           {t('plays.mediaStubHint')}
@@ -719,7 +727,7 @@ export function PlaysScreen() {
         isPlayer && user && a.playerId === user.id ? (
           renderAnswerEditor(a)
         ) : (
-          <View key={a.id} style={styles.assign}>
+          <View key={a.id} style={[styles.assign, rtlLayout.box]}>
             <Text style={{ fontWeight: '800', textAlign: 'right' }}>
               {t('plays.pos', { pos: a.positionName, name: a.playerName })}
             </Text>
@@ -743,7 +751,7 @@ export function PlaysScreen() {
       )}
 
       {isCoach ? (
-        <View style={[styles.card, { borderColor: colors.primary }]}>
+        <View {...rtlContainerProps} style={[styles.card, rtlLayout.box, { borderColor: colors.primary }]}>
           <Text style={styles.playTitle}>{t('plays.addAssignment')}</Text>
           <Text style={{ color: colors.muted, textAlign: 'right', marginBottom: 6 }}>
             {t('plays.pickPlayer')}
@@ -855,7 +863,7 @@ export function PlaysScreen() {
         <>
           <Text style={styles.section}>{t('plays.mySuggestions')}</Text>
           {mySuggestions.map((s) => (
-            <View key={s.id} style={styles.assign}>
+            <View key={s.id} style={[styles.assign, rtlLayout.box]}>
               <Text style={{ fontWeight: '700', textAlign: 'right' }}>
                 {translateSuggestionStatus(s.status)}
               </Text>
@@ -869,7 +877,7 @@ export function PlaysScreen() {
         <>
           <Text style={styles.section}>{t('plays.suggestionInbox')}</Text>
           {playSuggestions.map((s) => (
-            <View key={s.id} style={styles.assign}>
+            <View key={s.id} style={[styles.assign, rtlLayout.box]}>
               <Text style={{ fontWeight: '700', textAlign: 'right' }}>
                 {s.playerName} · {translateSuggestionStatus(s.status)}
               </Text>
@@ -899,6 +907,7 @@ export function PlaysScreen() {
 
   return (
     <ScrollView
+      {...rtlContainerProps}
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={layout.scrollContent}
       keyboardShouldPersistTaps="handled"
@@ -925,7 +934,8 @@ function PlayListRow({
   return (
     <Pressable
       onPress={onOpen}
-      style={[styles.card, { borderColor: colors.primary }]}
+      {...rtlContainerProps}
+      style={[styles.card, rtlLayout.box, { borderColor: colors.primary }]}
     >
       <Text style={styles.playTitle}>{play.title}</Text>
       <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
@@ -942,13 +952,14 @@ function PlayListRow({
 }
 
 const styles = StyleSheet.create({
-  notice: { padding: 12, borderRadius: 12, marginTop: 12 },
+  notice: { padding: 12, borderRadius: 12, marginTop: 12, writingDirection: 'rtl' },
   card: {
     marginTop: 16,
     padding: 14,
     borderRadius: 14,
     borderWidth: 1.5,
     backgroundColor: '#fff',
+    writingDirection: 'rtl',
   },
   playTitle: { fontSize: 18, fontWeight: '800', ...rtlText },
   section: {
@@ -964,6 +975,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     marginBottom: 8,
     marginTop: 10,
+    writingDirection: 'rtl',
   },
   input: {
     marginTop: 8,

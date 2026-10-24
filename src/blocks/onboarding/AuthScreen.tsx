@@ -14,7 +14,14 @@ import {
 import { router } from 'expo-router';
 import { t } from '@/i18n';
 import { useSession } from '@/session/SessionContext';
-import { layout, rtlInput, rtlText, rtlTextAlign, useTheme } from '@/theme/ThemeContext';
+import {
+  layout,
+  rtlContainerProps,
+  rtlInput,
+  rtlText,
+  rtlTextAlign,
+  useTheme,
+} from '@/theme/ThemeContext';
 
 export function AuthScreen() {
   const { colors } = useTheme();
@@ -37,7 +44,10 @@ export function AuthScreen() {
   };
 
   return (
-    <View style={[layout.screen, { backgroundColor: colors.background }]}>
+    <View
+      {...rtlContainerProps}
+      style={[layout.screen, { backgroundColor: colors.background }]}
+    >
       <Text style={[layout.title, { color: colors.primary }]}>{t('auth.title')}</Text>
       <Text style={[layout.subtitle, { color: colors.muted }]}>{t('auth.subtitle')}</Text>
 
