@@ -22,6 +22,8 @@ type EventRow = {
   starts_at: string;
   location: string | null;
   type: 'practice' | 'game';
+  hall_address?: string | null;
+  contact_phone?: string | null;
 };
 
 type RsvpRow = {
@@ -63,8 +65,19 @@ export function mapEventRow(row: EventRow): SessionEvent {
     startsAt: row.starts_at,
     location: row.location ?? '',
     type: row.type,
+    hallAddress: row.hall_address?.trim() ? row.hall_address.trim() : undefined,
+    contactPhone: row.contact_phone?.trim() ? row.contact_phone.trim() : undefined,
   };
 }
+
+export type EventWriteInput = {
+  title: string;
+  startsAt: string;
+  location: string;
+  type: 'practice' | 'game';
+  hallAddress?: string;
+  contactPhone?: string;
+};
 
 export function mapRsvpRow(row: RsvpRow, playerName?: string): DualAck {
   return {
@@ -463,16 +476,13 @@ export async function acknowledgeUrgentBanner(
   }
 }
 
+const EVENT_SELECT =
+  'id, team_id, title, starts_at, location, type, hall_address, contact_phone';
+
 /** Staff create practice/game (RLS: events_insert_staff). */
 export async function createEventLive(
   client: SupabaseClient,
-  input: {
-    teamId: string;
-    title: string;
-    startsAt: string;
-    location: string;
-    type: 'practice' | 'game';
-  },
+  input: EventWriteInput & { teamId: string },
 ): Promise<SessionEvent> {
   const title = input.title.trim();
   if (!title) throw new Error('title_required');
@@ -485,26 +495,20 @@ export async function createEventLive(
       starts_at: input.startsAt,
       location: input.location.trim() || null,
       type: input.type,
+      hall_address: input.hallAddress?.trim() || null,
+      contact_phone: input.contactPhone?.trim() || null,
     })
-    .select('id, team_id, title, starts_at, location, type')
+    .select(EVENT_SELECT)
     .single();
 
   if (error) throw new Error(error.message);
   return mapEventRow(data as EventRow);
 }
 
-/**
- * Staff update event fields (RLS: events_update_staff — migration 016).
- */
+/** Staff update event fields (RLS: events_update_staff from migration 016). */
 export async function updateEventLive(
   client: SupabaseClient,
-  input: {
-    id: string;
-    title?: string;
-    startsAt?: string;
-    location?: string;
-    type?: 'practice' | 'game';
-  },
+  input: Partial<EventWriteInput> & { id: string },
 ): Promise<SessionEvent> {
   const patch: Record<string, unknown> = {};
   if (input.title !== undefined) {
@@ -515,12 +519,18 @@ export async function updateEventLive(
   if (input.startsAt !== undefined) patch.starts_at = input.startsAt;
   if (input.location !== undefined) patch.location = input.location.trim() || null;
   if (input.type !== undefined) patch.type = input.type;
+  if (input.hallAddress !== undefined) {
+    patch.hall_address = input.hallAddress.trim() || null;
+  }
+  if (input.contactPhone !== undefined) {
+    patch.contact_phone = input.contactPhone.trim() || null;
+  }
 
   const { data, error } = await client
     .from('events')
     .update(patch)
     .eq('id', input.id)
-    .select('id, team_id, title, starts_at, location, type')
+    .select(EVENT_SELECT)
     .single();
 
   if (error) throw new Error(error.message);

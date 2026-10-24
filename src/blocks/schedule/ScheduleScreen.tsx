@@ -1,6 +1,6 @@
 /**
  * מסך לו״ז (מודול 2): אירועים, Dual-Ack (שחקן/הורה), carpool, באנר דחוף.
- * PRD v1.1: תצוגת חודש אינטראקטיבית + רשימה. מאמן עורך; שחקן/הורה קריאה + צבעי RSVP.
+ * PRD v1.1: תצוגת חודש + רשימה; כתובת אולם + טלפון למשחקים. מאמן עורך; שחקן/הורה קריאה.
  */
 import { useMemo, useState } from 'react';
 import {
@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { MonthCalendar, canEditCalendar } from '@/blocks/schedule/MonthCalendar';
@@ -18,7 +19,65 @@ import { t, translateAbsenceReason, translateRsvp } from '@/i18n';
 import { dualAckConflict } from '@/lib/demo-data';
 import { canClaimCarpool, canOfferCarpool, canSubmitRsvp, isAttendanceCoach } from '@/lib/roles';
 import { useSession } from '@/session/SessionContext';
-import { layout, rtlContainerProps, rtlLayout, rtlText, useTheme } from '@/theme/ThemeContext';
+import type { SessionEvent } from '@/types';
+import {
+  layout,
+  rtlContainerProps,
+  rtlInput,
+  rtlLayout,
+  rtlText,
+  rtlTextAlign,
+  useTheme,
+} from '@/theme/ThemeContext';
+
+type EditorState = {
+  mode: 'create' | 'edit';
+  eventId?: string;
+  title: string;
+  location: string;
+  hallAddress: string;
+  contactPhone: string;
+  type: 'practice' | 'game';
+  date: string;
+  time: string;
+};
+
+function toEditorState(event?: SessionEvent): EditorState {
+  if (!event) {
+    const now = new Date();
+    now.setHours(now.getHours() + 24);
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return {
+      mode: 'create',
+      title: '',
+      location: '',
+      hallAddress: '',
+      contactPhone: '',
+      type: 'game',
+      date: `${y}-${m}-${d}`,
+      time: '18:00',
+    };
+  }
+  const dt = new Date(event.startsAt);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const d = String(dt.getDate()).padStart(2, '0');
+  const hh = String(dt.getHours()).padStart(2, '0');
+  const mm = String(dt.getMinutes()).padStart(2, '0');
+  return {
+    mode: 'edit',
+    eventId: event.id,
+    title: event.title,
+    location: event.location,
+    hallAddress: event.hallAddress ?? '',
+    contactPhone: event.contactPhone ?? '',
+    type: event.type,
+    date: `${y}-${m}-${d}`,
+    time: `${hh}:${mm}`,
+  };
+}
 
 export function ScheduleScreen() {
   const { colors } = useTheme();
@@ -41,6 +100,9 @@ export function ScheduleScreen() {
   const [offerSeats, setOfferSeats] = useState(3);
   const [offering, setOffering] = useState(false);
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+  const [editor, setEditor] = useState<EditorState | null>(null);
+  const [editorBusy, setEditorBusy] = useState(false);
+  const [editorNote, setEditorNote] = useState<string | null>(null);
 
   const coachView = isAttendanceCoach(user?.role);
   const calendarEdit = canEditCalendar(user?.role);
@@ -96,6 +158,44 @@ export function ScheduleScreen() {
       Alert.alert(t('schedule.claimErrorTitle'), t('schedule.claimErrorBody'));
     } finally {
       setClaimingOfferId(null);
+    }
+  };
+
+  const saveEditor = async () => {
+    if (!editor) return;
+    const title = editor.title.trim();
+    if (!title) {
+      setEditorNote(t('schedule.titleRequired'));
+      return;
+    }
+    const startsAt = new Date(`${editor.date}T${editor.time}:00`).toISOString();
+    if (Number.isNaN(Date.parse(startsAt))) {
+      setEditorNote(t('schedule.saveError'));
+      return;
+    }
+    setEditorBusy(true);
+    setEditorNote(null);
+    try {
+      const payload = {
+        title,
+        startsAt,
+        location: editor.location.trim(),
+        type: editor.type,
+        hallAddress: editor.type === 'game' ? editor.hallAddress.trim() : '',
+        contactPhone: editor.type === 'game' ? editor.contactPhone.trim() : '',
+      };
+      const result =
+        editor.mode === 'create'
+          ? await createSessionEvent(payload)
+          : await updateSessionEvent({ id: editor.eventId!, ...payload });
+      if (!result.ok) {
+        setEditorNote(result.error || t('schedule.saveError'));
+        return;
+      }
+      setEditor(null);
+      Alert.alert(t('schedule.saveSuccess'));
+    } finally {
+      setEditorBusy(false);
     }
   };
 
@@ -225,6 +325,18 @@ export function ScheduleScreen() {
         />
       ) : null}
 
+      {viewMode === 'list' && coachView ? (
+        <Pressable
+          onPress={() => {
+            setEditor(toEditorState());
+            setEditorNote(null);
+          }}
+          style={[layout.button, { backgroundColor: colors.primary, marginTop: 12 }]}
+        >
+          <Text style={[layout.buttonText, { color: '#fff' }]}>{t('schedule.addGame')}</Text>
+        </Pressable>
+      ) : null}
+
       {viewMode === 'list' ? (
         <Text style={[layout.title, { color: colors.primary, fontSize: 20, marginTop: 16 }]}>
           {t('schedule.listTitle')}
@@ -240,6 +352,7 @@ export function ScheduleScreen() {
       {viewMode === 'list'
         ? events.map((event) => {
         const related = acks.filter((a) => a.eventId === event.id);
+        const isGame = event.type === 'game';
         return (
           <View
             key={event.id}
@@ -249,7 +362,46 @@ export function ScheduleScreen() {
             <Text style={styles.eventTitle}>{event.title}</Text>
             <Text style={[{ color: colors.muted }, rtlText]}>
               {new Date(event.startsAt).toLocaleString('he-IL')} · {event.location}
+              {isGame ? ` · ${t('schedule.typeGame')}` : ` · ${t('schedule.typePractice')}`}
             </Text>
+
+            {isGame && (event.hallAddress || event.contactPhone) ? (
+              <View
+                {...rtlContainerProps}
+                style={[styles.venueBox, rtlLayout.box, { borderColor: colors.secondary }]}
+              >
+                {event.hallAddress ? (
+                  <Text style={[{ color: colors.text }, rtlText]}>
+                    {t('schedule.hallAddress')}: {event.hallAddress}
+                  </Text>
+                ) : null}
+                {event.contactPhone ? (
+                  <Text style={[{ color: colors.text, marginTop: event.hallAddress ? 4 : 0 }, rtlText]}>
+                    {t('schedule.contactPhone')}: {event.contactPhone}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            {coachView ? (
+              <Pressable
+                onPress={() => {
+                  setEditor(toEditorState(event));
+                  setEditorNote(null);
+                }}
+                style={[
+                  layout.button,
+                  {
+                    backgroundColor: colors.secondary,
+                    marginTop: 10,
+                  },
+                ]}
+              >
+                <Text style={[layout.buttonText, { color: '#fff' }]}>
+                  {isGame ? t('schedule.editGame') : t('schedule.editEvent')}
+                </Text>
+              </Pressable>
+            ) : null}
 
             {showRsvp ? (
               <View style={[rtlLayout.splitRow, { marginTop: 12 }]}>
@@ -434,6 +586,159 @@ export function ScheduleScreen() {
           setSheetEventId(null);
         }}
       />
+
+      <Modal
+        visible={Boolean(editor)}
+        animationType="slide"
+        transparent
+        onRequestClose={() => {
+          if (!editorBusy) setEditor(null);
+        }}
+      >
+        <Pressable
+          style={styles.sheetBackdrop}
+          onPress={() => !editorBusy && setEditor(null)}
+        >
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={[styles.sheet, rtlLayout.box, { backgroundColor: colors.surface }]}
+          >
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              {...rtlContainerProps}
+            >
+              <Text style={[layout.title, { fontSize: 20, color: colors.primary }]}>
+                {editor?.mode === 'edit'
+                  ? editor.type === 'game'
+                    ? t('schedule.editGame')
+                    : t('schedule.editEvent')
+                  : t('schedule.addGame')}
+              </Text>
+
+              <Text style={layout.label}>{t('schedule.eventTitle')}</Text>
+              <TextInput
+                textAlign={rtlTextAlign}
+                value={editor?.title ?? ''}
+                onChangeText={(title) => setEditor((e) => (e ? { ...e, title } : e))}
+                style={[styles.input, rtlInput, { borderColor: colors.primary, color: colors.text }]}
+              />
+
+              <Text style={layout.label}>{t('schedule.eventLocation')}</Text>
+              <TextInput
+                textAlign={rtlTextAlign}
+                value={editor?.location ?? ''}
+                onChangeText={(location) => setEditor((e) => (e ? { ...e, location } : e))}
+                style={[styles.input, rtlInput, { borderColor: colors.primary, color: colors.text }]}
+              />
+
+              <Text style={layout.label}>{t('schedule.eventDate')}</Text>
+              <TextInput
+                textAlign={rtlTextAlign}
+                value={editor?.date ?? ''}
+                onChangeText={(date) => setEditor((e) => (e ? { ...e, date } : e))}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.muted}
+                style={[styles.input, rtlInput, { borderColor: colors.primary, color: colors.text }]}
+              />
+
+              <Text style={layout.label}>{t('schedule.eventTime')}</Text>
+              <TextInput
+                textAlign={rtlTextAlign}
+                value={editor?.time ?? ''}
+                onChangeText={(time) => setEditor((e) => (e ? { ...e, time } : e))}
+                placeholder="HH:MM"
+                placeholderTextColor={colors.muted}
+                style={[styles.input, rtlInput, { borderColor: colors.primary, color: colors.text }]}
+              />
+
+              <View style={[rtlLayout.row, { marginTop: 12 }]}>
+                {(['game', 'practice'] as const).map((type) => (
+                  <Pressable
+                    key={type}
+                    onPress={() => setEditor((e) => (e ? { ...e, type } : e))}
+                    style={[
+                      styles.chip,
+                      {
+                        borderColor: colors.primary,
+                        backgroundColor: editor?.type === type ? colors.primary : '#fff',
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        {
+                          color: editor?.type === type ? '#fff' : colors.primary,
+                          fontWeight: '700',
+                        },
+                        rtlText,
+                      ]}
+                    >
+                      {type === 'game' ? t('schedule.typeGame') : t('schedule.typePractice')}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {editor?.type === 'game' ? (
+                <>
+                  <Text style={layout.label}>{t('schedule.hallAddress')}</Text>
+                  <TextInput
+                    textAlign={rtlTextAlign}
+                    value={editor.hallAddress}
+                    onChangeText={(hallAddress) =>
+                      setEditor((e) => (e ? { ...e, hallAddress } : e))
+                    }
+                    placeholder={t('schedule.hallAddressPlaceholder')}
+                    placeholderTextColor={colors.muted}
+                    style={[
+                      styles.input,
+                      rtlInput,
+                      { borderColor: colors.primary, color: colors.text },
+                    ]}
+                  />
+                  <Text style={layout.label}>{t('schedule.contactPhone')}</Text>
+                  <TextInput
+                    keyboardType="phone-pad"
+                    textAlign={rtlTextAlign}
+                    value={editor.contactPhone}
+                    onChangeText={(contactPhone) =>
+                      setEditor((e) => (e ? { ...e, contactPhone } : e))
+                    }
+                    placeholder={t('schedule.contactPhonePlaceholder')}
+                    placeholderTextColor={colors.muted}
+                    style={[
+                      styles.input,
+                      rtlInput,
+                      { borderColor: colors.primary, color: colors.text },
+                    ]}
+                  />
+                </>
+              ) : null}
+
+              {editorNote ? (
+                <Text style={[{ color: colors.danger, marginTop: 8 }, rtlText]}>{editorNote}</Text>
+              ) : null}
+
+              <Pressable
+                disabled={editorBusy}
+                onPress={() => void saveEditor()}
+                style={[
+                  layout.button,
+                  {
+                    backgroundColor: colors.primary,
+                    marginTop: 16,
+                    opacity: editorBusy ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Text style={[layout.buttonText, { color: '#fff' }]}>
+                  {editorBusy ? t('schedule.savingEvent') : t('schedule.saveEvent')}
+                </Text>
+              </Pressable>
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 }
@@ -524,6 +829,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     writingDirection: 'rtl',
   },
+  venueBox: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    backgroundColor: '#F8FAFC',
+  },
   eventTitle: {
     fontSize: 18,
     fontWeight: '800',
@@ -550,5 +862,22 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     padding: 20,
     paddingBottom: 32,
+    maxHeight: '88%',
+  },
+  input: {
+    borderWidth: 1.5,
+    borderRadius: 12,
+    minHeight: 48,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+  },
+  chip: {
+    borderWidth: 1.5,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minHeight: 44,
+    justifyContent: 'center',
   },
 });
