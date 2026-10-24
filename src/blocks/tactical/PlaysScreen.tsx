@@ -5,7 +5,8 @@
  * שחקן: משימות פעולה + תשובות + הצעות (אם allowSuggestions).
  * Game IQ: כפתור מפעיל Edge/OpenAI או stub עברי; התוצאה נשמרת ב־game_iq_json.
  *
- * Pressable מ־gesture-handler ללחיצות על הלוח — RN Pressable עלול לבלוע מחוות ב־web.
+ * לוח: RN Pressable + responder על ה־View כדי שלחיצות לא ייבלעו ב־ScrollView.
+ * כפתור יצירה: gesture-handler ב־native, RN Pressable ב־web (מונע quirks של GH).
  * Alert.alert הוא no-op ב־web → משוב inline (createError / assignFeedback).
  */
 import { useEffect, useMemo, useState } from 'react';
