@@ -23,6 +23,7 @@ type PlayRow = {
   media_url: string | null;
   allow_suggestions: boolean | null;
   board_json: string | null;
+  game_iq_json: string | null;
   created_at: string;
 };
 
@@ -80,6 +81,7 @@ export function mapPlayRow(row: PlayRow): TacticalPlay {
     mediaUrl: row.media_url ?? undefined,
     allowSuggestions: row.allow_suggestions !== false,
     boardJson: row.board_json ?? undefined,
+    gameIqJson: row.game_iq_json ?? undefined,
     createdAt: row.created_at,
   };
 }
@@ -126,7 +128,7 @@ export async function fetchTacticalBundle(
   const [playsRes, playersRes] = await Promise.all([
     client
       .from('tactical_plays')
-      .select('id, team_id, title, media_url, allow_suggestions, board_json, created_at')
+      .select('id, team_id, title, media_url, allow_suggestions, board_json, game_iq_json, created_at')
       .eq('team_id', teamId)
       .order('created_at', { ascending: false }),
     client
@@ -198,7 +200,7 @@ export async function createPlayLive(
       board_json: input.boardJson ?? null,
       media_url: input.mediaUrl?.trim() || null,
     })
-    .select('id, team_id, title, media_url, allow_suggestions, board_json, created_at')
+    .select('id, team_id, title, media_url, allow_suggestions, board_json, game_iq_json, created_at')
     .single();
 
   if (error) throw new Error(error.message);
@@ -212,6 +214,7 @@ export async function updatePlayLive(
     allowSuggestions?: boolean;
     mediaUrl?: string | null;
     boardJson?: string | null;
+    gameIqJson?: string | null;
     title?: string;
   },
 ): Promise<void> {
@@ -219,6 +222,7 @@ export async function updatePlayLive(
   if (patch.allowSuggestions !== undefined) row.allow_suggestions = patch.allowSuggestions;
   if (patch.mediaUrl !== undefined) row.media_url = patch.mediaUrl;
   if (patch.boardJson !== undefined) row.board_json = patch.boardJson;
+  if (patch.gameIqJson !== undefined) row.game_iq_json = patch.gameIqJson;
   if (patch.title !== undefined) row.title = patch.title.trim();
 
   const { error } = await client.from('tactical_plays').update(row).eq('id', playId);

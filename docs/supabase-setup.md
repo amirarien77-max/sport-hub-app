@@ -32,8 +32,13 @@ Open **SQL Editor** in the Supabase dashboard and run these files **in order** (
 10. `supabase/migrations/009_module3_health_live.sql` (water 0–24, fitness/physio flag sync, health RLS)
 11. `supabase/migrations/010_module4_tactical_live.sql` (tactical RLS writes, board_json, seed Horns play)
 12. `supabase/migrations/011_module4_board_touch_notes.sql` (re-assert coach INSERT/UPDATE policies + grants)
+13. `supabase/migrations/012_game_iq.sql` (`game_iq_json` cache column on `tactical_plays`)
 
 Skip any file you have already applied. This agent cannot apply SQL to your cloud DB without the database password or service role.
+
+### Game IQ Edge Function (optional OpenAI)
+
+Deploy `supabase/functions/game-iq` and set secret `OPENAI_API_KEY` in the Supabase dashboard. Without the function or key, the app uses a clear Hebrew **offline stub** (same structured coach/player bullets). Never put OpenAI keys in `EXPO_PUBLIC_*`.
 
 Enable **Email** auth under Authentication → Providers if it is not already on.
 
