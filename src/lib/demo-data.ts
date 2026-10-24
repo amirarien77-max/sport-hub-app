@@ -96,6 +96,8 @@ export const demoEvents: SessionEvent[] = [
     startsAt: new Date(Date.now() + 1000 * 60 * 60 * 72).toISOString(),
     location: he.demo.locationAway,
     type: 'game',
+    hallAddress: he.demo.hallAddressAway,
+    contactPhone: he.demo.contactPhoneAway,
   },
 ];
 

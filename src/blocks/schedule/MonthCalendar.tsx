@@ -102,6 +102,8 @@ type Props = {
     startsAt: string;
     location: string;
     type: 'practice' | 'game';
+    hallAddress?: string;
+    contactPhone?: string;
   }) => Promise<{ ok: true } | { ok: false; error: string }>;
   onUpdateEvent: (input: {
     id: string;
@@ -109,6 +111,8 @@ type Props = {
     startsAt: string;
     location: string;
     type: 'practice' | 'game';
+    hallAddress?: string;
+    contactPhone?: string;
   }) => Promise<{ ok: true } | { ok: false; error: string }>;
   onSelectEvent?: (event: SessionEvent) => void;
 };
@@ -131,6 +135,8 @@ export function MonthCalendar({
     eventId?: string;
     title: string;
     location: string;
+    hallAddress: string;
+    contactPhone: string;
     type: 'practice' | 'game';
     date: string;
     time: string;
@@ -172,6 +178,8 @@ export function MonthCalendar({
       mode: 'create',
       title: '',
       location: '',
+      hallAddress: '',
+      contactPhone: '',
       type: 'practice',
       date: `${y}-${m}-${d}`,
       time: '17:00',
@@ -195,6 +203,8 @@ export function MonthCalendar({
       eventId: event.id,
       title: event.title,
       location: event.location,
+      hallAddress: event.hallAddress ?? '',
+      contactPhone: event.contactPhone ?? '',
       type: event.type,
       date: `${y}-${m}-${d}`,
       time: `${hh}:${mm}`,
@@ -210,6 +220,8 @@ export function MonthCalendar({
       return;
     }
     const startsAt = new Date(`${editor.date}T${editor.time}:00`).toISOString();
+    const hallAddress = editor.type === 'game' ? editor.hallAddress.trim() : '';
+    const contactPhone = editor.type === 'game' ? editor.contactPhone.trim() : '';
     setBusy(true);
     setNote(null);
     try {
@@ -220,6 +232,8 @@ export function MonthCalendar({
               startsAt,
               location: editor.location.trim(),
               type: editor.type,
+              hallAddress,
+              contactPhone,
             })
           : await onUpdateEvent({
               id: editor.eventId!,
@@ -227,6 +241,8 @@ export function MonthCalendar({
               startsAt,
               location: editor.location.trim(),
               type: editor.type,
+              hallAddress,
+              contactPhone,
             });
       if (!result.ok) {
         setNote(result.error);
@@ -444,6 +460,33 @@ export function MonthCalendar({
                 </Pressable>
               ))}
             </View>
+            {editor?.type === 'game' ? (
+              <>
+                <Text style={layout.label}>{t('calendar.hallAddress')}</Text>
+                <TextInput
+                  textAlign={rtlTextAlign}
+                  value={editor.hallAddress}
+                  onChangeText={(hallAddress) =>
+                    setEditor((e) => (e ? { ...e, hallAddress } : e))
+                  }
+                  placeholder={t('calendar.hallAddressPlaceholder')}
+                  placeholderTextColor={colors.muted}
+                  style={[styles.input, rtlInput, { borderColor: colors.primary, color: colors.text }]}
+                />
+                <Text style={layout.label}>{t('calendar.contactPhone')}</Text>
+                <TextInput
+                  textAlign={rtlTextAlign}
+                  value={editor.contactPhone}
+                  onChangeText={(contactPhone) =>
+                    setEditor((e) => (e ? { ...e, contactPhone } : e))
+                  }
+                  placeholder={t('calendar.contactPhonePlaceholder')}
+                  placeholderTextColor={colors.muted}
+                  keyboardType="phone-pad"
+                  style={[styles.input, rtlInput, { borderColor: colors.primary, color: colors.text }]}
+                />
+              </>
+            ) : null}
             {note ? (
               <Text style={[{ color: colors.danger, marginTop: 8 }, rtlText]}>{note}</Text>
             ) : null}

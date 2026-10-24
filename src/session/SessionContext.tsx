@@ -61,6 +61,7 @@ import {
   updateEventLive,
   upsertAttendanceMark,
   upsertRsvp,
+  type EventWriteInput,
 } from '@/lib/schedule-live';
 import {
   deleteWeeklySlot as deleteWeeklySlotLive,
@@ -104,6 +105,8 @@ import type {
   ClubBrand,
 } from '@/types';
 import { useTheme } from '@/theme/ThemeContext';
+
+type EventMutationResult = { ok: true; event: SessionEvent } | { ok: false; error: string };
 
 type OkOrError = { ok: true; note?: string } | { ok: false; error: string };
 type CreatePlayResult = { ok: true; playId: string } | { ok: false; error: string };
@@ -210,21 +213,12 @@ type SessionContextValue = {
   refreshPendingConsent: () => Promise<PendingConsentPlayer[]>;
   markPlayerConsented: (playerId: string) => Promise<OkOrError>;
   resendParentalConsentSms: (player: PendingConsentPlayer) => Promise<OkOrError>;
-  /** Coach calendar: create practice/game. */
-  createSessionEvent: (input: {
-    title: string;
-    startsAt: string;
-    location: string;
-    type: 'practice' | 'game';
-  }) => Promise<OkOrError>;
-  /** Coach calendar: update event (demo always; live needs events UPDATE RLS). */
-  updateSessionEvent: (input: {
-    id: string;
-    title: string;
-    startsAt: string;
-    location: string;
-    type: 'practice' | 'game';
-  }) => Promise<OkOrError>;
+  /** Staff: create practice/game (includes hall address + contact phone). */
+  createSessionEvent: (input: EventWriteInput) => Promise<EventMutationResult>;
+  /** Staff: update event fields including venue contact. */
+  updateSessionEvent: (
+    input: Partial<EventWriteInput> & { id: string },
+  ) => Promise<EventMutationResult>;
   signOut: () => void;
 };
 
@@ -1417,6 +1411,120 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [user],
   );
 
+  const createSessionEvent = useCallback(
+    async (input: EventWriteInput): Promise<EventMutationResult> => {
+      if (!user || !team) {
+        return { ok: false, error: t('errors.redeemInviteFirst') };
+      }
+      if (!isAttendanceCoach(user.role)) {
+        return { ok: false, error: t('schedule.saveError') };
+      }
+      if (!input.title.trim()) {
+        return { ok: false, error: t('schedule.titleRequired') };
+      }
+
+      if (isDemoMode || !supabase) {
+        const event: SessionEvent = {
+          id: `event-${Date.now().toString(36)}`,
+          teamId: team.id,
+          title: input.title.trim(),
+          startsAt: input.startsAt,
+          location: input.location.trim(),
+          type: input.type,
+          hallAddress: input.hallAddress?.trim() || undefined,
+          contactPhone: input.contactPhone?.trim() || undefined,
+        };
+        scheduleGen.current += 1;
+        setEvents((prev) =>
+          [...prev.filter((e) => e.id !== event.id), event].sort((a, b) =>
+            a.startsAt.localeCompare(b.startsAt),
+          ),
+        );
+        return { ok: true, event };
+      }
+
+      try {
+        const event = await createEventLive(supabase, {
+          teamId: team.id,
+          ...input,
+        });
+        scheduleGen.current += 1;
+        setEvents((prev) =>
+          [...prev.filter((e) => e.id !== event.id), event].sort((a, b) =>
+            a.startsAt.localeCompare(b.startsAt),
+          ),
+        );
+        return { ok: true, event };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn('createSessionEvent failed', message);
+        return { ok: false, error: message };
+      }
+    },
+    [team, user],
+  );
+
+  const updateSessionEvent = useCallback(
+    async (
+      input: Partial<EventWriteInput> & { id: string },
+    ): Promise<EventMutationResult> => {
+      if (!user || !team) {
+        return { ok: false, error: t('errors.redeemInviteFirst') };
+      }
+      if (!isAttendanceCoach(user.role)) {
+        return { ok: false, error: t('schedule.saveError') };
+      }
+      if (input.title !== undefined && !input.title.trim()) {
+        return { ok: false, error: t('schedule.titleRequired') };
+      }
+
+      if (isDemoMode || !supabase) {
+        let next: SessionEvent | null = null;
+        setEvents((prev) => {
+          const updated = prev.map((e) => {
+            if (e.id !== input.id) return e;
+            next = {
+              ...e,
+              title: input.title?.trim() ?? e.title,
+              startsAt: input.startsAt ?? e.startsAt,
+              location: input.location !== undefined ? input.location.trim() : e.location,
+              type: input.type ?? e.type,
+              hallAddress:
+                input.hallAddress !== undefined
+                  ? input.hallAddress.trim() || undefined
+                  : e.hallAddress,
+              contactPhone:
+                input.contactPhone !== undefined
+                  ? input.contactPhone.trim() || undefined
+                  : e.contactPhone,
+            };
+            return next;
+          });
+          return [...updated].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+        });
+        if (!next) return { ok: false, error: t('schedule.saveError') };
+        scheduleGen.current += 1;
+        return { ok: true, event: next };
+      }
+
+      try {
+        const event = await updateEventLive(supabase, input);
+        scheduleGen.current += 1;
+        setEvents((prev) =>
+          [...prev.filter((e) => e.id !== event.id), event].sort((a, b) =>
+            a.startsAt.localeCompare(b.startsAt),
+          ),
+        );
+        return { ok: true, event };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn('updateSessionEvent failed', message);
+        return { ok: false, error: message };
+      }
+    },
+    [team, user],
+  );
+
   const acknowledgeBanner = useCallback(async () => {
     if (!user || !banner.id) return;
 
@@ -1435,104 +1543,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       }
     }
   }, [banner.id, user]);
-
-  const createSessionEvent = useCallback(
-    async (input: {
-      title: string;
-      startsAt: string;
-      location: string;
-      type: 'practice' | 'game';
-    }): Promise<OkOrError> => {
-      if (!team) return { ok: false, error: t('errors.redeemInviteFirst') };
-      if (!isAttendanceCoach(user?.role)) {
-        return { ok: false, error: 'not_staff' };
-      }
-
-      if (isDemoMode || !supabase) {
-        scheduleGen.current += 1;
-        const event: SessionEvent = {
-          id: `event-demo-${Date.now()}`,
-          teamId: team.id,
-          title: input.title.trim(),
-          startsAt: input.startsAt,
-          location: input.location.trim(),
-          type: input.type,
-        };
-        setEvents((prev) =>
-          [...prev, event].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
-        );
-        return { ok: true };
-      }
-
-      try {
-        scheduleGen.current += 1;
-        const event = await createEventLive(supabase, {
-          teamId: team.id,
-          title: input.title,
-          startsAt: input.startsAt,
-          location: input.location,
-          type: input.type,
-        });
-        setEvents((prev) =>
-          [...prev, event].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
-        );
-        return { ok: true };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { ok: false, error: t('calendar.createFailed', { error: message }) };
-      }
-    },
-    [team, user?.role],
-  );
-
-  const updateSessionEvent = useCallback(
-    async (input: {
-      id: string;
-      title: string;
-      startsAt: string;
-      location: string;
-      type: 'practice' | 'game';
-    }): Promise<OkOrError> => {
-      if (!isAttendanceCoach(user?.role)) {
-        return { ok: false, error: 'not_staff' };
-      }
-
-      if (isDemoMode || !supabase) {
-        scheduleGen.current += 1;
-        setEvents((prev) =>
-          prev
-            .map((e) =>
-              e.id === input.id
-                ? {
-                    ...e,
-                    title: input.title.trim(),
-                    startsAt: input.startsAt,
-                    location: input.location.trim(),
-                    type: input.type,
-                  }
-                : e,
-            )
-            .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
-        );
-        return { ok: true };
-      }
-
-      try {
-        scheduleGen.current += 1;
-        const event = await updateEventLive(supabase, input);
-        setEvents((prev) =>
-          prev
-            .map((e) => (e.id === input.id ? event : e))
-            .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
-        );
-        return { ok: true };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { ok: false, error: t('calendar.updateFailed', { error: message }) };
-      }
-    },
-    [user?.role],
-  );
 
   const upsertWeeklySlot = useCallback(
     async (input: WeeklySlotInput & { id?: string }): Promise<OkOrError> => {

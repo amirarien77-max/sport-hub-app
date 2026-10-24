@@ -58,6 +58,10 @@ export interface SessionEvent {
   startsAt: string;
   location: string;
   type: 'practice' | 'game';
+  /** כתובת אולם — shown for games; optional. */
+  hallAddress?: string;
+  /** מספר טלפון ליצירת קשר — shown for games; optional. */
+  contactPhone?: string;
 }
 
 /** Recurring weekly grid slot (Israeli week: 0=Sunday … 6=Saturday). */
