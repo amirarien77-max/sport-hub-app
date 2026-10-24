@@ -1,13 +1,17 @@
 /**
  * פרופיל משתמש + כלי מאמן לאישור הורי (רשימת pending + שליחת SMS מחדש).
+ * PRD v1.1: מידות/גובה, תיק אישי, דיווח ציוד / דשבורד אחראי ציוד.
  * בדמו: החלפת תפקיד לבדיקת שערי UI בלי התחברות מחדש.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { EquipmentSection } from '@/blocks/profile/EquipmentSection';
+import { PlayerMeetingsSection } from '@/blocks/profile/PlayerMeetingsSection';
+import { PlayerSizesSection } from '@/blocks/profile/PlayerSizesSection';
 import { t, translateConsent, translateRole } from '@/i18n';
 import type { PendingConsentPlayer } from '@/lib/consent-live';
-import { isAttendanceCoach } from '@/lib/roles';
+import { isAttendanceCoach, isEquipmentManager } from '@/lib/roles';
 import { isDemoMode } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
 import {
@@ -51,9 +55,11 @@ export default function ProfileRoute() {
 
   const roleHint = isAttendanceCoach(user?.role)
     ? t('profile.coachToolsHint')
-    : user?.role === 'parent'
-      ? t('profile.parentToolsHint')
-      : t('profile.playerToolsHint');
+    : isEquipmentManager(user?.role)
+      ? t('profile.equipmentManagerToolsHint')
+      : user?.role === 'parent'
+        ? t('profile.parentToolsHint')
+        : t('profile.playerToolsHint');
 
   return (
     <ScrollView
@@ -90,6 +96,10 @@ export default function ProfileRoute() {
       <Text style={[{ marginTop: 12, color: colors.muted, lineHeight: 22 }, rtlText]}>
         {roleHint}
       </Text>
+
+      <PlayerSizesSection />
+      <PlayerMeetingsSection />
+      <EquipmentSection />
 
       {isAttendanceCoach(user?.role) ? (
         <View
@@ -173,7 +183,16 @@ export default function ProfileRoute() {
             {t('profile.switchDemoRole')}
           </Text>
           <View style={rtlLayout.row}>
-            {(['player', 'parent', 'head_coach', 'fitness_coach', 'physio'] as Role[]).map((role) => (
+            {(
+              [
+                'player',
+                'parent',
+                'head_coach',
+                'fitness_coach',
+                'physio',
+                'equipment_manager',
+              ] as Role[]
+            ).map((role) => (
               <Pressable
                 key={role}
                 onPress={() => switchDemoRole(role)}
