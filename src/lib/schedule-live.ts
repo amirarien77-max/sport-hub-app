@@ -325,6 +325,52 @@ export type ClaimCarpoolResult =
   | { ok: true; seatsTaken: number; seatsAvailable: number }
   | { ok: false; reason: 'full' | 'not_found' | 'error'; message?: string };
 
+export type CreateCarpoolResult =
+  | { ok: true; offer: CarpoolOffer }
+  | { ok: false; reason: 'error'; message?: string };
+
+/** Parent creates a carpool offer (RLS: parent_id = self, role = parent). */
+export async function createCarpoolOfferLive(
+  client: SupabaseClient,
+  input: {
+    eventId: string;
+    parentId: string;
+    parentName: string;
+    seatsAvailable: number;
+  },
+): Promise<CreateCarpoolResult> {
+  const seats = Math.min(8, Math.max(1, Math.round(input.seatsAvailable)));
+  const { data, error } = await client
+    .from('carpool_offers')
+    .insert({
+      event_id: input.eventId,
+      parent_id: input.parentId,
+      seats_available: seats,
+      seats_taken: 0,
+    })
+    .select('id, event_id, parent_id, seats_available, seats_taken')
+    .maybeSingle();
+
+  if (error) {
+    return { ok: false, reason: 'error', message: error.message };
+  }
+  if (!data) {
+    return { ok: false, reason: 'error', message: 'insert_blocked' };
+  }
+
+  return {
+    ok: true,
+    offer: {
+      id: data.id as string,
+      eventId: data.event_id as string,
+      parentId: data.parent_id as string,
+      parentName: input.parentName,
+      seatsAvailable: data.seats_available as number,
+      seatsTaken: data.seats_taken as number,
+    },
+  };
+}
+
 /**
  * תפיסת מושב carpool.
  * מעדיף RPC `claim_carpool_seat` (אטומי, migration 007); אם הפונקציה חסרה —

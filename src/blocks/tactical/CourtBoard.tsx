@@ -10,9 +10,10 @@ import {
   View,
 } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
+import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import { t } from '@/i18n';
 import type { BoardArrow, BoardMarker } from '@/lib/tactical-live';
-import { rtlText, useTheme } from '@/theme/ThemeContext';
+import { rtlRowDirection, rtlText, useTheme } from '@/theme/ThemeContext';
 
 export type CourtTool = 'marker' | 'arrow';
 
@@ -33,9 +34,6 @@ type CourtBoardProps = {
   /** Opens fullscreen editor when the compact court is tapped (coach). */
   onOpenFullscreen?: () => void;
   variant?: 'inline' | 'fullscreen';
-  /** Pending arrow start (percent) while placing second point. */
-  arrowDraft?: { x: number; y: number } | null;
-  onArrowDraftChange?: (draft: { x: number; y: number } | null) => void;
 };
 
 /**
@@ -49,6 +47,140 @@ function pctToPx(pct: number, size: number) {
 
 function makeArrowId() {
   return `a-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function localPct(
+  pageX: number,
+  pageY: number,
+  origin: { x: number; y: number },
+  size: { w: number; h: number },
+) {
+  const localX = pageX - origin.x;
+  const localY = pageY - origin.y;
+  return {
+    x: Math.min(100, Math.max(0, Math.round((localX / size.w) * 100))),
+    y: Math.min(100, Math.max(0, Math.round((localY / size.h) * 100))),
+    localX,
+    localY,
+  };
+}
+
+/** Half-court line art — baseline at bottom, midcourt at top (matches reference template). */
+function HalfCourtDiagram({ line }: { line: string }) {
+  // viewBox 0..100 — y grows downward; baseline y=100, half-court y=0.
+  const keyL = 32;
+  const keyR = 68;
+  const keyTop = 55; // free-throw line
+  const basketY = 94;
+  const backboardY = 96.5;
+  const ftCx = 50;
+  const ftCy = keyTop;
+  const ftR = 12;
+  const threeR = 42;
+  const threeStraightX = 14;
+  // Arc centered near basket: peak at basketY - threeR
+  const threePeakY = basketY - threeR;
+  const centerR = 12;
+
+  // Free-throw circle: solid outside key (above FT line), dashed inside key.
+  const ftSolid = `M ${ftCx - ftR} ${ftCy} A ${ftR} ${ftR} 0 0 1 ${ftCx + ftR} ${ftCy}`;
+  const ftDash = `M ${ftCx - ftR} ${ftCy} A ${ftR} ${ftR} 0 0 0 ${ftCx + ftR} ${ftCy}`;
+
+  // Three-point: verticals from baseline, then arc toward midcourt.
+  const threePath = [
+    `M ${threeStraightX} 100`,
+    `L ${threeStraightX} ${threePeakY + 8}`,
+    `A ${threeR} ${threeR} 0 0 1 ${100 - threeStraightX} ${threePeakY + 8}`,
+    `L ${100 - threeStraightX} 100`,
+  ].join(' ');
+
+  // Restricted-area arc under the rim (inside the key).
+  const raR = 6;
+  const raPath = `M ${50 - raR} ${basketY} A ${raR} ${raR} 0 0 1 ${50 + raR} ${basketY}`;
+
+  // Center / half-court semi-circle hanging into the half from the top line.
+  const centerPath = `M ${50 - centerR} 0 A ${centerR} ${centerR} 0 0 0 ${50 + centerR} 0`;
+
+  const tickYs = [88, 80, 72, 64];
+
+  return (
+    <Svg
+      pointerEvents="none"
+      width="100%"
+      height="100%"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+      style={StyleSheet.absoluteFill}
+    >
+      {/* Outer boundary */}
+      <Rect x={1.5} y={1.5} width={97} height={97} fill="none" stroke={line} strokeWidth={1.6} />
+      {/* Half-court line (top) */}
+      <Line x1={1.5} y1={1.5} x2={98.5} y2={1.5} stroke={line} strokeWidth={2} />
+      {/* Center semi-circle */}
+      <Path d={centerPath} fill="none" stroke={line} strokeWidth={1.4} />
+      {/* Key / paint */}
+      <Rect
+        x={keyL}
+        y={keyTop}
+        width={keyR - keyL}
+        height={100 - keyTop}
+        fill="none"
+        stroke={line}
+        strokeWidth={1.5}
+      />
+      {/* Free-throw line */}
+      <Line x1={keyL} y1={keyTop} x2={keyR} y2={keyTop} stroke={line} strokeWidth={1.6} />
+      {/* Lane ticks (blocks) — thicker nearest baseline */}
+      {tickYs.map((y, i) => (
+        <Line
+          key={`tick-l-${y}`}
+          x1={keyL - (i === 0 ? 4 : 2.5)}
+          y1={y}
+          x2={keyL}
+          y2={y}
+          stroke={line}
+          strokeWidth={i === 0 ? 2.2 : 1.3}
+        />
+      ))}
+      {tickYs.map((y, i) => (
+        <Line
+          key={`tick-r-${y}`}
+          x1={keyR}
+          y1={y}
+          x2={keyR + (i === 0 ? 4 : 2.5)}
+          y2={y}
+          stroke={line}
+          strokeWidth={i === 0 ? 2.2 : 1.3}
+        />
+      ))}
+      {/* FT circle: dashed inside key, solid outside */}
+      <Path
+        d={ftDash}
+        fill="none"
+        stroke={line}
+        strokeWidth={1.3}
+        strokeDasharray="2.5 2"
+      />
+      <Path d={ftSolid} fill="none" stroke={line} strokeWidth={1.4} />
+      {/* Three-point arc */}
+      <Path d={threePath} fill="none" stroke={line} strokeWidth={1.5} />
+      {/* Restricted arc */}
+      <Path d={raPath} fill="none" stroke={line} strokeWidth={1.2} />
+      {/* Backboard */}
+      <Line
+        x1={44}
+        y1={backboardY}
+        x2={56}
+        y2={backboardY}
+        stroke={line}
+        strokeWidth={2.4}
+      />
+      {/* Rim */}
+      <Circle cx={50} cy={basketY} r={2.4} fill="none" stroke={line} strokeWidth={1.5} />
+      {/* Net stub toward midcourt */}
+      <Line x1={50} y1={backboardY} x2={50} y2={basketY + 2.4} stroke={line} strokeWidth={1.2} />
+    </Svg>
+  );
 }
 
 function BoardArrowView({
@@ -74,7 +206,6 @@ function BoardArrowView({
   const dy = y2 - y1;
   const length = Math.max(8, Math.sqrt(dx * dx + dy * dy));
   const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
-  // Position by midpoint so RN's center-origin rotate keeps endpoints correct.
   const midX = (x1 + x2) / 2;
   const midY = (y1 + y2) / 2;
   const hitH = 28;
@@ -103,6 +234,8 @@ function BoardArrowView({
   );
 }
 
+type DragDraft = { x1: number; y1: number; x2: number; y2: number };
+
 function CourtSurface({
   markers,
   arrows,
@@ -114,8 +247,6 @@ function CourtSurface({
   onAddArrow,
   onRemoveArrow,
   onOpenFullscreen,
-  arrowDraft,
-  onArrowDraftChange,
   fill,
 }: {
   markers: BoardMarker[];
@@ -128,114 +259,139 @@ function CourtSurface({
   onAddArrow?: (arrow: BoardArrow) => void;
   onRemoveArrow?: (id: string) => void;
   onOpenFullscreen?: () => void;
-  arrowDraft: { x: number; y: number } | null;
-  onArrowDraftChange?: (draft: { x: number; y: number } | null) => void;
   fill?: boolean;
 }) {
   const { colors } = useTheme();
   const [size, setSize] = useState({ w: 1, h: 1 });
-  // Host element ref — measureInWindow exists at runtime (RN 0.88 typing is awkward).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const courtRef = useRef<any>(null);
-  /** Window origin of the court — prefer pageX/pageY over locationX under RTL/web. */
   const originRef = useRef({ x: 0, y: 0 });
+  const dragStartRef = useRef<{ x: number; y: number; localX: number; localY: number } | null>(
+    null,
+  );
+  const [dragDraft, setDragDraft] = useState<DragDraft | null>(null);
+  const line = 'rgba(232,245,233,0.88)';
 
-  const onLayout = (e: LayoutChangeEvent) => {
-    const { width, height: h } = e.nativeEvent.layout;
-    setSize({ w: Math.max(1, width), h: Math.max(1, h) });
+  const refreshOrigin = (cb?: (ox: number, oy: number) => void) => {
     const node = courtRef.current as {
       measureInWindow?: (cb: (x: number, y: number) => void) => void;
     } | null;
     node?.measureInWindow?.((x, y) => {
       originRef.current = { x, y };
+      cb?.(x, y);
     });
   };
 
-  const handlePress = (localX: number, localY: number) => {
-    if (!editable) {
-      onOpenFullscreen?.();
-      return;
-    }
-    // Physical coords inside LTR court — % maps 1:1 under the finger.
-    const x = Math.min(100, Math.max(0, Math.round((localX / size.w) * 100)));
-    const y = Math.min(100, Math.max(0, Math.round((localY / size.h) * 100)));
+  const onLayout = (e: LayoutChangeEvent) => {
+    const { width, height: h } = e.nativeEvent.layout;
+    setSize({ w: Math.max(1, width), h: Math.max(1, h) });
+    refreshOrigin();
+  };
 
-    if (tool === 'marker') {
-      onAddMarker?.(x, y);
-      return;
-    }
-
-    if (!arrowDraft) {
-      onArrowDraftChange?.({ x, y });
+  const finishArrow = (draft: DragDraft) => {
+    const dx = draft.x2 - draft.x1;
+    const dy = draft.y2 - draft.y1;
+    const distPct = Math.sqrt(dx * dx + dy * dy);
+    // Ignore tiny drags (accidental taps in arrow mode).
+    if (distPct < 4) {
+      setDragDraft(null);
       return;
     }
     onAddArrow?.({
       id: makeArrowId(),
-      x1: arrowDraft.x,
-      y1: arrowDraft.y,
-      x2: x,
-      y2: y,
+      x1: draft.x1,
+      y1: draft.y1,
+      x2: draft.x2,
+      y2: draft.y2,
     });
-    onArrowDraftChange?.(null);
+    setDragDraft(null);
   };
 
   return (
     <View
       ref={courtRef}
-      // Web rejects StyleSheet `direction`; use DOM `dir` (same pattern as root layout).
-      // Native Yoga uses style.direction so absolute left stays physical under app RTL.
       {...(Platform.OS === 'web' ? { dir: 'ltr' as const } : null)}
       style={[
         styles.court,
         fill ? styles.courtFill : { height: height ?? 220 },
-        // Inline only — StyleSheet `direction` is rejected on RN web at create time.
         Platform.OS !== 'web' ? ({ direction: 'ltr' } as const) : null,
       ]}
       onLayout={onLayout}
       onStartShouldSetResponder={() => true}
-      onMoveShouldSetResponder={() => false}
+      onMoveShouldSetResponder={() => editable && tool === 'arrow'}
       onResponderTerminationRequest={() => false}
-    >
-      <RNPressable
-        onPress={(evt) => {
+      onResponderGrant={(evt) => {
+        const ne = evt.nativeEvent;
+        // Use last measured origin synchronously so drag start isn't lost to async measure.
+        refreshOrigin();
+        if (!editable) {
+          onOpenFullscreen?.();
+          return;
+        }
+        const p = localPct(ne.pageX, ne.pageY, originRef.current, size);
+        dragStartRef.current = {
+          x: p.x,
+          y: p.y,
+          localX: p.localX,
+          localY: p.localY,
+        };
+        if (tool === 'arrow') {
+          setDragDraft({ x1: p.x, y1: p.y, x2: p.x, y2: p.y });
+        }
+      }}
+      onResponderMove={(evt) => {
+        if (!editable || tool !== 'arrow' || !dragStartRef.current) return;
+        const ne = evt.nativeEvent;
+        const p = localPct(ne.pageX, ne.pageY, originRef.current, size);
+        setDragDraft({
+          x1: dragStartRef.current.x,
+          y1: dragStartRef.current.y,
+          x2: p.x,
+          y2: p.y,
+        });
+      }}
+      onResponderRelease={(evt) => {
+        const start = dragStartRef.current;
+        dragStartRef.current = null;
+        if (!editable) return;
+
+        if (tool === 'arrow') {
           const ne = evt.nativeEvent;
-          const apply = (ox: number, oy: number) => {
-            // Prefer page − window origin (stable under RTL / web). Else locationX/Y.
-            const localX =
-              typeof ne.pageX === 'number' ? ne.pageX - ox : ne.locationX;
-            const localY =
-              typeof ne.pageY === 'number' ? ne.pageY - oy : ne.locationY;
-            handlePress(localX, localY);
-          };
-          const node = courtRef.current as {
-            measureInWindow?: (cb: (x: number, y: number) => void) => void;
-          } | null;
-          if (typeof ne.pageX === 'number' && node?.measureInWindow) {
-            node.measureInWindow((x, y) => {
-              originRef.current = { x, y };
-              apply(x, y);
-            });
-          } else {
-            apply(originRef.current.x, originRef.current.y);
-          }
-        }}
-        style={StyleSheet.absoluteFill}
-        accessibilityRole="button"
-        accessibilityLabel={t('plays.courtSketch')}
-      />
+          const p = localPct(ne.pageX, ne.pageY, originRef.current, size);
+          const draft: DragDraft = start
+            ? { x1: start.x, y1: start.y, x2: p.x, y2: p.y }
+            : dragDraft ?? { x1: p.x, y1: p.y, x2: p.x, y2: p.y };
+          finishArrow(draft);
+          return;
+        }
+
+        // Marker: treat as tap if finger barely moved.
+        if (!start) return;
+        const ne = evt.nativeEvent;
+        const p = localPct(ne.pageX, ne.pageY, originRef.current, size);
+        const moved =
+          Math.abs(p.localX - start.localX) + Math.abs(p.localY - start.localY);
+        if (moved < 14) {
+          onAddMarker?.(start.x, start.y);
+        }
+      }}
+      onResponderTerminate={() => {
+        dragStartRef.current = null;
+        setDragDraft(null);
+      }}
+    >
+      <HalfCourtDiagram line={line} />
       <View pointerEvents="none" style={styles.courtLabelWrap}>
         <Text style={[styles.courtLabel, rtlText]}>
           {editable
             ? tool === 'arrow'
-              ? arrowDraft
-                ? t('plays.arrowPickEnd')
-                : t('plays.arrowPickStart')
+              ? dragDraft
+                ? t('plays.arrowDragRelease')
+                : t('plays.arrowDragStart')
               : t('plays.courtSketch')
             : t('plays.courtHintPlayer')}
         </Text>
       </View>
-      <View pointerEvents="none" style={styles.paint} />
-      <View pointerEvents="none" style={styles.ftLine} />
       {arrows.map((a) => (
         <BoardArrowView
           key={a.id}
@@ -243,28 +399,28 @@ function CourtSurface({
           width={size.w}
           height={size.h}
           color="#F4D35E"
-          // While placing an arrow, let court taps pass through existing arrows.
           disabled={!editable || tool === 'arrow'}
           onPress={() => onRemoveArrow?.(a.id)}
         />
       ))}
-      {arrowDraft ? (
-        <View
-          pointerEvents="none"
-          style={[
-            styles.draftDot,
-            {
-              left: pctToPx(arrowDraft.x, size.w) - 6,
-              top: pctToPx(arrowDraft.y, size.h) - 6,
-              borderColor: '#F4D35E',
-            },
-          ]}
+      {dragDraft ? (
+        <BoardArrowView
+          arrow={{
+            id: 'draft',
+            x1: dragDraft.x1,
+            y1: dragDraft.y1,
+            x2: dragDraft.x2,
+            y2: dragDraft.y2,
+          }}
+          width={size.w}
+          height={size.h}
+          color="rgba(244,211,94,0.85)"
+          disabled
         />
       ) : null}
       {markers.map((m, idx) => (
         <RNPressable
           key={`${m.label}-${idx}-${m.x}-${m.y}`}
-          // Arrow placement must receive the second tap — markers would steal it.
           disabled={!editable || tool === 'arrow'}
           pointerEvents={!editable || tool === 'arrow' ? 'none' : 'auto'}
           onPress={() => onRemoveMarker?.(idx)}
@@ -303,18 +459,13 @@ export function CourtBoard(props: CourtBoardProps) {
     onSave,
     onOpenFullscreen,
     variant = 'inline',
-    arrowDraft = null,
-    onArrowDraftChange,
   } = props;
 
   const toolbar = editable && variant === 'fullscreen' ? (
     <View style={styles.toolbar}>
-      <View style={styles.toolRow}>
+      <View style={[styles.toolRow, { flexDirection: rtlRowDirection }]}>
         <Pressable
-          onPress={() => {
-            onToolChange?.('marker');
-            onArrowDraftChange?.(null);
-          }}
+          onPress={() => onToolChange?.('marker')}
           style={[
             styles.toolChip,
             { backgroundColor: tool === 'marker' ? colors.primary : '#E2E8F0' },
@@ -322,7 +473,12 @@ export function CourtBoard(props: CourtBoardProps) {
           accessibilityRole="button"
           accessibilityLabel={t('plays.toolMarker')}
         >
-          <Text style={{ fontWeight: '700', color: tool === 'marker' ? '#fff' : colors.primary }}>
+          <Text
+            style={[
+              { fontWeight: '700', color: tool === 'marker' ? '#fff' : colors.primary },
+              rtlText,
+            ]}
+          >
             {t('plays.toolMarker')}
           </Text>
         </Pressable>
@@ -335,7 +491,12 @@ export function CourtBoard(props: CourtBoardProps) {
           accessibilityRole="button"
           accessibilityLabel={t('plays.toolArrow')}
         >
-          <Text style={{ fontWeight: '700', color: tool === 'arrow' ? '#fff' : colors.primary }}>
+          <Text
+            style={[
+              { fontWeight: '700', color: tool === 'arrow' ? '#fff' : colors.primary },
+              rtlText,
+            ]}
+          >
             {t('plays.toolArrow')}
           </Text>
         </Pressable>
@@ -348,7 +509,7 @@ export function CourtBoard(props: CourtBoardProps) {
 
   const actions =
     editable && variant === 'fullscreen' ? (
-      <View style={styles.actionRow}>
+      <View style={[styles.actionRow, { flexDirection: rtlRowDirection }]}>
         <Pressable
           onPress={onClear}
           style={[styles.actionBtn, { backgroundColor: colors.muted }]}
@@ -382,8 +543,6 @@ export function CourtBoard(props: CourtBoardProps) {
         onAddArrow={onAddArrow}
         onRemoveArrow={onRemoveArrow}
         onOpenFullscreen={onOpenFullscreen}
-        arrowDraft={arrowDraft}
-        onArrowDraftChange={onArrowDraftChange}
         fill={variant === 'fullscreen'}
       />
       {actions}
@@ -429,7 +588,6 @@ export function CourtEditorModal({
   const { colors } = useTheme();
   const { height: winH } = useWindowDimensions();
   const [tool, setTool] = useState<CourtTool>('marker');
-  const [arrowDraft, setArrowDraft] = useState<{ x: number; y: number } | null>(null);
 
   const courtHeight = useMemo(() => Math.max(320, Math.round(winH * 0.72)), [winH]);
 
@@ -464,7 +622,7 @@ export function CourtEditorModal({
             hitSlop={12}
             style={styles.headerBtn}
           >
-            <Text style={{ color: colors.primary, fontWeight: '700', textAlign: 'right' }}>
+            <Text style={[{ color: colors.primary, fontWeight: '700' }, rtlText]}>
               ← {t('plays.courtEditorBack')}
             </Text>
           </Btn>
@@ -480,8 +638,6 @@ export function CourtEditorModal({
           editable={editable}
           tool={tool}
           onToolChange={setTool}
-          arrowDraft={arrowDraft}
-          onArrowDraftChange={setArrowDraft}
           onAddMarker={addMarker}
           onRemoveMarker={removeMarker}
           onAddArrow={(a) => onChangeArrows([...arrows, a].slice(-20))}
@@ -489,7 +645,6 @@ export function CourtEditorModal({
           onClear={() => {
             onChangeMarkers([]);
             onChangeArrows([]);
-            setArrowDraft(null);
             onNextLabel(1);
           }}
           onSave={() => {
@@ -527,24 +682,6 @@ const styles = StyleSheet.create({
     color: '#D8F3DC',
     fontWeight: '600',
   },
-  paint: {
-    position: 'absolute',
-    bottom: 0,
-    left: '30%',
-    width: '40%',
-    height: '45%',
-    borderWidth: 2,
-    borderColor: 'rgba(216,243,220,0.45)',
-    borderBottomWidth: 0,
-  },
-  ftLine: {
-    position: 'absolute',
-    bottom: '45%',
-    left: '30%',
-    width: '40%',
-    height: 2,
-    backgroundColor: 'rgba(216,243,220,0.45)',
-  },
   marker: {
     position: 'absolute',
     width: 36,
@@ -553,15 +690,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  draftDot: {
-    position: 'absolute',
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
-    backgroundColor: 'rgba(255,255,255,0.85)',
-    zIndex: 3,
   },
   arrowHit: {
     position: 'absolute',
@@ -590,7 +718,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   toolRow: {
-    flexDirection: 'row-reverse',
     flexWrap: 'wrap',
     gap: 8,
   },
@@ -605,7 +732,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   actionRow: {
-    flexDirection: 'row-reverse',
     gap: 8,
     marginTop: 12,
     marginBottom: 8,

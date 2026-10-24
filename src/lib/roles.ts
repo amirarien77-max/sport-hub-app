@@ -45,6 +45,11 @@ export function canClaimCarpool(role: Role | undefined | null): boolean {
   return r === 'parent' || r === 'player';
 }
 
+/** Carpool offer create — parents only (PRD + RLS carpool_insert_parent). */
+export function canOfferCarpool(role: Role | undefined | null): boolean {
+  return normalizeRole(role) === 'parent';
+}
+
 export function canLogReadiness(role: Role | undefined | null): boolean {
   return normalizeRole(role) === 'player';
 }

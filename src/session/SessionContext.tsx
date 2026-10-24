@@ -52,6 +52,7 @@ import { isAttendanceCoach, isHealthStaff, isTacticalCoach } from '@/lib/roles';
 import {
   acknowledgeUrgentBanner,
   claimCarpoolSeatLive,
+  createCarpoolOfferLive,
   ensureParentPlayerLink,
   fetchScheduleBundle,
   lockAttendanceRecords,
@@ -172,6 +173,17 @@ type SessionContextValue = {
     | Promise<{ ok: true; seatsTaken: number; seatsAvailable: number } | { ok: false; reason: 'full' | 'not_found' | 'error'; message?: string }>
     | { ok: true; seatsTaken: number; seatsAvailable: number }
     | { ok: false; reason: 'full' | 'not_found' | 'error'; message?: string };
+  /** Parent-only: create a carpool offer for an event. */
+  createCarpoolOffer: (
+    eventId: string,
+    seatsAvailable: number,
+  ) =>
+    | Promise<
+        | { ok: true; offer: CarpoolOffer }
+        | { ok: false; reason: 'error'; message?: string }
+      >
+    | { ok: true; offer: CarpoolOffer }
+    | { ok: false; reason: 'error'; message?: string };
   acknowledgeBanner: () => void | Promise<void>;
   switchDemoRole: (role: UserProfile['role']) => void;
   /** Demo-only: flip team fitness/physio flags to test head-coach inheritance. */
@@ -1319,6 +1331,46 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [carpools],
   );
 
+  const createCarpoolOffer = useCallback(
+    async (eventId: string, seatsAvailable: number) => {
+      if (!user || user.role !== 'parent') {
+        return { ok: false as const, reason: 'error' as const, message: 'parent_only' };
+      }
+      const seats = Math.min(8, Math.max(1, Math.round(seatsAvailable)));
+
+      if (isDemoMode || !supabase) {
+        const offer: CarpoolOffer = {
+          id: `carpool-${Date.now().toString(36)}`,
+          eventId,
+          parentId: user.id,
+          parentName: user.fullName,
+          seatsAvailable: seats,
+          seatsTaken: 0,
+        };
+        setCarpools((prev) => [offer, ...prev]);
+        return { ok: true as const, offer };
+      }
+
+      try {
+        const result = await createCarpoolOfferLive(supabase, {
+          eventId,
+          parentId: user.id,
+          parentName: user.fullName,
+          seatsAvailable: seats,
+        });
+        if (result.ok) {
+          setCarpools((prev) => [result.offer, ...prev]);
+        }
+        return result;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn('Carpool offer create failed', message);
+        return { ok: false as const, reason: 'error' as const, message };
+      }
+    },
+    [user],
+  );
+
   const acknowledgeBanner = useCallback(async () => {
     if (!user || !banner.id) return;
 
@@ -1456,6 +1508,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       submitSuggestion,
       reviewSuggestion,
       claimCarpoolSeat,
+      createCarpoolOffer,
       acknowledgeBanner,
       switchDemoRole,
       toggleDemoMedicalStaff,
@@ -1503,6 +1556,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       submitSuggestion,
       reviewSuggestion,
       claimCarpoolSeat,
+      createCarpoolOffer,
       acknowledgeBanner,
       switchDemoRole,
       toggleDemoMedicalStaff,

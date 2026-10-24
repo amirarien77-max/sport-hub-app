@@ -268,7 +268,7 @@ export function ReadinessScreen() {
                   },
                 ]}
               >
-                <Text style={{ fontWeight: '700', color: colors.primary, fontSize: 12 }}>
+                <Text style={[{ fontWeight: '700', color: colors.primary, fontSize: 12 }, rtlText]}>
                   {t('health.demoToggleFitness')}
                 </Text>
               </Pressable>
@@ -282,7 +282,7 @@ export function ReadinessScreen() {
                   },
                 ]}
               >
-                <Text style={{ fontWeight: '700', color: colors.primary, fontSize: 12 }}>
+                <Text style={[{ fontWeight: '700', color: colors.primary, fontSize: 12 }, rtlText]}>
                   {t('health.demoTogglePhysio')}
                 </Text>
               </Pressable>
@@ -316,7 +316,7 @@ export function ReadinessScreen() {
                   <Text style={[{fontWeight: '800', color: colors.primary, flex: 1}, rtlText]}>
                     {row.playerName}
                   </Text>
-                  <Text style={{ fontWeight: '800', color: riskColor(row.level) }}>
+                  <Text style={[{ fontWeight: '800', color: riskColor(row.level) }, rtlText]}>
                     {riskLabel(row.level)}
                   </Text>
                 </View>
@@ -367,7 +367,9 @@ export function ReadinessScreen() {
                   },
                 ]}
               >
-                <Text style={{ fontWeight: '800', fontSize: 18, color: colors.primary }}>{n}</Text>
+                <Text style={[{ fontWeight: '800', fontSize: 18, color: colors.primary }, rtlText]}>
+                  {n}
+                </Text>
               </Pressable>
             ))}
           </View>
@@ -429,7 +431,7 @@ export function ReadinessScreen() {
                   onPress={() => setRegion(key)}
                   style={[styles.region, { borderColor: colors.primary }]}
                 >
-                  <Text style={{ fontWeight: '700', color: colors.primary }}>
+                  <Text style={[{ fontWeight: '700', color: colors.primary }, rtlText]}>
                     {translateBodyRegion(key)}
                   </Text>
                 </Pressable>
@@ -463,7 +465,7 @@ export function ReadinessScreen() {
                       },
                     ]}
                   >
-                    <Text style={{ fontWeight: '700', color: colors.primary }}>
+                    <Text style={[{ fontWeight: '700', color: colors.primary }, rtlText]}>
                       {translateBodySubRegion(sub)}
                     </Text>
                   </Pressable>
