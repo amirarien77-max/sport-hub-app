@@ -33,6 +33,11 @@ export function isHealthStaff(role: Role | undefined | null): boolean {
   );
 }
 
+/** Equipment logistics — club-wide reports; no medical / meetings access. */
+export function isEquipmentManager(role: Role | undefined | null): boolean {
+  return normalizeRole(role) === 'equipment_manager';
+}
+
 /** Dual-Ack RSVP actions (player self or parent for linked player). */
 export function canSubmitRsvp(role: Role | undefined | null): boolean {
   const r = normalizeRole(role);

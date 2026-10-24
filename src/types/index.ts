@@ -8,6 +8,7 @@ export type Role =
   | 'assistant_coach'
   | 'fitness_coach'
   | 'physio'
+  | 'equipment_manager'
   | 'player'
   | 'parent';
 
