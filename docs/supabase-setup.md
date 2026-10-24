@@ -35,6 +35,7 @@ Open **SQL Editor** in the Supabase dashboard and run these files **in order** (
 13. `supabase/migrations/012_game_iq.sql` (`game_iq_json` cache column on `tactical_plays`)
 14. `supabase/migrations/013_hapoel_brand_and_sms_consent.sql` (Hapoel brand + parental SMS consent table/RPC)
 15. `supabase/migrations/014_tactical_media_storage.sql` (Storage bucket `tactical-media` + RLS)
+16. `supabase/migrations/017_weekly_schedule.sql` (recurring weekly schedule slots + coach RLS)
 
 Skip any file you have already applied.
 

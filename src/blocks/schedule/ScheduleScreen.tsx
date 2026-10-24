@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { MonthCalendar, canEditCalendar } from '@/blocks/schedule/MonthCalendar';
+import { router } from 'expo-router';
 import { t, translateAbsenceReason, translateRsvp } from '@/i18n';
 import { dualAckConflict } from '@/lib/demo-data';
 import { canClaimCarpool, canOfferCarpool, canSubmitRsvp, isAttendanceCoach } from '@/lib/roles';
@@ -146,6 +147,24 @@ export function ScheduleScreen() {
           {t('schedule.coachReadOnlyHint')}
         </Text>
       ) : null}
+
+      <Pressable
+        onPress={() => router.push('/weekly-schedule')}
+        style={[
+          styles.weeklyEntry,
+          rtlLayout.box,
+          { backgroundColor: colors.surface, borderColor: colors.primary },
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={t('schedule.weeklyEntry')}
+      >
+        <Text style={[{ color: colors.primary, fontWeight: '800', fontSize: 17 }, rtlText]}>
+          {t('schedule.weeklyEntry')}
+        </Text>
+        <Text style={[{ color: colors.muted, marginTop: 4, fontSize: 13 }, rtlText]}>
+          {t('schedule.weeklyEntryHint')}
+        </Text>
+      </Pressable>
 
       <View style={[rtlLayout.row, { marginTop: 12 }]}>
         <Pressable
@@ -490,6 +509,12 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  weeklyEntry: {
+    marginTop: 14,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
   },
   card: {
     marginTop: 16,
