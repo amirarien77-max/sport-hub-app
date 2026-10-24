@@ -10,7 +10,7 @@ import {
 import { router } from 'expo-router';
 import { t } from '@/i18n';
 import { useSession } from '@/session/SessionContext';
-import { layout, useTheme } from '@/theme/ThemeContext';
+import { layout, rtlInput, rtlText, rtlTextAlign, useTheme } from '@/theme/ThemeContext';
 
 export function AuthScreen() {
   const { colors } = useTheme();
@@ -37,12 +37,12 @@ export function AuthScreen() {
       <Text style={[layout.title, { color: colors.primary }]}>{t('auth.title')}</Text>
       <Text style={[layout.subtitle, { color: colors.muted }]}>{t('auth.subtitle')}</Text>
 
-      <Text style={styles.label}>{t('auth.email')}</Text>
+      <Text style={layout.label}>{t('auth.email')}</Text>
       <TextInput
         autoCapitalize="none"
         autoCorrect={false}
         keyboardType="email-address"
-        textAlign="right"
+        textAlign={rtlTextAlign}
         value={email}
         onChangeText={setEmail}
         placeholder={t('auth.emailPlaceholder')}
@@ -50,10 +50,10 @@ export function AuthScreen() {
         style={[styles.input, { borderColor: colors.primary, color: colors.text }]}
       />
 
-      <Text style={styles.label}>{t('auth.password')}</Text>
+      <Text style={layout.label}>{t('auth.password')}</Text>
       <TextInput
         secureTextEntry
-        textAlign="right"
+        textAlign={rtlTextAlign}
         value={password}
         onChangeText={setPassword}
         placeholder="••••••••"
@@ -62,7 +62,7 @@ export function AuthScreen() {
       />
 
       {error ? (
-        <Text style={{ color: colors.danger, marginTop: 8, textAlign: 'right' }}>{error}</Text>
+        <Text style={[{ color: colors.danger, marginTop: 8 }, rtlText]}>{error}</Text>
       ) : null}
 
       {busy ? (
@@ -88,14 +88,6 @@ export function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  label: {
-    marginTop: 18,
-    marginBottom: 8,
-    fontWeight: '700',
-    color: '#334155',
-    textAlign: 'right',
-    writingDirection: 'rtl',
-  },
   input: {
     minHeight: 48,
     borderWidth: 1.5,
@@ -103,6 +95,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     fontSize: 16,
     backgroundColor: '#fff',
-    writingDirection: 'rtl',
+    ...rtlInput,
   },
 });

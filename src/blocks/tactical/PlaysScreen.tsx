@@ -27,7 +27,7 @@ import {
   type BoardMarker,
 } from '@/lib/tactical-live';
 import { useSession } from '@/session/SessionContext';
-import { layout, useTheme } from '@/theme/ThemeContext';
+import { layout, rtlInput, rtlLayout, rtlText, rtlTextAlign, useTheme } from '@/theme/ThemeContext';
 import type { PlayAssignment, TacticalPlay } from '@/types';
 
 function parseCachedInsight(raw?: string): GameIqInsight | null {
@@ -282,7 +282,7 @@ export function PlaysScreen() {
         {a.actionPromptQuestion}
       </Text>
       <TextInput
-        textAlign="right"
+        textAlign={rtlTextAlign}
         value={answerDrafts[a.id] ?? a.playerAnswer ?? ''}
         onChangeText={(txt) => {
           setAnswerDrafts((d) => ({ ...d, [a.id]: txt }));
@@ -366,7 +366,7 @@ export function PlaysScreen() {
             {t('plays.createPlayHint')}
           </Text>
           <TextInput
-            textAlign="right"
+            textAlign={rtlTextAlign}
             value={newPlayTitle}
             onChangeText={(txt) => {
               setNewPlayTitle(txt);
@@ -472,7 +472,7 @@ export function PlaysScreen() {
     <>
       <Pressable onPress={() => setSelectedPlayId(null)} style={{ marginBottom: 8 }}>
         <Text style={{ color: colors.primary, fontWeight: '700', textAlign: 'right' }}>
-          ← {t('plays.backToList')}
+          → {t('plays.backToList')}
         </Text>
       </Pressable>
 
@@ -599,16 +599,16 @@ export function PlaysScreen() {
       ) : null}
 
       {isCoach ? (
-        <View style={styles.row}>
+        <View style={[rtlLayout.splitRow, { marginTop: 10, gap: 8 }]}>
           <Pressable
             onPress={() => setLocalMarkers([])}
-            style={[layout.button, styles.half, { backgroundColor: colors.muted }]}
+            style={[layout.button, rtlLayout.half, { backgroundColor: colors.muted }]}
           >
             <Text style={[layout.buttonText, { color: '#fff' }]}>{t('plays.clearBoard')}</Text>
           </Pressable>
           <Pressable
             onPress={() => void saveBoard()}
-            style={[layout.button, styles.half, { backgroundColor: colors.primary }]}
+            style={[layout.button, rtlLayout.half, { backgroundColor: colors.primary }]}
           >
             <Text style={[layout.buttonText, { color: '#fff' }]}>{t('plays.saveBoard')}</Text>
           </Pressable>
@@ -684,7 +684,7 @@ export function PlaysScreen() {
               </Text>
             </Pressable>
             <TextInput
-              textAlign="right"
+              textAlign={rtlTextAlign}
               autoCapitalize="none"
               value={mediaDraft}
               onChangeText={setMediaDraft}
@@ -767,7 +767,7 @@ export function PlaysScreen() {
               {t('plays.noPlayersForAssign')}
             </Text>
           ) : null}
-          <View style={styles.chipRow}>
+          <View style={[rtlLayout.row, { marginBottom: 4 }]}>
             {tacticalPlayers.map((p) => (
               <Pressable
                 key={p.id}
@@ -792,7 +792,7 @@ export function PlaysScreen() {
             ))}
           </View>
           <TextInput
-            textAlign="right"
+            textAlign={rtlTextAlign}
             value={positionDraft}
             onChangeText={setPositionDraft}
             placeholder={t('plays.positionPlaceholder')}
@@ -800,7 +800,7 @@ export function PlaysScreen() {
             style={[styles.input, { borderColor: colors.primary }]}
           />
           <TextInput
-            textAlign="right"
+            textAlign={rtlTextAlign}
             value={promptDraft}
             onChangeText={setPromptDraft}
             placeholder={t('plays.promptPlaceholder')}
@@ -839,7 +839,7 @@ export function PlaysScreen() {
         <>
           <Text style={styles.section}>{t('plays.suggestChange')}</Text>
           <TextInput
-            textAlign="right"
+            textAlign={rtlTextAlign}
             value={suggestionDraft}
             onChangeText={setSuggestionDraft}
             placeholder={t('plays.suggestionPlaceholder')}
@@ -889,16 +889,16 @@ export function PlaysScreen() {
               </Text>
               <Text style={{ marginTop: 4, textAlign: 'right' }}>{s.suggestionText}</Text>
               {s.status === 'pending' ? (
-                <View style={styles.row}>
+                <View style={[rtlLayout.splitRow, { marginTop: 10, gap: 8 }]}>
                   <Pressable
                     onPress={async () => showResult(await reviewSuggestion(s.id, 'approved'))}
-                    style={[layout.button, styles.half, { backgroundColor: colors.success }]}
+                    style={[layout.button, rtlLayout.half, { backgroundColor: colors.success }]}
                   >
                     <Text style={[layout.buttonText, { color: '#fff' }]}>{t('plays.approve')}</Text>
                   </Pressable>
                   <Pressable
                     onPress={async () => showResult(await reviewSuggestion(s.id, 'rejected'))}
-                    style={[layout.button, styles.half, { backgroundColor: colors.danger }]}
+                    style={[layout.button, rtlLayout.half, { backgroundColor: colors.danger }]}
                   >
                     <Text style={[layout.buttonText, { color: '#fff' }]}>{t('plays.reject')}</Text>
                   </Pressable>
@@ -948,7 +948,7 @@ function PlayListRow({
         {play.mediaUrl ? ` · ${t('plays.mediaLinked')}` : ''}
       </Text>
       <Text style={{ color: colors.primary, fontWeight: '700', textAlign: 'right', marginTop: 8 }}>
-        {t('plays.openPlay')} →
+        {t('plays.openPlay')} ←
       </Text>
     </Pressable>
   );
@@ -963,7 +963,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     backgroundColor: '#fff',
   },
-  playTitle: { fontSize: 18, fontWeight: '800', textAlign: 'right' },
+  playTitle: { fontSize: 18, fontWeight: '800', ...rtlText },
   court: {
     marginTop: 12,
     height: 220,
@@ -982,7 +982,7 @@ const styles = StyleSheet.create({
   courtLabel: {
     color: '#D8F3DC',
     fontWeight: '600',
-    textAlign: 'right',
+    ...rtlText,
   },
   paint: {
     position: 'absolute',
@@ -1016,8 +1016,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontWeight: '800',
     color: '#334155',
-    textAlign: 'right',
-    writingDirection: 'rtl',
+    ...rtlText,
   },
   assign: {
     padding: 10,
@@ -1033,20 +1032,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     backgroundColor: '#fff',
-    writingDirection: 'rtl',
+    ...rtlInput,
   },
   answerInput: {
     minHeight: 72,
     paddingVertical: 10,
     textAlignVertical: 'top',
-  },
-  row: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  half: { flex: 1 },
-  chipRow: {
-    flexDirection: 'row-reverse',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 4,
   },
   chip: {
     paddingHorizontal: 12,

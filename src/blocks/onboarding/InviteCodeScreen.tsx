@@ -12,7 +12,7 @@ import { t } from '@/i18n';
 import { DEMO_INVITE_CODE } from '@/lib/demo-data';
 import { isDemoMode } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
-import { layout, useTheme } from '@/theme/ThemeContext';
+import { layout, rtlInput, rtlText, useTheme } from '@/theme/ThemeContext';
 
 export function InviteCodeScreen() {
   const { colors, brand } = useTheme();
@@ -50,7 +50,7 @@ export function InviteCodeScreen() {
       />
 
       {error ? (
-        <Text style={{ color: colors.danger, marginTop: 8, textAlign: 'right' }}>{error}</Text>
+        <Text style={[{ color: colors.danger, marginTop: 8 }, rtlText]}>{error}</Text>
       ) : null}
 
       {busy ? (
@@ -67,7 +67,7 @@ export function InviteCodeScreen() {
 
       {isDemoMode ? (
         <Pressable onPress={() => setCode(DEMO_INVITE_CODE)} style={styles.hint}>
-          <Text style={{ color: colors.muted, textAlign: 'right' }}>
+          <Text style={[{ color: colors.muted }, rtlText]}>
             {t('invite.demoCode', { code: DEMO_INVITE_CODE })}
           </Text>
           <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
@@ -75,7 +75,7 @@ export function InviteCodeScreen() {
           </Text>
         </Pressable>
       ) : (
-        <Text style={[styles.hint, { color: colors.muted, textAlign: 'right' }]}>
+        <Text style={[styles.hint, { color: colors.muted }, rtlText]}>
           {t('invite.afterSeed', { code: DEMO_INVITE_CODE })}
         </Text>
       )}
@@ -94,6 +94,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1,
     backgroundColor: '#fff',
+    ...rtlInput,
   },
   cta: { marginTop: 16 },
   hint: { marginTop: 20 },

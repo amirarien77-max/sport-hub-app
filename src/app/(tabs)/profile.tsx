@@ -6,7 +6,7 @@ import type { PendingConsentPlayer } from '@/lib/consent-live';
 import { isAttendanceCoach } from '@/lib/roles';
 import { isDemoMode } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
-import { layout, useTheme } from '@/theme/ThemeContext';
+import { layout, rtlLayout, rtlText, useTheme } from '@/theme/ThemeContext';
 import type { Role } from '@/types';
 
 export default function ProfileRoute() {
@@ -52,22 +52,22 @@ export default function ProfileRoute() {
       <Text style={[layout.title, { color: colors.primary }]}>{t('profile.title')}</Text>
       <Text style={[layout.subtitle, { color: colors.muted }]}>{user?.fullName}</Text>
       <View style={[styles.badge, { borderColor: colors.secondary, backgroundColor: '#fff' }]}>
-        <Text style={{ fontWeight: '800', color: colors.primary, textAlign: 'right' }}>
+        <Text style={[{ fontWeight: '800', color: colors.primary }, rtlText]}>
           {t('profile.roleBadge', {
             role: user?.role ? translateRole(user.role) : '—',
           })}
         </Text>
       </View>
-      <Text style={{ marginTop: 10, color: colors.text, textAlign: 'right' }}>
+      <Text style={[{ marginTop: 10, color: colors.text }, rtlText]}>
         {t('profile.clubTeam', { club: brand.name, team: team?.name ?? '—' })}
       </Text>
-      <Text style={{ marginTop: 4, color: colors.muted, textAlign: 'right' }}>
+      <Text style={[{ marginTop: 4, color: colors.muted }, rtlText]}>
         {t('profile.consentMode', {
           consent: user?.consentStatus ? translateConsent(user.consentStatus) : '—',
           mode: isDemoMode ? t('mode.demo') : t('mode.supabase'),
         })}
       </Text>
-      <Text style={{ marginTop: 12, color: colors.muted, textAlign: 'right', lineHeight: 22 }}>
+      <Text style={[{ marginTop: 12, color: colors.muted, lineHeight: 22 }, rtlText]}>
         {roleHint}
       </Text>
 
@@ -146,8 +146,10 @@ export default function ProfileRoute() {
 
       {isDemoMode ? (
         <>
-          <Text style={styles.label}>{t('profile.switchDemoRole')}</Text>
-          <View style={styles.row}>
+          <Text style={[layout.label, { marginTop: 24, fontWeight: '800' }]}>
+            {t('profile.switchDemoRole')}
+          </Text>
+          <View style={rtlLayout.row}>
             {(['player', 'parent', 'head_coach', 'fitness_coach', 'physio'] as Role[]).map((role) => (
               <Pressable
                 key={role}
@@ -161,10 +163,13 @@ export default function ProfileRoute() {
                 ]}
               >
                 <Text
-                  style={{
-                    color: user?.role === role ? '#fff' : colors.primary,
-                    fontWeight: '700',
-                  }}
+                  style={[
+                    {
+                      color: user?.role === role ? '#fff' : colors.primary,
+                      fontWeight: '700',
+                    },
+                    rtlText,
+                  ]}
                 >
                   {translateRole(role)}
                 </Text>
@@ -216,7 +221,6 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     writingDirection: 'rtl',
   },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     minHeight: 40,
     paddingHorizontal: 12,
