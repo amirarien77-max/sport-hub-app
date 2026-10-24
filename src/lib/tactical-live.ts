@@ -17,8 +17,18 @@ export type BoardMarker = {
   label: string;
 };
 
+/** Direction segment on the court (percent coords 0–100). Stored inside board_json. */
+export type BoardArrow = {
+  id: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+};
+
 export type BoardData = {
   markers: BoardMarker[];
+  arrows: BoardArrow[];
 };
 
 type PlayRow = {
@@ -50,12 +60,41 @@ type SuggestionRow = {
   created_at: string;
 };
 
-/** פענוח בטוח של board_json — JSON פגום → לוח ריק (לא זורקים). */
+function clampPct(n: number): number {
+  return Math.min(100, Math.max(0, n));
+}
+
+function parseArrows(raw: unknown): BoardArrow[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(
+      (a) =>
+        a &&
+        typeof a === 'object' &&
+        typeof (a as BoardArrow).x1 === 'number' &&
+        typeof (a as BoardArrow).y1 === 'number' &&
+        typeof (a as BoardArrow).x2 === 'number' &&
+        typeof (a as BoardArrow).y2 === 'number',
+    )
+    .map((a, i) => {
+      const row = a as BoardArrow;
+      return {
+        id: typeof row.id === 'string' && row.id ? row.id : `arrow-${i}`,
+        x1: clampPct(row.x1),
+        y1: clampPct(row.y1),
+        x2: clampPct(row.x2),
+        y2: clampPct(row.y2),
+      };
+    })
+    .slice(0, 20);
+}
+
+/** פענוח בטוח של board_json — JSON פגום → לוח ריק (לא זורקים). כולל arrows[]. */
 export function parseBoardJson(raw?: string | null): BoardData {
-  if (!raw?.trim()) return { markers: [] };
+  if (!raw?.trim()) return { markers: [], arrows: [] };
   try {
-    const parsed = JSON.parse(raw) as BoardData;
-    if (!parsed || !Array.isArray(parsed.markers)) return { markers: [] };
+    const parsed = JSON.parse(raw) as Partial<BoardData>;
+    if (!parsed || !Array.isArray(parsed.markers)) return { markers: [], arrows: [] };
     return {
       markers: parsed.markers
         .filter(
@@ -65,19 +104,23 @@ export function parseBoardJson(raw?: string | null): BoardData {
             typeof m?.label === 'string',
         )
         .map((m) => ({
-          x: Math.min(100, Math.max(0, m.x)),
-          y: Math.min(100, Math.max(0, m.y)),
+          x: clampPct(m.x),
+          y: clampPct(m.y),
           label: m.label.slice(0, 4),
         })),
+      arrows: parseArrows(parsed.arrows),
     };
   } catch {
-    return { markers: [] };
+    return { markers: [], arrows: [] };
   }
 }
 
 /** שומר עד 20 סימונים — מונע פיצוץ payload מהקשות חוזרות על הלוח. */
 export function serializeBoardJson(data: BoardData): string {
-  return JSON.stringify({ markers: data.markers.slice(0, 20) });
+  return JSON.stringify({
+    markers: data.markers.slice(0, 20),
+    arrows: (data.arrows ?? []).slice(0, 20),
+  });
 }
 
 export function mapPlayRow(row: PlayRow): TacticalPlay {
