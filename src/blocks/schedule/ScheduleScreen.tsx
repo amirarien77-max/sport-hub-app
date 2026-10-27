@@ -2,7 +2,7 @@
  * מסך לו״ז (מודול 2): אירועים, Dual-Ack (שחקן/הורה), carpool, באנר דחוף.
  * PRD v1.1: תצוגת חודש + רשימה; כתובת אולם + טלפון למשחקים. מאמן עורך; שחקן/הורה קריאה.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -18,6 +18,8 @@ import { router } from 'expo-router';
 import { t, translateAbsenceReason, translateRsvp } from '@/i18n';
 import { dualAckConflict } from '@/lib/demo-data';
 import { canClaimCarpool, canOfferCarpool, canSubmitRsvp, isAttendanceCoach } from '@/lib/roles';
+import { ensureParentPlayerLink } from '@/lib/schedule-live';
+import { isDemoMode, supabase } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
 import type { SessionEvent } from '@/types';
 import {
@@ -98,18 +100,51 @@ export function ScheduleScreen() {
   const [sheetEventId, setSheetEventId] = useState<string | null>(null);
   const [claimingOfferId, setClaimingOfferId] = useState<string | null>(null);
   const [offerSeats, setOfferSeats] = useState(3);
+  const [offerEventId, setOfferEventId] = useState<string | null>(null);
   const [offering, setOffering] = useState(false);
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [editorBusy, setEditorBusy] = useState(false);
   const [editorNote, setEditorNote] = useState<string | null>(null);
+  const [hintPlayerId, setHintPlayerId] = useState<string | undefined>();
 
   const coachView = isAttendanceCoach(user?.role);
   const calendarEdit = canEditCalendar(user?.role);
   const showRsvp = canSubmitRsvp(user?.role);
   const showClaim = canClaimCarpool(user?.role);
   const showOffer = canOfferCarpool(user?.role);
-  const offerEventId = events[0]?.id ?? null;
+
+  // Keep selected offer event in sync with the schedule list (hint: «בחרו אירוע»).
+  useEffect(() => {
+    if (!events.length) {
+      setOfferEventId(null);
+      return;
+    }
+    setOfferEventId((prev) =>
+      prev && events.some((e) => e.id === prev) ? prev : events[0].id,
+    );
+  }, [events]);
+
+  // Parent calendar Dual-Ack dots: resolve linked child when possible.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!user || user.role !== 'parent') {
+        if (!cancelled) setHintPlayerId(undefined);
+        return;
+      }
+      if (isDemoMode || !supabase) {
+        // Demo seed: Parent Cohen ↔ Roi
+        if (!cancelled) setHintPlayerId('user-player-roi');
+        return;
+      }
+      const linked = await ensureParentPlayerLink(supabase, user.id, user.teamId);
+      if (!cancelled) setHintPlayerId(linked ?? undefined);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const subtitle = coachView
     ? t('schedule.subtitleCoach')
@@ -319,6 +354,7 @@ export function ScheduleScreen() {
           acks={acks}
           userId={user?.id}
           role={user?.role}
+          hintPlayerId={hintPlayerId}
           canEdit={calendarEdit}
           onCreateEvent={createSessionEvent}
           onUpdateEvent={updateSessionEvent}
@@ -486,6 +522,45 @@ export function ScheduleScreen() {
             </Text>
           ) : (
             <>
+              <Text style={[{ color: colors.muted, marginTop: 10, fontWeight: '700' }, rtlText]}>
+                {t('schedule.offerPickEvent')}
+              </Text>
+              <View style={[rtlLayout.row, { marginTop: 8 }]}>
+                {events.map((event) => {
+                  const selected = event.id === offerEventId;
+                  return (
+                    <Pressable
+                      key={event.id}
+                      onPress={() => setOfferEventId(event.id)}
+                      style={[
+                        styles.seatChip,
+                        rtlLayout.chip,
+                        {
+                          borderColor: selected ? colors.secondary : colors.primary,
+                          backgroundColor: selected ? colors.secondary : '#fff',
+                          maxWidth: '100%',
+                        },
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                    >
+                      <Text
+                        style={[
+                          {
+                            fontWeight: '700',
+                            fontSize: 13,
+                            color: selected ? '#fff' : colors.primary,
+                          },
+                          rtlText,
+                        ]}
+                        numberOfLines={2}
+                      >
+                        {event.title}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
               <View style={[rtlLayout.row, { marginTop: 12, alignItems: 'center' }]}>
                 <Pressable
                   onPress={() => setOfferSeats((n) => Math.max(1, n - 1))}
