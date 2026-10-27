@@ -60,6 +60,7 @@ function hintForDay(
   acks: DualAck[],
   userId: string | undefined,
   role: string | undefined,
+  hintPlayerId?: string,
 ): RsvpDayHint {
   const dayEvents = events.filter((e) => sameDay(new Date(e.startsAt), day));
   if (!dayEvents.length || !userId) return 'none';
@@ -71,14 +72,22 @@ function hintForDay(
   for (const event of dayEvents) {
     const related = acks.filter((a) => a.eventId === event.id);
     for (const ack of related) {
-      if (dualAckConflict(ack)) conflict = true;
+      // Parents: prefer linked child when hintPlayerId is set; else only rows with parentChoice.
+      // Never paint every family's Dual-Ack onto one parent's calendar.
       const mine =
         role === 'parent'
-          ? ack
+          ? hintPlayerId
+            ? ack.playerId === hintPlayerId
+              ? ack
+              : null
+            : ack.parentChoice != null
+              ? ack
+              : null
           : ack.playerId === userId
             ? ack
             : null;
       if (!mine) continue;
+      if (dualAckConflict(mine)) conflict = true;
       const choice = role === 'parent' ? mine.parentChoice : mine.playerChoice;
       if (choice === 'attending') attending = true;
       if (choice === 'not_attending') notAttending = true;
@@ -96,6 +105,8 @@ type Props = {
   acks: DualAck[];
   userId?: string;
   role?: string;
+  /** Parent Dual-Ack calendar dots: linked child player id when known. */
+  hintPlayerId?: string;
   canEdit: boolean;
   onCreateEvent: (input: {
     title: string;
@@ -121,6 +132,7 @@ export function MonthCalendar({
   events,
   acks,
   userId,
+  hintPlayerId,
   role,
   canEdit,
   onCreateEvent,
@@ -294,7 +306,7 @@ export function MonthCalendar({
             return <View key={`e-${idx}`} style={styles.cell} />;
           }
           const dayEvents = events.filter((e) => sameDay(new Date(e.startsAt), day));
-          const hint = hintForDay(day, events, acks, userId, role);
+          const hint = hintForDay(day, events, acks, userId, role, hintPlayerId);
           const selected = selectedDay ? sameDay(selectedDay, day) : false;
           const hintColor =
             hint === 'attending'

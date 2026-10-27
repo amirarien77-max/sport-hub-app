@@ -162,6 +162,7 @@ export const he = {
     carpoolCoachHint: 'צפייה בטרמפים (שמירת מקום להורים/שחקנים).',
     offerCarpool: 'הצעת טרמפ',
     offerCarpoolHint: 'כהורה: בחרו אירוע ומספר מקומות פנויים.',
+    offerPickEvent: 'בחירת אירוע להצעה',
     offerSeats: '{n} מקומות פנויים',
     offerSeatsMinus: 'פחות',
     offerSeatsPlus: 'יותר',
