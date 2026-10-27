@@ -361,23 +361,49 @@ export function MonthCalendar({
           {selectedEvents.length === 0 ? (
             <Text style={[{ color: colors.muted }, rtlText]}>{t('calendar.noEventsDay')}</Text>
           ) : (
-            selectedEvents.map((event) => (
-              <Pressable
-                key={event.id}
-                onPress={() => openEdit(event)}
-                style={[styles.eventRow, { borderColor: colors.secondary }]}
-              >
-                <Text style={[{ fontWeight: '800' }, rtlText]}>{event.title}</Text>
-                <Text style={[{ color: colors.muted }, rtlText]}>
-                  {new Date(event.startsAt).toLocaleTimeString('he-IL', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}{' '}
-                  · {event.location || '—'} ·{' '}
-                  {event.type === 'game' ? t('calendar.typeGame') : t('calendar.typePractice')}
-                </Text>
-              </Pressable>
-            ))
+            selectedEvents.map((event) => {
+              const isGame = event.type === 'game';
+              const showVenue = isGame && Boolean(event.hallAddress || event.contactPhone);
+              return (
+                <Pressable
+                  key={event.id}
+                  onPress={() => openEdit(event)}
+                  style={[styles.eventRow, { borderColor: colors.secondary }]}
+                >
+                  <Text style={[{ fontWeight: '800' }, rtlText]}>{event.title}</Text>
+                  <Text style={[{ color: colors.muted }, rtlText]}>
+                    {new Date(event.startsAt).toLocaleTimeString('he-IL', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}{' '}
+                    · {event.location || '—'} ·{' '}
+                    {isGame ? t('calendar.typeGame') : t('calendar.typePractice')}
+                  </Text>
+                  {showVenue ? (
+                    <View
+                      {...rtlContainerProps}
+                      style={[styles.venueBox, rtlLayout.box, { borderColor: colors.secondary }]}
+                    >
+                      {event.hallAddress ? (
+                        <Text style={[{ color: colors.text }, rtlText]}>
+                          {t('calendar.hallAddress')}: {event.hallAddress}
+                        </Text>
+                      ) : null}
+                      {event.contactPhone ? (
+                        <Text
+                          style={[
+                            { color: colors.text, marginTop: event.hallAddress ? 4 : 0 },
+                            rtlText,
+                          ]}
+                        >
+                          {t('calendar.contactPhone')}: {event.contactPhone}
+                        </Text>
+                      ) : null}
+                    </View>
+                  ) : null}
+                </Pressable>
+              );
+            })
           )}
           {canEdit ? (
             <Pressable
@@ -578,6 +604,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     backgroundColor: '#F8FAFC',
+  },
+  venueBox: {
+    marginTop: 8,
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   sheetBackdrop: {
     flex: 1,
