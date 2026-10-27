@@ -280,7 +280,7 @@ export function MonthCalendar({
         </Pressable>
       </View>
 
-      <View style={[rtlLayout.row, styles.weekHeader]}>
+      <View style={[rtlLayout.wrapRow, styles.weekHeader]}>
         {WEEKDAYS_HE.map((label) => (
           <Text key={label} style={[styles.weekday, { color: colors.muted }]}>
             {label}
@@ -288,7 +288,7 @@ export function MonthCalendar({
         ))}
       </View>
 
-      <View style={styles.grid}>
+      <View style={rtlLayout.wrapRow}>
         {cells.map((day, idx) => {
           if (!day) {
             return <View key={`e-${idx}`} style={styles.cell} />;
@@ -311,8 +311,8 @@ export function MonthCalendar({
               onLongPress={() => openCreate(day)}
               style={[
                 styles.cell,
-                styles.dayCell,
                 rtlLayout.box,
+                styles.dayCell,
                 {
                   borderColor: selected ? colors.secondary : colors.primary,
                   backgroundColor: selected ? '#FFF5F5' : '#fff',
@@ -534,14 +534,11 @@ const styles = StyleSheet.create({
   weekHeader: { marginBottom: 4 },
   weekday: {
     width: `${100 / 7}%`,
+    /** Calendar chrome: day letters stay centered by design. */
     textAlign: 'center',
     fontSize: 12,
     fontWeight: '700',
     writingDirection: 'rtl',
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
   },
   cell: {
     width: `${100 / 7}%`,
@@ -552,6 +549,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     padding: 4,
+    /** Content hugs the reading-start edge (right in RTL). */
     alignItems: 'flex-start',
   },
   dot: {
