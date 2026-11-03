@@ -24,7 +24,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.secondary,
         tabBarInactiveTintColor: colors.muted,
         tabBarStyle: { backgroundColor: '#fff' },
-        tabBarLabelStyle: { writingDirection: 'rtl' },
+        tabBarLabelStyle: { writingDirection: 'rtl', textAlign: 'center' },
       }}
     >
       <Tabs.Screen

@@ -13,7 +13,14 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import { t } from '@/i18n';
 import type { BoardArrow, BoardMarker } from '@/lib/tactical-live';
-import { rtlRowDirection, rtlText, useTheme } from '@/theme/ThemeContext';
+import {
+  rtlAlignStart,
+  rtlContainerProps,
+  rtlLayout,
+  rtlRowDirection,
+  rtlText,
+  useTheme,
+} from '@/theme/ThemeContext';
 
 /**
  * Fullscreen editor chrome (tools / save / clear / back) uses RN Pressable.
@@ -496,7 +503,9 @@ function CourtSurface({
             },
           ]}
         >
-          <Text style={{ fontWeight: '800', color: colors.primary }}>{m.label}</Text>
+          <Text style={{ fontWeight: '800', color: colors.primary, textAlign: 'center' }}>
+            {m.label}
+          </Text>
         </RNPressable>
       ))}
     </View>
@@ -679,14 +688,17 @@ export function CourtEditorModal({
     >
       {/* Modal mounts outside root GH tree — re-wrap so touches work on native. */}
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <View style={[styles.modalRoot, { backgroundColor: colors.background }]}>
-          <View style={styles.modalHeader}>
+        <View
+          {...rtlContainerProps}
+          style={[styles.modalRoot, rtlLayout.modal, { backgroundColor: colors.background }]}
+        >
+          <View style={[styles.modalHeader, rtlLayout.box]}>
             <ModalPressable
               onPress={onClose}
               accessibilityRole="button"
               accessibilityLabel={t('plays.courtEditorBack')}
               hitSlop={12}
-              style={styles.headerBtn}
+              style={[styles.headerBtn, rtlAlignStart]}
             >
               <Text style={[{ color: colors.primary, fontWeight: '700' }, rtlText]}>
                 ← {t('plays.courtEditorBack')}
@@ -814,10 +826,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  /** Intentional center — primary fullscreen CTAs. */
   actionBtnText: {
     color: '#fff',
     fontWeight: '800',
     fontSize: 16,
+    textAlign: 'center',
+    writingDirection: 'rtl',
   },
   fullscreenBody: {
     flex: 1,
@@ -836,7 +851,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   headerBtn: {
-    alignSelf: 'flex-end',
+    // Prefer rtlAlignStart at call site — flex-end packs to physical left under dir=rtl.
     paddingVertical: 6,
   },
   modalTitle: {
