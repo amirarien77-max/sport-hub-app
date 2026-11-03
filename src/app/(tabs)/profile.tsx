@@ -9,6 +9,8 @@ import { router } from 'expo-router';
 import { EquipmentSection } from '@/blocks/profile/EquipmentSection';
 import { PlayerMeetingsSection } from '@/blocks/profile/PlayerMeetingsSection';
 import { PlayerSizesSection } from '@/blocks/profile/PlayerSizesSection';
+import { RosterSizesSection } from '@/blocks/profile/RosterSizesSection';
+import { UrgentMessagesSection } from '@/blocks/profile/UrgentMessagesSection';
 import { t, translateConsent, translateRole } from '@/i18n';
 import type { PendingConsentPlayer } from '@/lib/consent-live';
 import { isAttendanceCoach, isEquipmentManager } from '@/lib/roles';
@@ -98,7 +100,9 @@ export default function ProfileRoute() {
       </Text>
 
       <PlayerSizesSection />
+      <UrgentMessagesSection />
       <PlayerMeetingsSection />
+      <RosterSizesSection />
       <EquipmentSection />
 
       {isAttendanceCoach(user?.role) ? (

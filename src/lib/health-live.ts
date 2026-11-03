@@ -1,7 +1,7 @@
 /**
  * מודול 3 (live): מוכנות יומית + מפת כאב + חישוב סיכון למאמן.
- * sleep/water מוגבלים ל־0–24 (גם ב־DB וגם ב־clamp24). הורים לא אמורים
- * לקבל SELECT רפואי — SessionContext מנקה להם את הבאנדל.
+ * sleep/water מוגבלים ל־0–24 (גם ב־DB וגם ב־clamp24).
+ * הורה: SELECT רק לילדים מקושרים (RLS + סינון SessionContext).
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PainReport, PainSeverity, ReadinessReport, Role } from '@/types';
@@ -67,13 +67,19 @@ function clamp24(n: number): number {
 /** Load readiness + pain visible to the current auth user (RLS filters). */
 export async function fetchHealthBundle(
   client: SupabaseClient,
-  opts: { teamId: string; asStaff: boolean },
+  opts: { teamId: string; asStaff: boolean; playerIds?: string[] },
 ): Promise<{ readiness: ReadinessReport[]; pain: PainReport[]; players: { id: string; fullName: string }[] }> {
-  const playersRes = await client
+  let playersQuery = client
     .from('users')
     .select('id, full_name, role')
     .eq('team_id', opts.teamId)
     .eq('role', 'player');
+
+  if (opts.playerIds?.length) {
+    playersQuery = playersQuery.in('id', opts.playerIds);
+  }
+
+  const playersRes = await playersQuery;
 
   if (playersRes.error) throw new Error(playersRes.error.message);
 

@@ -2,7 +2,7 @@
  * מסך בריאות (מודול 3):
  * - שחקן: רמת קושי (1–10) + שינה/מים (תקרה 24) + מפת כאב
  * - צוות: לוח סיכון (buildPlayerRiskRows) לפי coachHealthAccess
- * - הורה: ללא נתונים רפואיים (מסך הסבר בלבד)
+ * - הורה: קריאה בלבד לילדים המקושרים בלבד (לא שחקנים אחרים)
  */
 import { useMemo, useState } from 'react';
 import {
@@ -105,6 +105,11 @@ export function ReadinessScreen() {
   const riskRows = useMemo(
     () => buildPlayerRiskRows(healthPlayers, readiness, pain),
     [healthPlayers, readiness, pain],
+  );
+
+  const parentRiskRows = useMemo(
+    () => (isParent ? buildPlayerRiskRows(healthPlayers, readiness, pain) : []),
+    [healthPlayers, isParent, pain, readiness],
   );
 
   const subtitle = isCoach
@@ -229,12 +234,74 @@ export function ReadinessScreen() {
           style={[
             styles.panel,
             rtlLayout.box,
-            { borderColor: colors.muted, backgroundColor: '#F8FAFC' },
+            { borderColor: colors.secondary, backgroundColor: '#F8FAFC' },
           ]}
         >
-          <Text style={[{color: colors.muted, lineHeight: 22}, rtlText]}>
-            {t('health.parentBlocked')}
+          <Text style={[{ fontWeight: '800', color: colors.primary }, rtlText]}>
+            {t('health.parentChildrenTitle')}
           </Text>
+          <Text style={[{ color: colors.muted, marginTop: 4, lineHeight: 22 }, rtlText]}>
+            {t('health.parentChildrenHint')}
+          </Text>
+          {parentRiskRows.length === 0 ? (
+            <Text style={[{ marginTop: 10, color: colors.muted }, rtlText]}>
+              {t('health.parentNoLinkedChildren')}
+            </Text>
+          ) : (
+            parentRiskRows.map((row) => (
+              <View
+                key={row.playerId}
+                {...rtlContainerProps}
+                style={[
+                  styles.riskCard,
+                  rtlLayout.box,
+                  {
+                    borderColor: riskColor(row.level),
+                    backgroundColor:
+                      row.level === 'high'
+                        ? '#FEF2F2'
+                        : row.level === 'watch'
+                          ? '#FFFBEB'
+                          : '#fff',
+                  },
+                ]}
+              >
+                <View style={[rtlLayout.row, { alignItems: 'center', flexWrap: 'nowrap' }]}>
+                  <Text style={[{ fontWeight: '800', color: colors.primary, flex: 1 }, rtlText]}>
+                    {row.playerName}
+                  </Text>
+                  <Text style={[{ fontWeight: '800', color: riskColor(row.level) }, rtlText]}>
+                    {riskLabel(row.level)}
+                  </Text>
+                </View>
+                <Text style={[{ marginTop: 4, color: colors.muted, fontSize: 13 }, rtlText]}>
+                  {row.latestRpe != null
+                    ? t('health.coachRpeLine', {
+                        rpe: row.latestRpe,
+                        sleep: row.latestSleep ?? '—',
+                        water: row.latestWater ?? '—',
+                      })
+                    : t('health.noReadinessYet')}
+                </Text>
+                {row.openPain.map((p) => (
+                  <Text
+                    key={p.id}
+                    style={[
+                      {
+                        marginTop: 6,
+                        color: p.severity === 'disabling' ? colors.danger : colors.warning,
+                        fontWeight: '600',
+                      },
+                      rtlText,
+                    ]}
+                  >
+                    {translateBodyRegion(p.region)} / {translateBodySubRegion(p.subRegion)} —{' '}
+                    {translatePainSeverity(p.severity)}
+                  </Text>
+                ))}
+              </View>
+            ))
+          )}
         </View>
       ) : null}
 
