@@ -107,6 +107,8 @@ export function ScheduleScreen() {
   const [sheetEventId, setSheetEventId] = useState<string | null>(null);
   const [claimingOfferId, setClaimingOfferId] = useState<string | null>(null);
   const [offerSeats, setOfferSeats] = useState(3);
+  const [offerDeparture, setOfferDeparture] = useState('');
+  const [offerPickup, setOfferPickup] = useState('');
   const [offerEventId, setOfferEventId] = useState<string | null>(null);
   const [offering, setOffering] = useState(false);
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
@@ -163,8 +165,15 @@ export function ScheduleScreen() {
     if (!offerEventId || offering) return;
     setOffering(true);
     try {
-      const result = await Promise.resolve(createCarpoolOffer(offerEventId, offerSeats));
+      const result = await Promise.resolve(
+        createCarpoolOffer(offerEventId, offerSeats, {
+          departureLocation: offerDeparture,
+          pickupPoints: offerPickup,
+        }),
+      );
       if (result.ok) {
+        setOfferDeparture('');
+        setOfferPickup('');
         Alert.alert(
           t('schedule.offerSuccessTitle'),
           t('schedule.offerSuccessBody', { available: result.offer.seatsAvailable }),
@@ -593,6 +602,37 @@ export function ScheduleScreen() {
                   <Text style={[{ fontWeight: '800', color: colors.primary }, rtlText]}>+</Text>
                 </Pressable>
               </View>
+              <Text style={[layout.label, { color: colors.text }]}>
+                {t('schedule.offerDeparture')}
+              </Text>
+              <TextInput
+                value={offerDeparture}
+                onChangeText={setOfferDeparture}
+                placeholder={t('schedule.offerDeparturePlaceholder')}
+                placeholderTextColor={colors.muted}
+                textAlign={rtlTextAlign}
+                style={[
+                  styles.offerInput,
+                  rtlInput,
+                  { borderColor: colors.primary, color: colors.text },
+                ]}
+              />
+              <Text style={[layout.label, { color: colors.text }]}>
+                {t('schedule.offerPickupPoints')}
+              </Text>
+              <TextInput
+                value={offerPickup}
+                onChangeText={setOfferPickup}
+                placeholder={t('schedule.offerPickupPlaceholder')}
+                placeholderTextColor={colors.muted}
+                multiline
+                textAlign={rtlTextAlign}
+                style={[
+                  styles.offerInput,
+                  rtlInput,
+                  { borderColor: colors.primary, color: colors.text, minHeight: 72 },
+                ]}
+              />
               <Pressable
                 disabled={offering}
                 onPress={() => void onCreateOffer()}
@@ -635,6 +675,16 @@ export function ScheduleScreen() {
                 available: offer.seatsAvailable,
               })}
             </Text>
+            {offer.departureLocation ? (
+              <Text style={[{ color: colors.text, marginTop: 4, fontWeight: '600' }, rtlText]}>
+                {t('schedule.departureLabel', { place: offer.departureLocation })}
+              </Text>
+            ) : null}
+            {offer.pickupPoints ? (
+              <Text style={[{ color: colors.text, marginTop: 2, fontWeight: '600' }, rtlText]}>
+                {t('schedule.pickupLabel', { points: offer.pickupPoints })}
+              </Text>
+            ) : null}
             {showClaim ? (
               <Pressable
                 disabled={disabled}
@@ -950,6 +1000,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     backgroundColor: '#fff',
+  },
+  offerInput: {
+    marginTop: 6,
+    borderWidth: 1.5,
+    borderRadius: 12,
+    minHeight: 44,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    fontSize: 15,
   },
   optionRow: {
     marginTop: 10,

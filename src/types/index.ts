@@ -120,6 +120,8 @@ export interface TacticalPlay {
   teamId: string;
   title: string;
   mediaUrl?: string;
+  /** Optional voiceover / narration audio synced with drill overlay playback. */
+  voiceoverUrl?: string;
   /** JSON court sketch: markers + arrows (`{"markers":[...],"arrows":[...]}`). */
   boardJson?: string;
   /** Cached Game IQ insight JSON (OpenAI or offline stub). */
@@ -157,6 +159,22 @@ export interface CarpoolOffer {
   parentName: string;
   seatsAvailable: number;
   seatsTaken: number;
+  /** מיקום מאיפה יוצאים */
+  departureLocation?: string;
+  /** נקודות איסוף (מופרדות בפסיק או שורה חדשה) */
+  pickupPoints?: string;
+}
+
+/** דף קשר — Role, Name, Phone + in-app message action. */
+export interface TeamContact {
+  id: string;
+  teamId: string;
+  roleLabel: string;
+  fullName: string;
+  phone?: string;
+  /** Highlights head coach for «שלח הודעה באפליקציה». */
+  isHeadCoach: boolean;
+  sortOrder: number;
 }
 
 export interface UrgentBanner {

@@ -2,6 +2,7 @@
  * טאבים ראשיים. כותרת = שם המועדון (מיתוג).
  * טאב נוכחות מוסתר לשחקן/הורה (`href: null`) — רק צוות אימון.
  * טאב תרגילים מוסתר להורה.
+ * טאב דף קשר — הורים, שחקנים ומאמנים (CRUD למאמן).
  */
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,8 +14,16 @@ import { useTheme } from '@/theme/ThemeContext';
 export default function TabsLayout() {
   const { colors, brand } = useTheme();
   const { user } = useSession();
+  const role = normalizeRole(user?.role);
   const showAttendance = isAttendanceCoach(user?.role);
-  const showPlays = normalizeRole(user?.role) !== 'parent';
+  const showPlays = role !== 'parent';
+  const showContacts =
+    role === 'parent' ||
+    role === 'player' ||
+    isAttendanceCoach(user?.role) ||
+    role === 'equipment_manager' ||
+    role === 'fitness_coach' ||
+    role === 'physio';
 
   return (
     <Tabs
@@ -64,6 +73,16 @@ export default function TabsLayout() {
           href: showPlays ? undefined : null,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="basketball-outline" color={color as string} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="contacts"
+        options={{
+          title: t('tabs.contacts'),
+          href: showContacts ? undefined : null,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="call-outline" color={color as string} size={size} />
           ),
         }}
       />

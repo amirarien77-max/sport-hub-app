@@ -133,6 +133,15 @@ html[dir="rtl"] [data-rtl-select="option"] {
   direction: rtl;
   text-align: right;
 }
+/* Inputs, labels, popovers / portal menus inherit physical right alignment. */
+html[dir="rtl"] input,
+html[dir="rtl"] textarea,
+html[dir="rtl"] [role="listbox"],
+html[dir="rtl"] [role="menu"],
+html[dir="rtl"] [role="dialog"] {
+  direction: rtl;
+  text-align: right;
+}
 `;
       document.head.appendChild(style);
     }
