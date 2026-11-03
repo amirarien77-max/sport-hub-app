@@ -24,7 +24,7 @@ import {
   type PlayerMeeting,
 } from '@/lib/meetings-live';
 import { isAttendanceCoach } from '@/lib/roles';
-import { ensureParentPlayerLink } from '@/lib/schedule-live';
+import { ensureParentPlayerLink, fetchLinkedChildIds } from '@/lib/schedule-live';
 import { isDemoMode, supabase } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
 import {
@@ -108,16 +108,26 @@ export function PlayerMeetingsSection() {
         setMeetings(rows);
         setPlayers(roster);
         if (!playerId && roster[0]) setPlayerId(roster[0].id);
-      } else {
-        let filterPlayer: string | undefined = user.role === 'player' ? user.id : undefined;
-        if (user.role === 'parent') {
-          filterPlayer = (await ensureParentPlayerLink(supabase, user.id, team.id)) ?? undefined;
+      } else if (user.role === 'parent') {
+        // Parents may link multiple children. Do NOT use ensureParentPlayerLink's
+        // single limit(1) id as a meetings filter — that hid published תיק notes
+        // for other linked kids (REG-QA). RLS returns published rows for all links.
+        let childIds = await fetchLinkedChildIds(supabase, user.id);
+        if (childIds.length === 0) {
+          const linked = await ensureParentPlayerLink(supabase, user.id, team.id);
+          childIds = linked ? [linked] : [];
         }
+        const rows = await fetchPlayerMeetings(supabase, { teamId: team.id });
+        const allowed = new Set(childIds);
+        setMeetings(
+          rows.filter((m) => m.isPublished && (allowed.size === 0 || allowed.has(m.playerId))),
+        );
+      } else {
         const rows = await fetchPlayerMeetings(supabase, {
           teamId: team.id,
-          playerId: filterPlayer,
+          playerId: user.id,
         });
-        // RLS already scopes published rows for player/parent; keep client filter as safety.
+        // RLS already scopes published rows for player; keep client filter as safety.
         setMeetings(rows.filter((m) => m.isPublished));
       }
     } catch (err) {
