@@ -176,10 +176,12 @@ export function ProfileSetupScreen() {
         <ActivityIndicator style={{ marginTop: 20 }} color={colors.primary} />
       ) : (
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('profileSetup.enterHub')}
           onPress={onSubmit}
           style={[layout.button, { backgroundColor: colors.secondary, marginTop: 20 }]}
         >
-          <Text style={[layout.buttonText, { color: colors.primary }]}>
+          <Text pointerEvents="none" style={[layout.buttonText, { color: colors.primary }]}>
             {t('profileSetup.enterHub')}
           </Text>
         </Pressable>
