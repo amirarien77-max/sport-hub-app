@@ -258,7 +258,7 @@ export function WeeklyScheduleScreen() {
         <View style={styles.modalBackdrop}>
           <View
             {...rtlContainerProps}
-            style={[styles.modalCard, rtlLayout.box, { backgroundColor: colors.surface }]}
+            style={[styles.modalCard, rtlLayout.modal, { backgroundColor: colors.surface }]}
           >
             <Text style={[layout.title, { fontSize: 22, color: colors.primary }]}>
               {editor?.slotId ? t('weeklySchedule.editRow') : t('weeklySchedule.addRow')}

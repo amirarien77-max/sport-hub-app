@@ -1,6 +1,6 @@
 import { I18nManager, Platform, StyleSheet, type TextStyle, type ViewStyle } from 'react-native';
 /**
- * Hebrew-only RTL tokens.
+ * Hebrew-only RTL tokens (ynet.co.il-style: RTL document, right-aligned body).
  *
  * Expo docs note that under native `I18nManager` RTL, RN's `textAlign: 'left'`
  * maps to *start*. On react-native-web, `left`/`right` stay **physical**, so a
@@ -11,6 +11,9 @@ import { I18nManager, Platform, StyleSheet, type TextStyle, type ViewStyle } fro
  * and RNW with root/`dir="rtl"` both map flex-start to the **right**. Using
  * `row-reverse` under `dir="rtl"` **double-flips** and puts the first column on
  * the left — wrong for Hebrew tables/calendars.
+ *
+ * Modals / portals mount outside the root tree — always put `rtlContainerProps`
+ * + `rtlLayout.box` (or `rtlLayout.modal`) on the modal content root.
  *
  * Court / coordinate surfaces must opt out (see CourtBoard) and force LTR.
  *
@@ -41,16 +44,16 @@ export const rtlInput: TextStyle = {
 };
 
 /**
- * Web: pass `dir="rtl"` on screen / card roots so RNW inherits direction.
+ * Web: pass `dir="rtl"` on screen / card / **modal** roots so RNW inherits direction.
  * Native: Yoga already follows I18nManager; avoid redundant style.direction here.
  */
 export const rtlContainerProps: { dir?: 'rtl' } =
   Platform.OS === 'web' ? { dir: 'rtl' } : {};
 
 /**
- * Compact badges / chips that should sit on the reading-start edge (right in RTL).
- * With root/`dir="rtl"` (web) or I18nManager RTL (native), flex-start is already right.
- * Do NOT use flex-end on web — that packs to the physical left under dir=rtl.
+ * Compact badges / chips / back links that should sit on the reading-start edge
+ * (physical right under app RTL). Prefer this over `alignSelf: 'flex-end'`, which
+ * packs to the physical **left** under `dir="rtl"`.
  */
 export const rtlAlignStart: ViewStyle = { alignSelf: 'flex-start' };
 
@@ -76,6 +79,14 @@ export const rtlLayout = StyleSheet.create({
   },
   /** Cards, panels, notices, assignment rows — containers read as RTL blocks. */
   box: {
+    writingDirection: 'rtl',
+    alignItems: 'stretch',
+  },
+  /**
+   * Modal / bottom-sheet content root (portals).
+   * Pair with `{...rtlContainerProps}` so web `dir` survives outside the app root.
+   */
+  modal: {
     writingDirection: 'rtl',
     alignItems: 'stretch',
   },

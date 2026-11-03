@@ -77,7 +77,7 @@ export function InviteCodeScreen() {
           <Text style={[{ color: colors.muted }, rtlText]}>
             {t('invite.demoCode', { code: DEMO_INVITE_CODE })}
           </Text>
-          <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
+          <Text style={[{ color: colors.muted, marginTop: 4 }, rtlText]}>
             {t('invite.legacyAliasHint')}
           </Text>
         </Pressable>
