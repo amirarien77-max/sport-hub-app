@@ -266,15 +266,19 @@ export async function ensureParentPlayerLink(
   parentId: string,
   teamId: string,
 ): Promise<string | null> {
-  const { data: existing } = await client
+  // Stable pick when multiple children are linked (avoid nondeterministic limit(1)).
+  const { data: existingRows } = await client
     .from('parent_player_links')
     .select('player_id')
     .eq('parent_id', parentId)
-    .limit(1)
-    .maybeSingle();
+    .order('player_id', { ascending: true })
+    .limit(1);
 
-  if (existing?.player_id) return existing.player_id as string;
+  const existingId = existingRows?.[0]?.player_id as string | undefined;
+  if (existingId) return existingId;
 
+  // Bootstrap only when no link exists — oldest roster player (demo / first-run).
+  // Callers that need every child (meetings, health) should use fetchLinkedChildIds.
   const { data: player } = await client
     .from('users')
     .select('id')
