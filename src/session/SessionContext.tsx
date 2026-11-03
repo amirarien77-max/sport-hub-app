@@ -89,6 +89,7 @@ import {
   updatePlayLive,
 } from '@/lib/tactical-live';
 import { ABSENCE_REASON_KEYS, t, translateRole } from '@/i18n';
+import { getAuthEmailRedirectTo } from '@/lib/auth-redirect';
 import { isDemoMode, supabase } from '@/lib/supabase';
 import type {
   AttendanceMark,
@@ -650,15 +651,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         return { ok: false, error: t('errors.weakPassword') };
       }
       skipNextSignedIn.current = true;
+      const emailRedirectTo = getAuthEmailRedirectTo();
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
+        options: { emailRedirectTo },
       });
       if (error) {
         skipNextSignedIn.current = false;
         return { ok: false, error: error.message };
       }
       await hydrateFromAuth(data.session);
+      // Confirm-email ON → session is null until the user clicks the link.
+      if (!data.session) {
+        skipNextSignedIn.current = false;
+        return { ok: true, note: t('auth.checkEmail') };
+      }
       return { ok: true };
     },
     [hydrateFromAuth],

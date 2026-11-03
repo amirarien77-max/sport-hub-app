@@ -111,6 +111,8 @@ export const he = {
     emailPlaceholder: 'you@club.com',
     signIn: 'התחברות',
     createAccount: 'יצירת חשבון',
+    checkEmail:
+      'נשלח מייל אישור. פתחו את הקישור מהמייל, ואז חזרו לכאן והתחברו (לא יצירת חשבון שוב).',
   },
 
   invite: {
