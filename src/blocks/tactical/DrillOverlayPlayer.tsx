@@ -1,9 +1,16 @@
 /**
- * נגן וידאו תרגיל עם שכבת SVG מסונכרנת לזמן הניגון.
+ * נגן וידאו תרגיל עם שכבת SVG מסונכרנת + שמע/קריינות אופציונלית.
  * קואורדינטות 0–100 (LTR) כמו CourtBoard — בלי שיקוף RTL על המסלולים.
  */
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  LayoutChangeEvent,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import Svg, { Circle, Defs, Line, Marker, Path, Polygon, Text as SvgText } from 'react-native-svg';
@@ -13,14 +20,20 @@ import {
   type OverlayKeyframe,
 } from '@/lib/drill-overlay';
 import { t } from '@/i18n';
-import { rtlRowDirection, rtlText, useTheme } from '@/theme/ThemeContext';
+import { rtlContainerProps, rtlLayout, rtlRowDirection, rtlText, useTheme } from '@/theme/ThemeContext';
 
 type Props = {
   mediaUrl?: string;
   overlay: DrillOverlayInsight;
+  /** Optional voiceover / narration synced to playback clock. */
+  voiceoverUrl?: string;
   /** When true, show court guide even without video (demo / image-only). */
   allowPlaceholder?: boolean;
 };
+
+/** Demo voiceover: short silent WAV data-URI so web Audio can attach & seek. */
+const DEMO_VOICEOVER_DATA_URI =
+  'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
 
 function pct(n: number, size: number) {
   return (n / 100) * size;
@@ -160,7 +173,46 @@ function OverlayLayer({
   );
 }
 
-function StageShell({
+/** Keep HTMLAudioElement currentTime roughly aligned with overlay clock (web). */
+function useSyncedWebAudio(src: string | undefined, clock: number, playing: boolean) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof Audio === 'undefined') return;
+    if (!src) {
+      audioRef.current?.pause();
+      audioRef.current = null;
+      return;
+    }
+    const audio = new Audio(src);
+    audio.loop = true;
+    audio.preload = 'auto';
+    audioRef.current = audio;
+    return () => {
+      audio.pause();
+      audioRef.current = null;
+    };
+  }, [src]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    try {
+      if (Math.abs(audio.currentTime - clock) > 0.35) {
+        audio.currentTime = Math.max(0, clock);
+      }
+      if (playing) {
+        void audio.play().catch(() => undefined);
+      } else {
+        audio.pause();
+      }
+    } catch {
+      /* ignore seek/play failures in stub */
+    }
+  }, [clock, playing, src]);
+}
+
+function PlaybackContainer({
   children,
   size,
   borderColor,
@@ -168,6 +220,8 @@ function StageShell({
   clock,
   durationSec,
   trailing,
+  voiceoverActive,
+  stepLabel,
 }: {
   children: ReactNode;
   size: { w: number; h: number };
@@ -176,10 +230,25 @@ function StageShell({
   clock: number;
   durationSec: number;
   trailing?: ReactNode;
+  voiceoverActive: boolean;
+  stepLabel: string;
 }) {
   const { colors } = useTheme();
+  const progress = Math.min(1, durationSec > 0 ? clock / durationSec : 0);
+
   return (
-    <View onLayout={onLayout} style={{ marginTop: 10 }}>
+    <View
+      {...rtlContainerProps}
+      onLayout={onLayout}
+      style={[styles.playerShell, rtlLayout.box, { borderColor }]}
+    >
+      <Text style={[styles.playerTitle, { color: colors.primary }, rtlText]}>
+        {t('plays.drillOverlayPlayerTitle')}
+      </Text>
+      <Text style={[{ color: colors.muted, marginBottom: 8 }, rtlText]}>
+        {t('plays.drillOverlayPlayerHint')}
+      </Text>
+
       <View
         style={[
           styles.stage,
@@ -192,7 +261,20 @@ function StageShell({
         ]}
       >
         {children}
+        <View style={styles.stageBadge}>
+          <Text style={styles.stageBadgeText}>{stepLabel}</Text>
+        </View>
       </View>
+
+      <View style={styles.progressTrack}>
+        <View
+          style={[
+            styles.progressFill,
+            { width: `${Math.round(progress * 100)}%`, backgroundColor: colors.primary },
+          ]}
+        />
+      </View>
+
       <View style={styles.controls}>
         {trailing ?? (
           <Text style={[rtlText, { color: colors.muted, flex: 1 }]}>
@@ -203,6 +285,19 @@ function StageShell({
           {clock.toFixed(1)}s / {durationSec}s
         </Text>
       </View>
+
+      <Text
+        style={[
+          rtlText,
+          {
+            marginTop: 6,
+            color: voiceoverActive ? colors.success : colors.muted,
+            fontWeight: '700',
+          },
+        ]}
+      >
+        {voiceoverActive ? t('plays.voiceoverPlaying') : t('plays.voiceoverMuted')}
+      </Text>
     </View>
   );
 }
@@ -210,22 +305,26 @@ function StageShell({
 function VideoOverlayStage({
   mediaUrl,
   overlay,
+  voiceoverUrl,
   size,
   onLayout,
   borderColor,
 }: {
   mediaUrl: string;
   overlay: DrillOverlayInsight;
+  voiceoverUrl?: string;
   size: { w: number; h: number };
   onLayout: (e: LayoutChangeEvent) => void;
   borderColor: string;
 }) {
   const { colors } = useTheme();
   const [clock, setClock] = useState(0);
+  const [playing, setPlaying] = useState(true);
   const player = useVideoPlayer(mediaUrl, (p) => {
     p.loop = true;
     p.timeUpdateEventInterval = 0.05;
-    p.muted = true;
+    // Keep video audio; voiceover overlays separately when present.
+    p.muted = Boolean(voiceoverUrl);
   });
 
   const timeUpdate = useEvent(player, 'timeUpdate');
@@ -235,21 +334,41 @@ function VideoOverlayStage({
     }
   }, [timeUpdate]);
 
+  useEffect(() => {
+    setPlaying(player.playing);
+  }, [player.playing]);
+
+  useSyncedWebAudio(voiceoverUrl, clock, playing);
+
   const frame = useMemo(() => sampleOverlayAt(overlay, clock), [overlay, clock]);
+  const stepIdx = Math.max(
+    0,
+    overlay.keyframes.findIndex((k, i, arr) => {
+      const next = arr[i + 1];
+      return clock >= k.t && (!next || clock < next.t);
+    }),
+  );
 
   return (
-    <StageShell
+    <PlaybackContainer
       size={size}
       borderColor={borderColor}
       onLayout={onLayout}
       clock={clock}
       durationSec={overlay.durationSec}
+      voiceoverActive={Boolean(voiceoverUrl)}
+      stepLabel={`שלב ${stepIdx + 1}/${overlay.keyframes.length}`}
       trailing={
         <Pressable
           accessibilityLabel={t('plays.drillOverlayPlayPause')}
           onPress={() => {
-            if (player.playing) player.pause();
-            else player.play();
+            if (player.playing) {
+              player.pause();
+              setPlaying(false);
+            } else {
+              player.play();
+              setPlaying(true);
+            }
           }}
           style={[styles.ctrlBtn, { backgroundColor: colors.primary }]}
         >
@@ -264,57 +383,100 @@ function VideoOverlayStage({
         nativeControls={false}
       />
       <OverlayLayer frame={frame} w={size.w} h={size.h} guideStroke="#E2E8F0" />
-    </StageShell>
+    </PlaybackContainer>
   );
 }
 
 function PlaceholderOverlayStage({
   overlay,
+  voiceoverUrl,
   size,
   onLayout,
   borderColor,
 }: {
   overlay: DrillOverlayInsight;
+  voiceoverUrl?: string;
   size: { w: number; h: number };
   onLayout: (e: LayoutChangeEvent) => void;
   borderColor: string;
 }) {
+  const { colors } = useTheme();
   const [clock, setClock] = useState(0);
+  const [playing, setPlaying] = useState(true);
+  const startRef = useRef(Date.now());
+  const pausedAtRef = useRef(0);
 
   useEffect(() => {
-    const start = Date.now();
+    if (!playing) return;
+    startRef.current = Date.now() - pausedAtRef.current * 1000;
     const id = setInterval(() => {
-      const elapsed = ((Date.now() - start) / 1000) % Math.max(1, overlay.durationSec);
+      const elapsed =
+        ((Date.now() - startRef.current) / 1000) % Math.max(1, overlay.durationSec);
       setClock(elapsed);
     }, 50);
     return () => clearInterval(id);
-  }, [overlay.durationSec]);
+  }, [overlay.durationSec, playing]);
+
+  const effectiveVoice = voiceoverUrl || DEMO_VOICEOVER_DATA_URI;
+  useSyncedWebAudio(effectiveVoice, clock, playing);
 
   const frame = useMemo(() => sampleOverlayAt(overlay, clock), [overlay, clock]);
+  const stepIdx = Math.max(
+    0,
+    overlay.keyframes.findIndex((k, i, arr) => {
+      const next = arr[i + 1];
+      return clock >= k.t && (!next || clock < next.t);
+    }),
+  );
 
   return (
-    <StageShell
+    <PlaybackContainer
       size={size}
       borderColor={borderColor}
       onLayout={onLayout}
       clock={clock}
       durationSec={overlay.durationSec}
+      voiceoverActive
+      stepLabel={`שלב ${stepIdx + 1}/${overlay.keyframes.length}`}
+      trailing={
+        <Pressable
+          accessibilityLabel={t('plays.drillOverlayPlayPause')}
+          onPress={() => {
+            if (playing) {
+              pausedAtRef.current = clock;
+              setPlaying(false);
+            } else {
+              setPlaying(true);
+            }
+          }}
+          style={[styles.ctrlBtn, { backgroundColor: colors.primary }]}
+        >
+          <Text style={styles.ctrlText}>{t('plays.drillOverlayPlayPause')}</Text>
+        </Pressable>
+      }
     >
       <View style={[StyleSheet.absoluteFill, { backgroundColor: '#14532D' }]} />
       <OverlayLayer frame={frame} w={size.w} h={size.h} guideStroke="#E2E8F0" />
-    </StageShell>
+    </PlaybackContainer>
   );
 }
 
-export function DrillOverlayPlayer({ mediaUrl, overlay, allowPlaceholder = true }: Props) {
+export function DrillOverlayPlayer({
+  mediaUrl,
+  overlay,
+  voiceoverUrl,
+  allowPlaceholder = true,
+}: Props) {
   const { colors } = useTheme();
   const [size, setSize] = useState({ w: 320, h: 200 });
   const hasVideo = Boolean(mediaUrl?.trim());
 
   const onLayout = (e: LayoutChangeEvent) => {
     const { width } = e.nativeEvent.layout;
-    if (width > 0) {
-      setSize({ w: width, h: Math.round(width * 0.62) });
+    if (width > 40) {
+      // Account for player shell horizontal padding (12*2).
+      const stageW = Math.max(200, width - 24);
+      setSize({ w: stageW, h: Math.round(stageW * 0.62) });
     }
   };
 
@@ -331,6 +493,7 @@ export function DrillOverlayPlayer({ mediaUrl, overlay, allowPlaceholder = true 
       <VideoOverlayStage
         mediaUrl={mediaUrl!.trim()}
         overlay={overlay}
+        voiceoverUrl={voiceoverUrl}
         size={size}
         onLayout={onLayout}
         borderColor={colors.primary}
@@ -341,6 +504,7 @@ export function DrillOverlayPlayer({ mediaUrl, overlay, allowPlaceholder = true 
   return (
     <PlaceholderOverlayStage
       overlay={overlay}
+      voiceoverUrl={voiceoverUrl}
       size={size}
       onLayout={onLayout}
       borderColor={colors.primary}
@@ -349,17 +513,55 @@ export function DrillOverlayPlayer({ mediaUrl, overlay, allowPlaceholder = true 
 }
 
 const styles = StyleSheet.create({
+  playerShell: {
+    marginTop: 12,
+    borderWidth: 1.5,
+    borderRadius: 14,
+    padding: 12,
+    backgroundColor: '#fff',
+    alignSelf: 'stretch',
+  },
+  playerTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
   stage: {
     borderWidth: 1.5,
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: 'hidden',
     alignSelf: 'stretch',
+  },
+  stageBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(15,23,42,0.72)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  stageBadgeText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  progressTrack: {
+    marginTop: 10,
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: '#E2E8F0',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 999,
   },
   controls: {
     flexDirection: rtlRowDirection,
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 8,
+    marginTop: 10,
     gap: 10,
     writingDirection: 'rtl',
   },

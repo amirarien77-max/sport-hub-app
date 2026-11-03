@@ -32,6 +32,7 @@ import {
   demoAttendance,
   demoBanner,
   demoCarpools,
+  demoContacts,
   demoEvents,
   demoPain,
   demoPlays,
@@ -43,6 +44,12 @@ import {
   isUnder13,
   resolveInvite,
 } from '@/lib/demo-data';
+import {
+  createTeamContactLive,
+  deleteTeamContactLive,
+  fetchTeamContactsLive,
+  updateTeamContactLive,
+} from '@/lib/contacts-live';
 import { normalizeInviteCode } from '@/lib/invite-codes';
 import {
   fetchHealthBundle,
@@ -98,6 +105,7 @@ import type {
   SuggestionStatus,
   TacticalPlay,
   Team,
+  TeamContact,
   UrgentBanner,
   UserProfile,
   WeeklyScheduleSlot,
@@ -134,6 +142,7 @@ type SessionContextValue = {
   assignments: PlayAssignment[];
   suggestions: PlaySuggestion[];
   carpools: CarpoolOffer[];
+  contacts: TeamContact[];
   banner: UrgentBanner;
   absenceReasons: readonly string[];
   onboarded: boolean;
@@ -173,6 +182,7 @@ type SessionContextValue = {
   tacticalPlayers: { id: string; fullName: string }[];
   createPlay: (title: string) => Promise<CreatePlayResult>;
   updatePlayMedia: (playId: string, mediaUrl: string) => Promise<OkOrError>;
+  updatePlayVoiceover: (playId: string, voiceoverUrl: string | null) => Promise<OkOrError>;
   updatePlayBoard: (playId: string, boardJson: string) => Promise<OkOrError>;
   cachePlayGameIq: (playId: string, gameIqJson: string) => Promise<OkOrError>;
   cachePlayDrillOverlay: (playId: string, drillOverlayJson: string) => Promise<OkOrError>;
@@ -196,6 +206,7 @@ type SessionContextValue = {
   createCarpoolOffer: (
     eventId: string,
     seatsAvailable: number,
+    extras?: { departureLocation?: string; pickupPoints?: string },
   ) =>
     | Promise<
         | { ok: true; offer: CarpoolOffer }
@@ -203,6 +214,21 @@ type SessionContextValue = {
       >
     | { ok: true; offer: CarpoolOffer }
     | { ok: false; reason: 'error'; message?: string };
+  /** Coach CRUD for דף קשר; parents/players read via contacts. */
+  upsertTeamContact: (input: {
+    id?: string;
+    roleLabel: string;
+    fullName: string;
+    phone?: string;
+    isHeadCoach?: boolean;
+    sortOrder?: number;
+  }) => Promise<OkOrError> | OkOrError;
+  deleteTeamContact: (id: string) => Promise<OkOrError> | OkOrError;
+  /** In-app message to a directory contact (demo queue / stub). */
+  sendInAppContactMessage: (
+    contactId: string,
+    body: string,
+  ) => Promise<OkOrError> | OkOrError;
   /** Coach CRUD for recurring weekly schedule rows; players/parents read via weeklySlots. */
   upsertWeeklySlot: (
     input: WeeklySlotInput & { id?: string },
@@ -330,6 +356,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       : [],
   );
   const [carpools, setCarpools] = useState<CarpoolOffer[]>(isDemoMode ? demoCarpools : []);
+  const [contacts, setContacts] = useState<TeamContact[]>(isDemoMode ? demoContacts : []);
+  const contactMessagesRef = useRef<{ contactId: string; body: string; at: string }[]>([]);
   const [banner, setBanner] = useState<UrgentBanner>(isDemoMode ? demoBanner : EMPTY_BANNER);
 
   /** Monotonic gens so a slow hydrate fetch cannot wipe a newer create/answer. */
@@ -361,6 +389,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setCarpools(bundle.carpools);
       setBanner(bundle.banner ?? EMPTY_BANNER);
       setWeeklySlots(slots);
+      try {
+        const nextContacts = await fetchTeamContactsLive(supabase, teamId);
+        if (gen === scheduleGen.current) setContacts(nextContacts);
+      } catch (err) {
+        console.warn(
+          'Failed to load team contacts',
+          err instanceof Error ? err.message : err,
+        );
+      }
     } catch (err) {
       console.warn('Failed to load schedule', err instanceof Error ? err.message : err);
     }
@@ -922,12 +959,21 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const cycleAttendance = useCallback(async (playerId: string, eventId: string) => {
     const current = attendance.find((r) => r.playerId === playerId && r.eventId === eventId);
     const mark = nextAttendanceMark(current?.mark ?? null);
+    const playerName =
+      current?.playerName ??
+      healthPlayers.find((p) => p.id === playerId)?.fullName ??
+      tacticalPlayers.find((p) => p.id === playerId)?.fullName ??
+      playerId;
 
-    setAttendance((prev) =>
-      prev.map((row) =>
+    setAttendance((prev) => {
+      const exists = prev.some((row) => row.playerId === playerId && row.eventId === eventId);
+      if (!exists) {
+        return [...prev, { eventId, playerId, playerName, mark }];
+      }
+      return prev.map((row) =>
         row.playerId === playerId && row.eventId === eventId ? { ...row, mark } : row,
-      ),
-    );
+      );
+    });
 
     if (!isDemoMode && supabase) {
       try {
@@ -936,7 +982,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         console.warn('Attendance save failed', err instanceof Error ? err.message : err);
       }
     }
-  }, [attendance]);
+  }, [attendance, healthPlayers, tacticalPlayers]);
 
   const lockAttendance = useCallback(
     async (eventId: string) => {
@@ -1115,6 +1161,33 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         await updatePlayLive(supabase, playId, { mediaUrl: trimmed || null });
         setPlays((prev) =>
           prev.map((p) => (p.id === playId ? { ...p, mediaUrl: trimmed || undefined } : p)),
+        );
+        return { ok: true };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: message };
+      }
+    },
+    [],
+  );
+
+  const updatePlayVoiceover = useCallback(
+    async (playId: string, voiceoverUrl: string | null): Promise<OkOrError> => {
+      const trimmed = voiceoverUrl?.trim() || null;
+      if (isDemoMode || !supabase) {
+        setPlays((prev) =>
+          prev.map((p) =>
+            p.id === playId ? { ...p, voiceoverUrl: trimmed || undefined } : p,
+          ),
+        );
+        return { ok: true };
+      }
+      try {
+        await updatePlayLive(supabase, playId, { voiceoverUrl: trimmed });
+        setPlays((prev) =>
+          prev.map((p) =>
+            p.id === playId ? { ...p, voiceoverUrl: trimmed || undefined } : p,
+          ),
         );
         return { ok: true };
       } catch (err) {
@@ -1426,11 +1499,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   );
 
   const createCarpoolOffer = useCallback(
-    async (eventId: string, seatsAvailable: number) => {
+    async (
+      eventId: string,
+      seatsAvailable: number,
+      extras?: { departureLocation?: string; pickupPoints?: string },
+    ) => {
       if (!user || user.role !== 'parent') {
         return { ok: false as const, reason: 'error' as const, message: 'parent_only' };
       }
       const seats = Math.min(8, Math.max(1, Math.round(seatsAvailable)));
+      const departureLocation = extras?.departureLocation?.trim() || undefined;
+      const pickupPoints = extras?.pickupPoints?.trim() || undefined;
 
       if (isDemoMode || !supabase) {
         const offer: CarpoolOffer = {
@@ -1440,6 +1519,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           parentName: user.fullName,
           seatsAvailable: seats,
           seatsTaken: 0,
+          departureLocation,
+          pickupPoints,
         };
         setCarpools((prev) => [offer, ...prev]);
         return { ok: true as const, offer };
@@ -1451,6 +1532,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           parentId: user.id,
           parentName: user.fullName,
           seatsAvailable: seats,
+          departureLocation,
+          pickupPoints,
         });
         if (result.ok) {
           setCarpools((prev) => [result.offer, ...prev]);
@@ -1463,6 +1546,126 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       }
     },
     [user],
+  );
+
+  const upsertTeamContact = useCallback(
+    async (input: {
+      id?: string;
+      roleLabel: string;
+      fullName: string;
+      phone?: string;
+      isHeadCoach?: boolean;
+      sortOrder?: number;
+    }): Promise<OkOrError> => {
+      if (!user || !team) return { ok: false, error: t('errors.redeemInviteFirst') };
+      if (!isAttendanceCoach(user.role)) return { ok: false, error: t('contacts.saveError') };
+
+      const roleLabel = input.roleLabel.trim();
+      const fullName = input.fullName.trim();
+      const phone = input.phone?.trim() || undefined;
+      const isHeadCoach = Boolean(input.isHeadCoach);
+      const sortOrder = input.sortOrder ?? 0;
+
+      if (isDemoMode || !supabase) {
+        if (input.id) {
+          setContacts((prev) =>
+            prev.map((c) =>
+              c.id === input.id
+                ? {
+                    ...c,
+                    roleLabel,
+                    fullName,
+                    phone,
+                    isHeadCoach,
+                    sortOrder,
+                  }
+                : c,
+            ),
+          );
+        } else {
+          const contact: TeamContact = {
+            id: `contact-${Date.now().toString(36)}`,
+            teamId: team.id,
+            roleLabel,
+            fullName,
+            phone,
+            isHeadCoach,
+            sortOrder,
+          };
+          setContacts((prev) => [...prev, contact]);
+        }
+        return { ok: true };
+      }
+
+      try {
+        if (input.id) {
+          const result = await updateTeamContactLive(supabase, input.id, {
+            roleLabel,
+            fullName,
+            phone,
+            isHeadCoach,
+            sortOrder,
+          });
+          if (!result.ok) return { ok: false, error: result.error };
+          setContacts((prev) =>
+            prev.map((c) => (c.id === result.contact.id ? result.contact : c)),
+          );
+          return { ok: true };
+        }
+        const result = await createTeamContactLive(supabase, {
+          teamId: team.id,
+          roleLabel,
+          fullName,
+          phone,
+          isHeadCoach,
+          sortOrder,
+        });
+        if (!result.ok) return { ok: false, error: result.error };
+        setContacts((prev) => [...prev, result.contact]);
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+    [user, team],
+  );
+
+  const deleteTeamContact = useCallback(
+    async (id: string): Promise<OkOrError> => {
+      if (!user || !isAttendanceCoach(user.role)) {
+        return { ok: false, error: t('contacts.saveError') };
+      }
+      if (isDemoMode || !supabase) {
+        setContacts((prev) => prev.filter((c) => c.id !== id));
+        return { ok: true };
+      }
+      try {
+        const result = await deleteTeamContactLive(supabase, id);
+        if (!result.ok) return { ok: false, error: result.error };
+        setContacts((prev) => prev.filter((c) => c.id !== id));
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+    [user],
+  );
+
+  const sendInAppContactMessage = useCallback(
+    async (contactId: string, body: string): Promise<OkOrError> => {
+      const trimmed = body.trim();
+      if (!trimmed) return { ok: false, error: t('contacts.messageRequired') };
+      const target = contacts.find((c) => c.id === contactId);
+      if (!target) return { ok: false, error: t('contacts.saveError') };
+      contactMessagesRef.current.push({
+        contactId,
+        body: trimmed,
+        at: new Date().toISOString(),
+      });
+      // Demo / offline: queue locally. Live: same stub until a messages table ships.
+      return { ok: true, note: `to:${target.fullName}` };
+    },
+    [contacts],
   );
 
   const createSessionEvent = useCallback(
@@ -1748,6 +1951,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setAttendance(demoAttendance);
       setWeeklySlots(demoWeeklySlots);
       setCarpools(demoCarpools);
+      setContacts(demoContacts);
       setBanner(demoBanner);
       // Parent demo: Parent Cohen → Roi only (never Dan / other players).
       if (role === 'parent') {
@@ -1805,6 +2009,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setAttendance([]);
       setWeeklySlots([]);
       setCarpools([]);
+      setContacts([]);
       setBanner(EMPTY_BANNER);
       setReadiness([]);
       setPain([]);
@@ -1836,6 +2041,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       suggestions,
       tacticalPlayers,
       carpools,
+      contacts,
       banner,
       absenceReasons: ABSENCE_REASON_KEYS,
       onboarded: Boolean(user),
@@ -1855,6 +2061,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       refreshTactical,
       createPlay,
       updatePlayMedia,
+      updatePlayVoiceover,
       updatePlayBoard,
       cachePlayGameIq,
       cachePlayDrillOverlay,
@@ -1865,6 +2072,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       reviewSuggestion,
       claimCarpoolSeat,
       createCarpoolOffer,
+      upsertTeamContact,
+      deleteTeamContact,
+      sendInAppContactMessage,
       upsertWeeklySlot,
       deleteWeeklySlot,
       acknowledgeBanner,
@@ -1893,6 +2103,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       suggestions,
       tacticalPlayers,
       carpools,
+      contacts,
       banner,
       authReady,
       authUserId,
@@ -1910,6 +2121,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       refreshTactical,
       createPlay,
       updatePlayMedia,
+      updatePlayVoiceover,
       updatePlayBoard,
       cachePlayGameIq,
       cachePlayDrillOverlay,
@@ -1920,6 +2132,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       reviewSuggestion,
       claimCarpoolSeat,
       createCarpoolOffer,
+      upsertTeamContact,
+      deleteTeamContact,
+      sendInAppContactMessage,
       upsertWeeklySlot,
       deleteWeeklySlot,
       acknowledgeBanner,

@@ -48,6 +48,8 @@ type CarpoolRow = {
   parent_id: string;
   seats_available: number;
   seats_taken: number;
+  departure_location?: string | null;
+  pickup_points?: string | null;
 };
 
 type FeedRow = {
@@ -134,7 +136,9 @@ export async function fetchScheduleBundle(
     client.from('attendance_records').select('*').in('event_id', eventIds),
     client
       .from('carpool_offers')
-      .select('id, event_id, parent_id, seats_available, seats_taken')
+      .select(
+        'id, event_id, parent_id, seats_available, seats_taken, departure_location, pickup_points',
+      )
       .in('event_id', eventIds),
     client
       .from('team_feed_posts')
@@ -155,22 +159,22 @@ export async function fetchScheduleBundle(
     (rsvpRows as RsvpRow[] | null)?.map((row) => mapRsvpRow(row, nameById[row.player_id])) ?? [];
 
   const players = teammates.filter((u) => u.role === 'player');
-  const primaryEventId = events[0]?.id;
-  const markByPlayer = new Map(
-    ((attendanceRows as AttendanceDbRow[] | null) ?? [])
-      .filter((r) => r.event_id === primaryEventId)
-      .map((r) => [r.player_id, r.mark]),
+  const markByKey = new Map(
+    ((attendanceRows as AttendanceDbRow[] | null) ?? []).map((r) => [
+      `${r.event_id}:${r.player_id}`,
+      r.mark,
+    ]),
   );
 
-  const attendance: AttendanceRow[] =
-    primaryEventId == null
-      ? []
-      : players.map((p) => ({
-          eventId: primaryEventId,
-          playerId: p.id,
-          playerName: p.fullName,
-          mark: markByPlayer.get(p.id) ?? null,
-        }));
+  /** One row per player × event so coach menu + PDF range cover every session. */
+  const attendance: AttendanceRow[] = events.flatMap((ev) =>
+    players.map((p) => ({
+      eventId: ev.id,
+      playerId: p.id,
+      playerName: p.fullName,
+      mark: markByKey.get(`${ev.id}:${p.id}`) ?? null,
+    })),
+  );
 
   const carpools: CarpoolOffer[] = ((carpoolRows as CarpoolRow[] | null) ?? []).map((row) => ({
     id: row.id,
@@ -179,6 +183,10 @@ export async function fetchScheduleBundle(
     parentName: nameById[row.parent_id] ?? 'Parent',
     seatsAvailable: row.seats_available,
     seatsTaken: row.seats_taken,
+    departureLocation: row.departure_location?.trim()
+      ? row.departure_location.trim()
+      : undefined,
+    pickupPoints: row.pickup_points?.trim() ? row.pickup_points.trim() : undefined,
   }));
 
   const feed = (feedRows as FeedRow[] | null)?.[0] ?? null;
@@ -350,9 +358,13 @@ export async function createCarpoolOfferLive(
     parentId: string;
     parentName: string;
     seatsAvailable: number;
+    departureLocation?: string;
+    pickupPoints?: string;
   },
 ): Promise<CreateCarpoolResult> {
   const seats = Math.min(8, Math.max(1, Math.round(input.seatsAvailable)));
+  const departure = input.departureLocation?.trim() || null;
+  const pickup = input.pickupPoints?.trim() || null;
   const { data, error } = await client
     .from('carpool_offers')
     .insert({
@@ -360,8 +372,12 @@ export async function createCarpoolOfferLive(
       parent_id: input.parentId,
       seats_available: seats,
       seats_taken: 0,
+      departure_location: departure,
+      pickup_points: pickup,
     })
-    .select('id, event_id, parent_id, seats_available, seats_taken')
+    .select(
+      'id, event_id, parent_id, seats_available, seats_taken, departure_location, pickup_points',
+    )
     .maybeSingle();
 
   if (error) {
@@ -371,15 +387,20 @@ export async function createCarpoolOfferLive(
     return { ok: false, reason: 'error', message: 'insert_blocked' };
   }
 
+  const row = data as CarpoolRow;
   return {
     ok: true,
     offer: {
-      id: data.id as string,
-      eventId: data.event_id as string,
-      parentId: data.parent_id as string,
+      id: row.id,
+      eventId: row.event_id,
+      parentId: row.parent_id,
       parentName: input.parentName,
-      seatsAvailable: data.seats_available as number,
-      seatsTaken: data.seats_taken as number,
+      seatsAvailable: row.seats_available,
+      seatsTaken: row.seats_taken,
+      departureLocation: row.departure_location?.trim()
+        ? row.departure_location.trim()
+        : undefined,
+      pickupPoints: row.pickup_points?.trim() ? row.pickup_points.trim() : undefined,
     },
   };
 }

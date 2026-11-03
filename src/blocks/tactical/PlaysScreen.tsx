@@ -122,6 +122,7 @@ export function PlaysScreen() {
     reviewSuggestion,
     createPlay,
     updatePlayMedia,
+    updatePlayVoiceover,
     updatePlayBoard,
     cachePlayGameIq,
     cachePlayDrillOverlay,
@@ -716,6 +717,7 @@ export function PlaysScreen() {
             <DrillOverlayPlayer
               mediaUrl={play.mediaUrl ?? (mediaDraft.trim() || undefined)}
               overlay={drillOverlay}
+              voiceoverUrl={play.voiceoverUrl}
               allowPlaceholder
             />
           </View>
@@ -724,6 +726,69 @@ export function PlaysScreen() {
             {t('plays.drillOverlayEmpty')}
           </Text>
         )}
+
+        {isCoach ? (
+          <View style={{ marginTop: 14, gap: 8 }}>
+            <Text style={[{ fontWeight: '800', color: colors.primary }, rtlText]}>
+              {t('plays.voiceoverTitle')}
+            </Text>
+            <Text style={[{ color: colors.muted }, rtlText]}>{t('plays.voiceoverHint')}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('plays.voiceoverRecordStub')}
+              onPress={async () => {
+                // Demo / stub: attach a silent data-URI so playback sync path works offline.
+                const demoUri =
+                  'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+                const saved = await updatePlayVoiceover(play.id, demoUri);
+                if (saved.ok) {
+                  setMediaNote(t('plays.voiceoverDemoAttached'));
+                } else {
+                  setCreateError(saved.error);
+                }
+              }}
+              style={[layout.button, { backgroundColor: colors.secondary, minHeight: 48 }]}
+            >
+              <Text style={[layout.buttonText, { color: '#fff' }]}>
+                {t('plays.voiceoverRecordStub')}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('plays.voiceoverAttach')}
+              onPress={async () => {
+                // Prefer picking a real audio file when ImagePicker video path unavailable —
+                // in demo we still attach the stub URI so sync UI is testable.
+                const demoUri =
+                  play.voiceoverUrl ||
+                  'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+                const saved = await updatePlayVoiceover(play.id, demoUri);
+                if (saved.ok) {
+                  setMediaNote(t('plays.voiceoverDemoAttached'));
+                } else {
+                  setCreateError(saved.error);
+                }
+              }}
+              style={[layout.button, { backgroundColor: colors.primary, minHeight: 48 }]}
+            >
+              <Text style={[layout.buttonText, { color: '#fff' }]}>
+                {t('plays.voiceoverAttach')}
+              </Text>
+            </Pressable>
+            {play.voiceoverUrl ? (
+              <Pressable
+                onPress={async () => {
+                  await updatePlayVoiceover(play.id, null);
+                }}
+                style={[layout.button, { backgroundColor: colors.muted, minHeight: 44 }]}
+              >
+                <Text style={[layout.buttonText, { color: '#fff' }]}>
+                  {t('plays.voiceoverClear')}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
       </View>
 
       <View {...rtlContainerProps} style={[styles.card, rtlLayout.box, { borderColor: colors.secondary, marginTop: 14 }]}>

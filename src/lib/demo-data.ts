@@ -16,6 +16,7 @@ import type {
   SessionEvent,
   TacticalPlay,
   Team,
+  TeamContact,
   UrgentBanner,
   UserProfile,
   WeeklyScheduleSlot,
@@ -166,13 +167,25 @@ export const demoAttendance: AttendanceRow[] = [
     eventId: 'event-practice-1',
     playerId: 'user-player-roi',
     playerName: 'Roi Cohen',
-    mark: null,
+    mark: 'present',
   },
   {
     eventId: 'event-practice-1',
     playerId: 'user-player-dan',
     playerName: 'Dan Levi',
     mark: null,
+  },
+  {
+    eventId: 'event-game-1',
+    playerId: 'user-player-roi',
+    playerName: 'Roi Cohen',
+    mark: 'excused',
+  },
+  {
+    eventId: 'event-game-1',
+    playerId: 'user-player-dan',
+    playerName: 'Dan Levi',
+    mark: 'no_show',
   },
 ];
 
@@ -232,6 +245,29 @@ export const demoCarpools: CarpoolOffer[] = [
     parentName: 'Parent Cohen',
     seatsAvailable: 3,
     seatsTaken: 1,
+    departureLocation: he.demo.carpoolDeparture,
+    pickupPoints: he.demo.carpoolPickup,
+  },
+];
+
+export const demoContacts: TeamContact[] = [
+  {
+    id: 'contact-hc',
+    teamId: demoTeam.id,
+    roleLabel: he.demo.contactHcRole,
+    fullName: he.demo.contactHcName,
+    phone: he.demo.contactHcPhone,
+    isHeadCoach: true,
+    sortOrder: 0,
+  },
+  {
+    id: 'contact-asst',
+    teamId: demoTeam.id,
+    roleLabel: he.demo.contactAsstRole,
+    fullName: he.demo.contactAsstName,
+    phone: he.demo.contactAsstPhone,
+    isHeadCoach: false,
+    sortOrder: 1,
   },
 ];
 
