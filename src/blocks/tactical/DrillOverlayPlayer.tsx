@@ -31,10 +31,6 @@ type Props = {
   allowPlaceholder?: boolean;
 };
 
-/** Demo voiceover: short silent WAV data-URI so web Audio can attach & seek. */
-const DEMO_VOICEOVER_DATA_URI =
-  'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
-
 function pct(n: number, size: number) {
   return (n / 100) * size;
 }
@@ -318,8 +314,6 @@ function VideoOverlayStage({
   borderColor: string;
 }) {
   const { colors } = useTheme();
-  const [clock, setClock] = useState(0);
-  const [playing, setPlaying] = useState(true);
   const player = useVideoPlayer(mediaUrl, (p) => {
     p.loop = true;
     p.timeUpdateEventInterval = 0.05;
@@ -327,16 +321,11 @@ function VideoOverlayStage({
     p.muted = Boolean(voiceoverUrl);
   });
 
+  // Derive clock from the latest timeUpdate event (no setState-in-effect).
   const timeUpdate = useEvent(player, 'timeUpdate');
-  useEffect(() => {
-    if (timeUpdate && typeof timeUpdate.currentTime === 'number') {
-      setClock(timeUpdate.currentTime);
-    }
-  }, [timeUpdate]);
-
-  useEffect(() => {
-    setPlaying(player.playing);
-  }, [player.playing]);
+  const clock =
+    timeUpdate && typeof timeUpdate.currentTime === 'number' ? timeUpdate.currentTime : 0;
+  const playing = player.playing;
 
   useSyncedWebAudio(voiceoverUrl, clock, playing);
 
@@ -362,13 +351,8 @@ function VideoOverlayStage({
         <Pressable
           accessibilityLabel={t('plays.drillOverlayPlayPause')}
           onPress={() => {
-            if (player.playing) {
-              player.pause();
-              setPlaying(false);
-            } else {
-              player.play();
-              setPlaying(true);
-            }
+            if (player.playing) player.pause();
+            else player.play();
           }}
           style={[styles.ctrlBtn, { backgroundColor: colors.primary }]}
         >
@@ -403,7 +387,7 @@ function PlaceholderOverlayStage({
   const { colors } = useTheme();
   const [clock, setClock] = useState(0);
   const [playing, setPlaying] = useState(true);
-  const startRef = useRef(Date.now());
+  const startRef = useRef(0);
   const pausedAtRef = useRef(0);
 
   useEffect(() => {
@@ -417,8 +401,8 @@ function PlaceholderOverlayStage({
     return () => clearInterval(id);
   }, [overlay.durationSec, playing]);
 
-  const effectiveVoice = voiceoverUrl || DEMO_VOICEOVER_DATA_URI;
-  useSyncedWebAudio(effectiveVoice, clock, playing);
+  // Only sync audio when a voiceover is attached (PlaysScreen demo attach sets a data-URI).
+  useSyncedWebAudio(voiceoverUrl, clock, playing);
 
   const frame = useMemo(() => sampleOverlayAt(overlay, clock), [overlay, clock]);
   const stepIdx = Math.max(
@@ -436,7 +420,7 @@ function PlaceholderOverlayStage({
       onLayout={onLayout}
       clock={clock}
       durationSec={overlay.durationSec}
-      voiceoverActive
+      voiceoverActive={Boolean(voiceoverUrl)}
       stepLabel={`שלב ${stepIdx + 1}/${overlay.keyframes.length}`}
       trailing={
         <Pressable

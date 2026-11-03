@@ -1569,18 +1569,21 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (isDemoMode || !supabase) {
         if (input.id) {
           setContacts((prev) =>
-            prev.map((c) =>
-              c.id === input.id
-                ? {
-                    ...c,
-                    roleLabel,
-                    fullName,
-                    phone,
-                    isHeadCoach,
-                    sortOrder,
-                  }
-                : c,
-            ),
+            prev.map((c) => {
+              if (c.id === input.id) {
+                return {
+                  ...c,
+                  roleLabel,
+                  fullName,
+                  phone,
+                  isHeadCoach,
+                  sortOrder,
+                };
+              }
+              // Keep a single head-coach flag so «שלח הודעה» stays unambiguous.
+              if (isHeadCoach && c.isHeadCoach) return { ...c, isHeadCoach: false };
+              return c;
+            }),
           );
         } else {
           const contact: TeamContact = {
@@ -1592,7 +1595,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             isHeadCoach,
             sortOrder,
           };
-          setContacts((prev) => [...prev, contact]);
+          setContacts((prev) => [
+            ...(isHeadCoach
+              ? prev.map((c) => (c.isHeadCoach ? { ...c, isHeadCoach: false } : c))
+              : prev),
+            contact,
+          ]);
         }
         return { ok: true };
       }
