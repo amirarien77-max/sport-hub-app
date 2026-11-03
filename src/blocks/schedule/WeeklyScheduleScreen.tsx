@@ -14,6 +14,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { RtlSelect } from '@/blocks/ui/RtlSelect';
 import { router } from 'expo-router';
 import { t, translateWeekDay } from '@/i18n';
 import { isAttendanceCoach } from '@/lib/roles';
@@ -30,6 +31,10 @@ import {
 import type { WeekDayIndex, WeeklyScheduleSlot } from '@/types';
 
 const DAY_ORDER: WeekDayIndex[] = [0, 1, 2, 3, 4, 5, 6];
+const DAY_OPTIONS = DAY_ORDER.map((d) => ({
+  value: String(d),
+  label: translateWeekDay(d),
+}));
 
 const TIME_RE = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 
@@ -265,35 +270,18 @@ export function WeeklyScheduleScreen() {
             </Text>
 
             <Text style={layout.label}>{t('weeklySchedule.pickDay')}</Text>
-            <View style={[rtlLayout.row, { gap: 6 }]}>
-              {DAY_ORDER.map((d) => {
-                const selected = editor?.dayOfWeek === d;
-                return (
-                  <Pressable
-                    key={d}
-                    onPress={() => setEditor((e) => (e ? { ...e, dayOfWeek: d } : e))}
-                    style={[
-                      styles.dayChip,
-                      rtlLayout.chip,
-                      {
-                        backgroundColor: selected ? colors.primary : colors.accent,
-                        borderColor: colors.secondary,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={{
-                        color: selected ? '#fff' : colors.secondary,
-                        fontWeight: '700',
-                        fontSize: 13,
-                      }}
-                    >
-                      {translateWeekDay(d)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <RtlSelect
+              testID="weekly-day-select"
+              options={DAY_OPTIONS}
+              value={editor ? String(editor.dayOfWeek) : null}
+              onChange={(v) =>
+                setEditor((e) =>
+                  e ? { ...e, dayOfWeek: Number(v) as WeekDayIndex } : e,
+                )
+              }
+              placeholder={t('weeklySchedule.pickDay')}
+              menuTitle={t('weeklySchedule.pickDay')}
+            />
 
             <Text style={layout.label}>{t('weeklySchedule.startTime')}</Text>
             <TextInput
@@ -382,12 +370,6 @@ const styles = StyleSheet.create({
   colLoc: { flex: 1, minWidth: '28%' },
   /** Actions sit on the far-left column in RTL; pack chips from the reading start. */
   colActions: { width: '22%', gap: 6, justifyContent: 'flex-start' },
-  dayChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
   input: {
     borderWidth: 1.5,
     borderRadius: 12,

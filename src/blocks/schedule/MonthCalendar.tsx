@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { RtlSelect } from '@/blocks/ui/RtlSelect';
 import { t } from '@/i18n';
 import { dualAckConflict } from '@/lib/demo-data';
 import { isAttendanceCoach } from '@/lib/roles';
@@ -460,33 +461,18 @@ export function MonthCalendar({
               placeholderTextColor={colors.muted}
               style={[styles.input, rtlInput, { borderColor: colors.primary, color: colors.text }]}
             />
-            <View style={[rtlLayout.row, { marginTop: 12 }]}>
-              {(['practice', 'game'] as const).map((type) => (
-                <Pressable
-                  key={type}
-                  onPress={() => setEditor((e) => (e ? { ...e, type } : e))}
-                  style={[
-                    styles.chip,
-                    {
-                      borderColor: colors.primary,
-                      backgroundColor: editor?.type === type ? colors.secondary : '#fff',
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      {
-                        color: editor?.type === type ? '#fff' : colors.primary,
-                        fontWeight: '700',
-                      },
-                      rtlText,
-                    ]}
-                  >
-                    {type === 'game' ? t('calendar.typeGame') : t('calendar.typePractice')}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            <Text style={layout.label}>{t('schedule.eventType')}</Text>
+            <RtlSelect
+              testID="calendar-event-type-select"
+              options={[
+                { value: 'game', label: t('calendar.typeGame') },
+                { value: 'practice', label: t('calendar.typePractice') },
+              ]}
+              value={editor?.type ?? null}
+              onChange={(type) => setEditor((e) => (e ? { ...e, type } : e))}
+              placeholder={t('ui.selectPlaceholder')}
+              menuTitle={t('schedule.eventType')}
+            />
             {editor?.type === 'game' ? (
               <>
                 <Text style={layout.label}>{t('calendar.hallAddress')}</Text>
@@ -629,13 +615,5 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: 12,
     backgroundColor: '#fff',
-  },
-  chip: {
-    minHeight: 40,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

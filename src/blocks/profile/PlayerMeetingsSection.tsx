@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { RtlSelect } from '@/blocks/ui/RtlSelect';
 import { t } from '@/i18n';
 import { demoUsers } from '@/lib/demo-data';
 import { pickTacticalVideo, uploadTacticalMedia } from '@/lib/media-upload';
@@ -300,33 +301,14 @@ export function PlayerMeetingsSection() {
       {coach ? (
         <View style={{ marginTop: 8 }}>
           <Text style={layout.label}>{t('meetings.player')}</Text>
-          <View style={rtlLayout.row}>
-            {players.map((p) => (
-              <Pressable
-                key={p.id}
-                onPress={() => setPlayerId(p.id)}
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: colors.primary,
-                    backgroundColor: playerId === p.id ? colors.secondary : '#fff',
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    {
-                      color: playerId === p.id ? '#fff' : colors.primary,
-                      fontWeight: '700',
-                    },
-                    rtlText,
-                  ]}
-                >
-                  {p.fullName}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          <RtlSelect
+            testID="meeting-player-select"
+            options={players.map((p) => ({ value: p.id, label: p.fullName }))}
+            value={playerId || null}
+            onChange={setPlayerId}
+            placeholder={t('meetings.pickPlayer')}
+            menuTitle={t('meetings.player')}
+          />
 
           <Text style={layout.label}>{t('meetings.date')}</Text>
           <TextInput
@@ -538,14 +520,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 16,
     ...rtlText,
-  },
-  chip: {
-    minHeight: 40,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   input: {
     borderWidth: 1.5,

@@ -1,6 +1,11 @@
 /** Hebrew UI copy for Basketball Hub. Invite codes HAP-U16-2026 / MAC-U16-2026 stay Latin. */
 
 export const he = {
+  ui: {
+    selectPlaceholder: 'בחרו אפשרות',
+    selectClose: 'סגירה',
+  },
+
   tabs: {
     schedule: 'לו״ז',
     attendance: 'נוכחות',
@@ -190,6 +195,7 @@ export const he = {
     eventLocation: 'מיקום (קצר)',
     eventDate: 'תאריך (YYYY-MM-DD)',
     eventTime: 'שעה (HH:MM)',
+    eventType: 'סוג אירוע',
     typeGame: 'משחק',
     typePractice: 'אימון',
     titleRequired: 'יש להזין כותרת לאירוע.',
@@ -340,7 +346,8 @@ export const he = {
     coachToolsHint: 'כמאמן: מסך נוכחות לסימון במגרש, ולוח סיכון בבריאות.',
     playerToolsHint: 'כשחקן: RSVP בלו״ז, דיווח מוכנות ומפת כאב בבריאות.',
     parentToolsHint: 'כהורה: RSVP בלו״ז ושמירת מקום בטרמפים.',
-    equipmentManagerToolsHint: 'כאחראי ציוד: עדכון סטטוס דיווחי חוסרים מהקבוצות.',
+    equipmentManagerToolsHint:
+      'כאחראי ציוד: ריכוז מידות סגל (חולצה/מכנס/נעל/גובה) למטה, ועדכון סטטוס דיווחי חוסרים.',
     pendingConsentTitle: 'אישור הורים (מתחת לגיל 13)',
     pendingConsentEmpty: 'אין שחקנים ממתינים לאישור הורה.',
     pendingConsentPhone: 'טלפון הורה: {phone}',
@@ -436,10 +443,17 @@ export const he = {
     descRequired: 'יש להזין תיאור.',
     empty: 'אין דיווחי ציוד כרגע.',
     meta: 'כמות {qty} · {team} · {status}',
-    rosterSizesTitle: 'מידות סגל',
+    statusLabel: 'סטטוס טיפול',
+    rosterSizesTitle: 'ריכוז מידות סגל',
     rosterSizesSubtitle: 'חולצה / מכנס / נעל / גובה לכל שחקן — לתכנון הזמנות ציוד.',
     rosterSizesEmpty: 'אין שחקנים או מידות עדיין.',
     rosterSizesLine: 'חולצה {shirt} · מכנס {shorts} · נעל {shoe} · גובה {height} ס״מ',
+    rosterSizesColName: 'שחקן',
+    rosterSizesColShirt: 'חולצה',
+    rosterSizesColShorts: 'מכנס',
+    rosterSizesColShoe: 'נעל',
+    rosterSizesColHeight: 'גובה',
+    rosterSizesOpenHint: 'מוצג כאן בפרופיל אחראי ציוד — כל הסגל במקום אחד.',
     status: {
       reported: 'פתוח',
       in_progress: 'בטיפול',

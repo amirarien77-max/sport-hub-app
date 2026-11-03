@@ -25,6 +25,7 @@ import {
 import { Pressable } from 'react-native-gesture-handler';
 import { CourtBoard, CourtEditorModal } from '@/blocks/tactical/CourtBoard';
 import { DrillOverlayPlayer } from '@/blocks/tactical/DrillOverlayPlayer';
+import { RtlSelect } from '@/blocks/ui/RtlSelect';
 import { t, translateSuggestionStatus } from '@/i18n';
 import {
   buildOfflineDrillOverlay,
@@ -992,34 +993,20 @@ export function PlaysScreen() {
             <Text style={[{ color: colors.danger, marginBottom: 8 }, rtlText]}>
               {t('plays.noPlayersForAssign')}
             </Text>
-          ) : null}
-          <View style={[rtlLayout.row, { marginBottom: 4 }]}>
-            {tacticalPlayers.map((p) => (
-              <Pressable
-                key={p.id}
-                onPress={() => setSelectedPlayerId(p.id)}
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor:
-                      selectedPlayerId === p.id ? colors.primary : '#E2E8F0',
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    {
-                      color: selectedPlayerId === p.id ? '#fff' : colors.primary,
-                      fontWeight: '700',
-                    },
-                    rtlText,
-                  ]}
-                >
-                  {p.fullName}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          ) : (
+            <RtlSelect
+              testID="assign-player-select"
+              style={{ marginBottom: 8 }}
+              options={tacticalPlayers.map((p) => ({
+                value: p.id,
+                label: p.fullName,
+              }))}
+              value={selectedPlayerId || null}
+              onChange={setSelectedPlayerId}
+              placeholder={t('plays.pickPlayer')}
+              menuTitle={t('plays.pickPlayer')}
+            />
+          )}
           <TextInput
             textAlign={rtlTextAlign}
             value={positionDraft}

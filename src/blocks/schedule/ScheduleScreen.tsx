@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { MonthCalendar, canEditCalendar } from '@/blocks/schedule/MonthCalendar';
+import { RtlSelect } from '@/blocks/ui/RtlSelect';
 import { router } from 'expo-router';
 import { t, translateAbsenceReason, translateRsvp } from '@/i18n';
 import { dualAckConflict } from '@/lib/demo-data';
@@ -662,33 +663,18 @@ export function ScheduleScreen() {
                 style={[styles.input, rtlInput, { borderColor: colors.primary, color: colors.text }]}
               />
 
-              <View style={[rtlLayout.row, { marginTop: 12 }]}>
-                {(['game', 'practice'] as const).map((type) => (
-                  <Pressable
-                    key={type}
-                    onPress={() => setEditor((e) => (e ? { ...e, type } : e))}
-                    style={[
-                      styles.chip,
-                      {
-                        borderColor: colors.primary,
-                        backgroundColor: editor?.type === type ? colors.primary : '#fff',
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        {
-                          color: editor?.type === type ? '#fff' : colors.primary,
-                          fontWeight: '700',
-                        },
-                        rtlText,
-                      ]}
-                    >
-                      {type === 'game' ? t('schedule.typeGame') : t('schedule.typePractice')}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+              <Text style={layout.label}>{t('schedule.eventType')}</Text>
+              <RtlSelect
+                testID="event-type-select"
+                options={[
+                  { value: 'game', label: t('schedule.typeGame') },
+                  { value: 'practice', label: t('schedule.typePractice') },
+                ]}
+                value={editor?.type ?? null}
+                onChange={(type) => setEditor((e) => (e ? { ...e, type } : e))}
+                placeholder={t('ui.selectPlaceholder')}
+                menuTitle={t('schedule.eventType')}
+              />
 
               {editor?.type === 'game' ? (
                 <>
@@ -781,9 +767,13 @@ function ReasonSheet({
             <Pressable
               key={reason}
               onPress={() => onPick(reason)}
-              style={[layout.button, { backgroundColor: colors.background, marginTop: 10 }]}
+              style={[
+                styles.optionRow,
+                rtlLayout.comboOption,
+                { backgroundColor: colors.background, borderColor: colors.primary + '22' },
+              ]}
             >
-              <Text style={[layout.buttonText, { color: colors.text }]}>
+              <Text style={[{ flex: 1, color: colors.text, fontWeight: '700', fontSize: 16 }, rtlText]}>
                 {translateAbsenceReason(reason)}
               </Text>
             </Pressable>
@@ -886,12 +876,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: '#fff',
   },
-  chip: {
-    borderWidth: 1.5,
-    borderRadius: 10,
+  optionRow: {
+    marginTop: 10,
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    minHeight: 44,
-    justifyContent: 'center',
+    paddingVertical: 12,
   },
 });
