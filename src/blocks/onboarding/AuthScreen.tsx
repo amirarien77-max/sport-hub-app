@@ -95,16 +95,27 @@ export function AuthScreen() {
       ) : (
         <>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('auth.signIn')}
             onPress={() => run('in')}
             style={[layout.button, { backgroundColor: colors.secondary, marginTop: 20 }]}
           >
-            <Text style={[layout.buttonText, { color: colors.primary }]}>{t('auth.signIn')}</Text>
+            <Text
+              pointerEvents="none"
+              style={[layout.buttonText, { color: colors.primary }]}
+            >
+              {t('auth.signIn')}
+            </Text>
           </Pressable>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('auth.createAccount')}
             onPress={() => run('up')}
             style={[layout.button, { backgroundColor: colors.primary, marginTop: 12 }]}
           >
-            <Text style={[layout.buttonText, { color: '#fff' }]}>{t('auth.createAccount')}</Text>
+            <Text pointerEvents="none" style={[layout.buttonText, { color: '#fff' }]}>
+              {t('auth.createAccount')}
+            </Text>
           </Pressable>
         </>
       )}

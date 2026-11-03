@@ -878,17 +878,51 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
       const mappedUser = mapUserRow(data);
       setUser(mappedUser);
-      await refreshSchedule(activeTeam.id);
-      await refreshHealthFor(mappedUser, activeTeam.id);
-      await refreshTacticalFor(activeTeam.id);
+      setTeam(activeTeam);
+      setInviteOk(true);
 
-      // Refresh team flags after role insert (fitness/physio trigger).
-      const { data: freshTeam } = await supabase
+      // Seed roster profile row so sizes UI works on first open (upsert is idempotent).
+      if (mappedUser.role === 'player') {
+        void supabase
+          .from('team_players')
+          .upsert(
+            {
+              player_id: mappedUser.id,
+              team_id: activeTeam.id,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'player_id' },
+          )
+          .then(({ error: tpErr }) => {
+            if (tpErr) {
+              console.warn('team_players seed failed', tpErr.message);
+            }
+          });
+      }
+
+      // Do NOT await schedule/health/tactical bundles here — a hung RLS query left
+      // profile setup on an infinite spinner after insert (user row already saved).
+      // Same pattern as hydrateFromAuth post-ready refresh.
+      void Promise.all([
+        refreshSchedule(activeTeam.id),
+        refreshHealthFor(mappedUser, activeTeam.id),
+        refreshTacticalFor(activeTeam.id),
+      ]).catch((err) => {
+        console.warn(
+          'post-onboarding bundle refresh failed',
+          err instanceof Error ? err.message : err,
+        );
+      });
+
+      // Refresh team flags after role insert (fitness/physio trigger) — non-blocking.
+      void supabase
         .from('teams')
         .select('*')
         .eq('id', activeTeam.id)
-        .maybeSingle();
-      if (freshTeam) setTeam(mapTeamRow(freshTeam));
+        .maybeSingle()
+        .then(({ data: freshTeam }) => {
+          if (freshTeam) setTeam(mapTeamRow(freshTeam));
+        });
 
       let note: string | undefined;
       if (under13 && mappedUser.parentPhone) {
