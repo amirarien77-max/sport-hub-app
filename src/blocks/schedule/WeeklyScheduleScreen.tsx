@@ -2,7 +2,7 @@
  * לו״ז שבועי קבוע: טבלה יום / שעות / מיקום.
  * מאמן (ראשי/עוזר/מנהל) CRUD; שחקן והורה — קריאה בלבד.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,6 +18,8 @@ import { RtlSelect } from '@/blocks/ui/RtlSelect';
 import { router } from 'expo-router';
 import { t, translateWeekDay } from '@/i18n';
 import { isAttendanceCoach } from '@/lib/roles';
+import { fetchWeeklySchedule } from '@/lib/weekly-schedule-live';
+import { isDemoMode, supabase } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
 import {
   layout,
@@ -70,21 +72,57 @@ export function WeeklyScheduleScreen() {
   const { colors } = useTheme();
   const {
     user,
+    team,
     weeklySlots,
     upsertWeeklySlot,
     deleteWeeklySlot,
+    refreshTeamSchedule,
   } = useSession();
   const canEdit = isAttendanceCoach(user?.role);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Local mirror so this screen is not empty when session hydrate raced. */
+  const [localSlots, setLocalSlots] = useState<WeeklyScheduleSlot[]>([]);
+
+  const teamId = team?.id;
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!teamId) return;
+      if (isDemoMode || !supabase) {
+        if (!cancelled) setLocalSlots(weeklySlots);
+        return;
+      }
+      try {
+        const rows = await fetchWeeklySchedule(supabase, teamId);
+        if (!cancelled) setLocalSlots(rows);
+        await refreshTeamSchedule();
+      } catch (err) {
+        console.warn(
+          'WeeklyScheduleScreen load',
+          err instanceof Error ? err.message : err,
+        );
+        if (!cancelled) setLocalSlots(weeklySlots);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // intentionally teamId-only — avoid refreshTeamSchedule identity loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamId]);
+
+  useEffect(() => {
+    if (weeklySlots.length > 0) setLocalSlots(weeklySlots);
+  }, [weeklySlots]);
 
   const sorted = useMemo(
     () =>
-      [...weeklySlots].sort((a, b) => {
+      [...localSlots].sort((a, b) => {
         if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek;
         return a.startTime.localeCompare(b.startTime);
       }),
-    [weeklySlots],
+    [localSlots],
   );
 
   const openCreate = () => setEditor(emptyEditor());

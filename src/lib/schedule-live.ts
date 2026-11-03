@@ -127,8 +127,34 @@ export async function fetchScheduleBundle(
   const events = (eventRows as EventRow[] | null)?.map(mapEventRow) ?? [];
   const eventIds = events.map((e) => e.id);
 
+  // Always load the latest urgent post — even when the team has zero events —
+  // so head-coach Dual-Ack status on פרופיל is not gated on לו״ז rows.
+  const feedPromise = client
+    .from('team_feed_posts')
+    .select('id, team_id, body, is_urgent')
+    .eq('team_id', teamId)
+    .eq('is_urgent', true)
+    .order('created_at', { ascending: false })
+    .limit(1);
+
   if (eventIds.length === 0) {
-    return { events, acks: [], attendance: [], carpools: [], banner: null, teammates };
+    const { data: feedRows } = await feedPromise;
+    const feed = (feedRows as FeedRow[] | null)?.[0] ?? null;
+    let banner: UrgentBanner | null = null;
+    if (feed) {
+      const { data: ackRows } = await client
+        .from('urgent_acks')
+        .select('user_id')
+        .eq('post_id', feed.id);
+      banner = {
+        id: feed.id,
+        teamId: feed.team_id,
+        message: feed.body ?? '',
+        requiresAck: true,
+        acknowledgedBy: (ackRows ?? []).map((a) => a.user_id as string),
+      };
+    }
+    return { events, acks: [], attendance: [], carpools: [], banner, teammates };
   }
 
   const [rsvpRes, attendanceRes, carpoolRes, feedRes] = await Promise.all([
@@ -140,13 +166,7 @@ export async function fetchScheduleBundle(
         'id, event_id, parent_id, seats_available, seats_taken, departure_location, pickup_points',
       )
       .in('event_id', eventIds),
-    client
-      .from('team_feed_posts')
-      .select('id, team_id, body, is_urgent')
-      .eq('team_id', teamId)
-      .eq('is_urgent', true)
-      .order('created_at', { ascending: false })
-      .limit(1),
+    feedPromise,
   ]);
 
   // Attendance SELECT is staff-only under RLS — ignore errors for player/parent.
@@ -206,6 +226,35 @@ export async function fetchScheduleBundle(
   }
 
   return { events, acks, attendance, carpools, banner, teammates };
+}
+
+/** Latest urgent team post + ack user ids (head-coach Dual-Ack panel). */
+export async function fetchLatestUrgentBanner(
+  client: SupabaseClient,
+  teamId: string,
+): Promise<UrgentBanner | null> {
+  const { data: feedRows, error } = await client
+    .from('team_feed_posts')
+    .select('id, team_id, body, is_urgent')
+    .eq('team_id', teamId)
+    .eq('is_urgent', true)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) throw new Error(error.message);
+  const feed = (feedRows as FeedRow[] | null)?.[0] ?? null;
+  if (!feed) return null;
+  const { data: ackRows, error: ackErr } = await client
+    .from('urgent_acks')
+    .select('user_id')
+    .eq('post_id', feed.id);
+  if (ackErr) throw new Error(ackErr.message);
+  return {
+    id: feed.id,
+    teamId: feed.team_id,
+    message: feed.body ?? '',
+    requiresAck: true,
+    acknowledgedBy: (ackRows ?? []).map((a) => a.user_id as string),
+  };
 }
 
 /**

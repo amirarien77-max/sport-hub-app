@@ -238,6 +238,8 @@ type SessionContextValue = {
   acknowledgeBanner: () => void | Promise<void>;
   /** Head coach: compose urgent team message + refresh ack roster source. */
   composeUrgentBanner: (message: string) => Promise<OkOrError>;
+  /** Re-fetch events / RSVP / attendance / carpool / urgent banner / weekly slots. */
+  refreshTeamSchedule: () => Promise<void>;
   switchDemoRole: (role: UserProfile['role']) => void;
   /** Demo-only: flip team fitness/physio flags to test head-coach inheritance. */
   toggleDemoMedicalStaff: (kind: 'fitness' | 'physio') => void;
@@ -477,6 +479,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (!user || !team) return;
     await refreshHealthFor(user, team.id);
   }, [refreshHealthFor, team, user]);
+
+  const teamId = team?.id;
+  const refreshTeamSchedule = useCallback(async () => {
+    if (!teamId) return;
+    await refreshSchedule(teamId);
+  }, [refreshSchedule, teamId]);
 
   // ── Hydrate: auth → profile → team → brand → באנדלים ברקע (לא חוסם authReady) ──
   const hydrateFromAuth = useCallback(
@@ -2095,6 +2103,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       deleteWeeklySlot,
       acknowledgeBanner,
       composeUrgentBanner,
+      refreshTeamSchedule,
       switchDemoRole,
       toggleDemoMedicalStaff,
       refreshPendingConsent,
@@ -2155,6 +2164,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       deleteWeeklySlot,
       acknowledgeBanner,
       composeUrgentBanner,
+      refreshTeamSchedule,
       switchDemoRole,
       toggleDemoMedicalStaff,
       refreshPendingConsent,

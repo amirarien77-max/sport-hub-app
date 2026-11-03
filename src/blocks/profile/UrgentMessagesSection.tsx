@@ -1,6 +1,7 @@
 /**
  * מאמן ראשי: חיבור הודעות דחופות + סטטוס אישור (Dual-Ack style).
  * לא באנר על לו״ז של המאמן — פרופיל / תקשורת צוות.
+ * טוען את ההודעה הדחופה האחרונה ישירות (לא תלוי ב־hydrate של לו״ז).
  */
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -14,7 +15,11 @@ import {
 import { t, translateRole } from '@/i18n';
 import { demoUsers } from '@/lib/demo-data';
 import { isHeadCoach } from '@/lib/roles';
-import { fetchUrgentAckRoster, type UrgentAckRosterRow } from '@/lib/schedule-live';
+import {
+  fetchLatestUrgentBanner,
+  fetchUrgentAckRoster,
+  type UrgentAckRosterRow,
+} from '@/lib/schedule-live';
 import { isDemoMode, supabase } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
 import {
@@ -26,27 +31,44 @@ import {
   rtlTextAlign,
   useTheme,
 } from '@/theme/ThemeContext';
+import type { UrgentBanner } from '@/types';
 
 export function UrgentMessagesSection() {
   const { colors } = useTheme();
-  const { user, team, banner, composeUrgentBanner } = useSession();
+  const { user, team, banner, composeUrgentBanner, refreshTeamSchedule } = useSession();
   const head = isHeadCoach(user?.role);
 
   const [message, setMessage] = useState('');
+  const [active, setActive] = useState<UrgentBanner | null>(null);
   const [roster, setRoster] = useState<UrgentAckRosterRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
-  const loadRoster = useCallback(async () => {
-    if (!head || !user || !team || !banner.id) {
+  const loadStatus = useCallback(async () => {
+    if (!head || !user || !team) {
+      setActive(null);
       setRoster([]);
       return;
     }
     setLoading(true);
     try {
       if (isDemoMode || !supabase) {
-        const acked = new Set(banner.acknowledgedBy);
+        const demoActive: UrgentBanner = banner.id
+          ? banner
+          : {
+              id: '',
+              teamId: team.id,
+              message: '',
+              requiresAck: false,
+              acknowledgedBy: [],
+            };
+        setActive(demoActive.id ? demoActive : null);
+        if (!demoActive.id) {
+          setRoster([]);
+          return;
+        }
+        const acked = new Set(demoActive.acknowledgedBy);
         setRoster(
           demoUsers
             .filter((u) => u.role === 'player' || u.role === 'parent')
@@ -59,9 +81,16 @@ export function UrgentMessagesSection() {
         );
         return;
       }
+
+      const latest = await fetchLatestUrgentBanner(supabase, team.id);
+      setActive(latest);
+      if (!latest) {
+        setRoster([]);
+        return;
+      }
       const rows = await fetchUrgentAckRoster(supabase, {
         teamId: team.id,
-        postId: banner.id,
+        postId: latest.id,
       });
       setRoster(rows);
     } catch (err) {
@@ -69,11 +98,11 @@ export function UrgentMessagesSection() {
     } finally {
       setLoading(false);
     }
-  }, [banner.acknowledgedBy, banner.id, head, team, user]);
+  }, [banner, head, team, user]);
 
   useEffect(() => {
-    void loadRoster();
-  }, [loadRoster]);
+    void loadStatus();
+  }, [loadStatus]);
 
   if (!user || !team || !head) return null;
 
@@ -93,7 +122,8 @@ export function UrgentMessagesSection() {
       }
       setMessage('');
       setNote(t('urgent.sentOk'));
-      await loadRoster();
+      await refreshTeamSchedule?.();
+      await loadStatus();
     } finally {
       setSaving(false);
     }
@@ -159,12 +189,12 @@ export function UrgentMessagesSection() {
       ) : null}
 
       <Text style={[styles.listTitle, { color: colors.primary }]}>{t('urgent.ackStatus')}</Text>
-      {!banner.id ? (
+      {!active?.id ? (
         <Text style={[{ color: colors.muted }, rtlText]}>{t('urgent.noActive')}</Text>
       ) : (
         <>
           <Text style={[{ color: colors.muted, marginBottom: 6 }, rtlText]}>
-            {t('urgent.activeMessage', { message: banner.message })}
+            {t('urgent.activeMessage', { message: active.message })}
           </Text>
           {loading ? <ActivityIndicator color={colors.primary} /> : null}
           <Text style={[styles.groupLabel, { color: colors.success }]}>
