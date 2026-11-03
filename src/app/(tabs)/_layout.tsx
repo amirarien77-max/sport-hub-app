@@ -1,11 +1,12 @@
 /**
  * טאבים ראשיים. כותרת = שם המועדון (מיתוג).
  * טאב נוכחות מוסתר לשחקן/הורה (`href: null`) — רק צוות אימון.
+ * טאב תרגילים מוסתר להורה.
  */
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { t } from '@/i18n';
-import { isAttendanceCoach } from '@/lib/roles';
+import { isAttendanceCoach, normalizeRole } from '@/lib/roles';
 import { useSession } from '@/session/SessionContext';
 import { useTheme } from '@/theme/ThemeContext';
 
@@ -13,6 +14,7 @@ export default function TabsLayout() {
   const { colors, brand } = useTheme();
   const { user } = useSession();
   const showAttendance = isAttendanceCoach(user?.role);
+  const showPlays = normalizeRole(user?.role) !== 'parent';
 
   return (
     <Tabs
@@ -59,6 +61,7 @@ export default function TabsLayout() {
         name="plays"
         options={{
           title: t('tabs.plays'),
+          href: showPlays ? undefined : null,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="basketball-outline" color={color as string} size={size} />
           ),

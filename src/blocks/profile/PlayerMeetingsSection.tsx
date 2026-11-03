@@ -1,10 +1,11 @@
 /**
  * תיק אישי — meetings + 1–3 goals (PRD v1.1 §2.2).
- * Coach: create / publish. Player & parent: published read-only.
+ * Coach: create / publish / video attach. Player & parent: published read-only.
  */
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -13,6 +14,7 @@ import {
 } from 'react-native';
 import { t } from '@/i18n';
 import { demoUsers } from '@/lib/demo-data';
+import { pickTacticalVideo, uploadTacticalMedia } from '@/lib/media-upload';
 import {
   createPlayerMeeting,
   fetchPlayerMeetings,
@@ -45,6 +47,7 @@ const DEMO_MEETINGS: PlayerMeeting[] = [
     summary: 'שיחת אמצע עונה — שיפור קליעה והובלה.',
     goals: ['שיפור קליעה מחוץ לקשת', 'מנהיגות על המגרש'],
     isPublished: true,
+    mediaUrl: undefined,
     createdAt: new Date().toISOString(),
   },
 ];
@@ -67,6 +70,8 @@ export function PlayerMeetingsSection() {
   const [goal1, setGoal1] = useState('');
   const [goal2, setGoal2] = useState('');
   const [goal3, setGoal3] = useState('');
+  const [draftMediaUrl, setDraftMediaUrl] = useState<string | null>(null);
+  const [mediaBusyId, setMediaBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!user || !team || (!coach && !reader)) return;
@@ -74,10 +79,14 @@ export function PlayerMeetingsSection() {
     setNote(null);
     try {
       if (isDemoMode || !supabase) {
-        const list =
-          coach
-            ? DEMO_MEETINGS
-            : DEMO_MEETINGS.filter((m) => m.isPublished && m.playerId === 'user-player-roi');
+        let list = DEMO_MEETINGS;
+        if (!coach) {
+          const linkedPlayerId =
+            user.role === 'player' ? user.id : 'user-player-roi'; // demo parent → Roi
+          list = DEMO_MEETINGS.filter(
+            (m) => m.isPublished && m.playerId === linkedPlayerId,
+          );
+        }
         setMeetings(list);
         setPlayers(
           demoUsers
@@ -107,6 +116,7 @@ export function PlayerMeetingsSection() {
           teamId: team.id,
           playerId: filterPlayer,
         });
+        // RLS already scopes published rows for player/parent; keep client filter as safety.
         setMeetings(rows.filter((m) => m.isPublished));
       }
     } catch (err) {
@@ -152,6 +162,7 @@ export function PlayerMeetingsSection() {
           summary: summary.trim(),
           goals,
           isPublished: publishNow,
+          mediaUrl: draftMediaUrl ?? undefined,
           createdAt: new Date().toISOString(),
         };
         setMeetings((prev) => [row, ...prev]);
@@ -159,6 +170,7 @@ export function PlayerMeetingsSection() {
         setGoal1('');
         setGoal2('');
         setGoal3('');
+        setDraftMediaUrl(null);
         setNote(publishNow ? t('meetings.published') : t('meetings.savedDraft'));
         return;
       }
@@ -170,11 +182,13 @@ export function PlayerMeetingsSection() {
         summary: summary.trim(),
         goals,
         isPublished: publishNow,
+        mediaUrl: draftMediaUrl,
       });
       setSummary('');
       setGoal1('');
       setGoal2('');
       setGoal3('');
+      setDraftMediaUrl(null);
       setNote(publishNow ? t('meetings.published') : t('meetings.savedDraft'));
       await load();
     } catch (err) {
@@ -182,6 +196,68 @@ export function PlayerMeetingsSection() {
       setNote(msg === 'goals_count' ? t('meetings.goalsRequired') : msg);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const attachVideoToMeeting = async (meeting: PlayerMeeting | 'draft') => {
+    if (!coach || !user || !team) return;
+    setMediaBusyId(meeting === 'draft' ? 'draft' : meeting.id);
+    setNote(null);
+    try {
+      const picked = await pickTacticalVideo();
+      if (!picked.ok) {
+        if (!picked.cancelled) {
+          setNote(
+            picked.error === 'permission_denied'
+              ? t('meetings.videoPermission')
+              : t('meetings.videoFailed'),
+          );
+        }
+        return;
+      }
+
+      if (isDemoMode || !supabase) {
+        const localUrl = picked.uri;
+        if (meeting === 'draft') {
+          setDraftMediaUrl(localUrl);
+          setNote(t('meetings.videoAttached'));
+          return;
+        }
+        setMeetings((prev) =>
+          prev.map((m) => (m.id === meeting.id ? { ...m, mediaUrl: localUrl } : m)),
+        );
+        setNote(t('meetings.videoAttached'));
+        return;
+      }
+
+      const targetId = meeting === 'draft' ? `draft-${Date.now()}` : meeting.id;
+      const uploaded = await uploadTacticalMedia({
+        client: supabase,
+        teamId: team.id,
+        playId: targetId,
+        uri: picked.uri,
+        mimeType: picked.mimeType,
+        fileName: picked.fileName,
+      });
+      if (!uploaded.ok) {
+        setNote(uploaded.error || t('meetings.videoFailed'));
+        return;
+      }
+      if (meeting === 'draft') {
+        setDraftMediaUrl(uploaded.publicUrl);
+        setNote(t('meetings.videoAttached'));
+        return;
+      }
+      await updatePlayerMeeting(supabase, {
+        id: meeting.id,
+        mediaUrl: uploaded.publicUrl,
+      });
+      setNote(t('meetings.videoAttached'));
+      await load();
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : t('meetings.videoFailed'));
+    } finally {
+      setMediaBusyId(null);
     }
   };
 
@@ -299,6 +375,28 @@ export function PlayerMeetingsSection() {
             />
           ))}
 
+          <Pressable
+            disabled={mediaBusyId === 'draft'}
+            onPress={() => void attachVideoToMeeting('draft')}
+            style={[
+              layout.button,
+              {
+                marginTop: 12,
+                backgroundColor: mediaBusyId === 'draft' ? colors.muted : colors.secondary,
+                minHeight: 44,
+              },
+            ]}
+          >
+            <Text style={[layout.buttonText, { color: '#fff' }]}>
+              {mediaBusyId === 'draft' ? t('meetings.videoUploading') : t('meetings.attachVideo')}
+            </Text>
+          </Pressable>
+          {draftMediaUrl ? (
+            <Text style={[{ marginTop: 6, color: colors.success, fontSize: 13 }, rtlText]}>
+              {t('meetings.videoReady')}
+            </Text>
+          ) : null}
+
           <View style={[rtlLayout.splitRow, { marginTop: 12 }]}>
             <Pressable
               disabled={saving}
@@ -324,7 +422,9 @@ export function PlayerMeetingsSection() {
             {
               marginTop: 10,
               color:
-                note === t('meetings.published') || note === t('meetings.savedDraft')
+                note === t('meetings.published') ||
+                note === t('meetings.savedDraft') ||
+                note === t('meetings.videoAttached')
                   ? colors.success
                   : colors.danger,
             },
@@ -356,22 +456,61 @@ export function PlayerMeetingsSection() {
             <Text style={[{ marginTop: 6, color: colors.muted, fontSize: 12 }, rtlText]}>
               {m.isPublished ? t('meetings.statusPublished') : t('meetings.statusDraft')}
             </Text>
-            {coach ? (
+            {m.mediaUrl ? (
               <Pressable
-                onPress={() => void togglePublish(m)}
+                onPress={() => void Linking.openURL(m.mediaUrl!)}
                 style={[
                   layout.button,
                   {
                     marginTop: 8,
-                    backgroundColor: m.isPublished ? colors.muted : colors.success,
+                    backgroundColor: colors.secondary,
                     minHeight: 40,
                   },
                 ]}
               >
                 <Text style={[layout.buttonText, { color: '#fff' }]}>
-                  {m.isPublished ? t('meetings.unpublish') : t('meetings.publish')}
+                  {t('meetings.openVideo')}
                 </Text>
               </Pressable>
+            ) : null}
+            {coach ? (
+              <>
+                <Pressable
+                  disabled={mediaBusyId === m.id}
+                  onPress={() => void attachVideoToMeeting(m)}
+                  style={[
+                    layout.button,
+                    {
+                      marginTop: 8,
+                      backgroundColor: mediaBusyId === m.id ? colors.muted : colors.primary,
+                      minHeight: 40,
+                    },
+                  ]}
+                >
+                  <Text style={[layout.buttonText, { color: '#fff' }]}>
+                    {mediaBusyId === m.id
+                      ? t('meetings.videoUploading')
+                      : m.mediaUrl
+                        ? t('meetings.replaceVideo')
+                        : t('meetings.attachVideo')}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => void togglePublish(m)}
+                  style={[
+                    layout.button,
+                    {
+                      marginTop: 8,
+                      backgroundColor: m.isPublished ? colors.muted : colors.success,
+                      minHeight: 40,
+                    },
+                  ]}
+                >
+                  <Text style={[layout.buttonText, { color: '#fff' }]}>
+                    {m.isPublished ? t('meetings.unpublish') : t('meetings.publish')}
+                  </Text>
+                </Pressable>
+              </>
             ) : null}
           </View>
         ))

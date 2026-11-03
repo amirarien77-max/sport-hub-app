@@ -476,6 +476,88 @@ export async function acknowledgeUrgentBanner(
   }
 }
 
+export type UrgentAckRosterRow = {
+  userId: string;
+  fullName: string;
+  role: UserProfile['role'];
+  acknowledged: boolean;
+};
+
+/** Compose an urgent team feed post (staff insert RLS). */
+export async function createUrgentBannerLive(
+  client: SupabaseClient,
+  input: { teamId: string; authorId: string; message: string },
+): Promise<UrgentBanner> {
+  const body = input.message.trim();
+  if (!body) throw new Error('message_required');
+
+  const { data, error } = await client
+    .from('team_feed_posts')
+    .insert({
+      team_id: input.teamId,
+      author_id: input.authorId,
+      body,
+      is_urgent: true,
+      emoji_only: false,
+    })
+    .select('id, team_id, body, is_urgent')
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  return {
+    id: data.id as string,
+    teamId: data.team_id as string,
+    message: (data.body as string) ?? '',
+    requiresAck: true,
+    acknowledgedBy: [],
+  };
+}
+
+/**
+ * Dual-Ack style roster for an urgent post: players + parents on the team,
+ * with confirmed / not-confirmed against urgent_acks.
+ */
+export async function fetchUrgentAckRoster(
+  client: SupabaseClient,
+  input: { teamId: string; postId: string },
+): Promise<UrgentAckRosterRow[]> {
+  const [{ data: members, error: membersErr }, { data: ackRows, error: ackErr }] =
+    await Promise.all([
+      client
+        .from('users')
+        .select('id, full_name, role')
+        .eq('team_id', input.teamId)
+        .in('role', ['player', 'parent'])
+        .order('full_name', { ascending: true }),
+      client.from('urgent_acks').select('user_id').eq('post_id', input.postId),
+    ]);
+
+  if (membersErr) throw new Error(membersErr.message);
+  if (ackErr) throw new Error(ackErr.message);
+
+  const acked = new Set((ackRows ?? []).map((a) => a.user_id as string));
+  return (members ?? []).map((row) => ({
+    userId: row.id as string,
+    fullName: row.full_name as string,
+    role: row.role as UserProfile['role'],
+    acknowledged: acked.has(row.id as string),
+  }));
+}
+
+/** Linked child player ids for a parent (empty if none). */
+export async function fetchLinkedChildIds(
+  client: SupabaseClient,
+  parentId: string,
+): Promise<string[]> {
+  const { data, error } = await client
+    .from('parent_player_links')
+    .select('player_id')
+    .eq('parent_id', parentId);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => r.player_id as string);
+}
+
 const EVENT_SELECT =
   'id, team_id, title, starts_at, location, type, hall_address, contact_phone';
 

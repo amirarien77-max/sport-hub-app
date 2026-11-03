@@ -17,7 +17,13 @@ import { MonthCalendar, canEditCalendar } from '@/blocks/schedule/MonthCalendar'
 import { router } from 'expo-router';
 import { t, translateAbsenceReason, translateRsvp } from '@/i18n';
 import { dualAckConflict } from '@/lib/demo-data';
-import { canClaimCarpool, canOfferCarpool, canSubmitRsvp, isAttendanceCoach } from '@/lib/roles';
+import {
+  canClaimCarpool,
+  canOfferCarpool,
+  canSubmitRsvp,
+  isAttendanceCoach,
+  isHeadCoach,
+} from '@/lib/roles';
 import { useSession } from '@/session/SessionContext';
 import type { SessionEvent } from '@/types';
 import {
@@ -199,8 +205,12 @@ export function ScheduleScreen() {
     }
   };
 
+  // Head coach composes + tracks ack elsewhere — never show urgent banners on their לו״ז.
   const pendingBanner =
-    banner.requiresAck && user && !banner.acknowledgedBy.includes(user.id);
+    !isHeadCoach(user?.role) &&
+    banner.requiresAck &&
+    user &&
+    !banner.acknowledgedBy.includes(user.id);
 
   return (
     <ScrollView

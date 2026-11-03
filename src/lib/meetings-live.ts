@@ -14,6 +14,8 @@ export type PlayerMeeting = {
   summary: string;
   goals: string[];
   isPublished: boolean;
+  /** Optional coach-attached video / media URL (שיחות שמורות). */
+  mediaUrl?: string;
   createdAt: string;
 };
 
@@ -26,8 +28,12 @@ type MeetingRow = {
   summary: string;
   goals: string[] | null;
   is_published: boolean;
+  media_url?: string | null;
   created_at: string;
 };
+
+const MEETING_SELECT =
+  'id, team_id, player_id, coach_id, meeting_date, summary, goals, is_published, media_url, created_at';
 
 export function mapMeetingRow(row: MeetingRow, playerName?: string): PlayerMeeting {
   return {
@@ -40,6 +46,7 @@ export function mapMeetingRow(row: MeetingRow, playerName?: string): PlayerMeeti
     summary: row.summary,
     goals: Array.isArray(row.goals) ? row.goals.filter((g) => g.trim().length > 0) : [],
     isPublished: row.is_published,
+    mediaUrl: row.media_url?.trim() ? row.media_url.trim() : undefined,
     createdAt: row.created_at,
   };
 }
@@ -59,7 +66,7 @@ export async function fetchPlayerMeetings(
 ): Promise<PlayerMeeting[]> {
   let query = client
     .from('player_meetings')
-    .select('id, team_id, player_id, coach_id, meeting_date, summary, goals, is_published, created_at')
+    .select(MEETING_SELECT)
     .eq('team_id', opts.teamId)
     .order('meeting_date', { ascending: false });
 
@@ -96,6 +103,7 @@ export async function createPlayerMeeting(
     summary: string;
     goals: string[];
     isPublished?: boolean;
+    mediaUrl?: string | null;
   },
 ): Promise<PlayerMeeting> {
   const summary = input.summary.trim();
@@ -112,8 +120,9 @@ export async function createPlayerMeeting(
       summary,
       goals,
       is_published: Boolean(input.isPublished),
+      media_url: input.mediaUrl?.trim() || null,
     })
-    .select('id, team_id, player_id, coach_id, meeting_date, summary, goals, is_published, created_at')
+    .select(MEETING_SELECT)
     .single();
 
   if (error) throw new Error(error.message);
@@ -128,6 +137,7 @@ export async function updatePlayerMeeting(
     goals?: string[];
     meetingDate?: string;
     isPublished?: boolean;
+    mediaUrl?: string | null;
   },
 ): Promise<PlayerMeeting> {
   const patch: Record<string, unknown> = {};
@@ -145,12 +155,15 @@ export async function updatePlayerMeeting(
   if (input.isPublished !== undefined) {
     patch.is_published = input.isPublished;
   }
+  if (input.mediaUrl !== undefined) {
+    patch.media_url = input.mediaUrl?.trim() || null;
+  }
 
   const { data, error } = await client
     .from('player_meetings')
     .update(patch)
     .eq('id', input.id)
-    .select('id, team_id, player_id, coach_id, meeting_date, summary, goals, is_published, created_at')
+    .select(MEETING_SELECT)
     .single();
 
   if (error) throw new Error(error.message);
