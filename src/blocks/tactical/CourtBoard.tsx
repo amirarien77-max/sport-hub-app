@@ -570,15 +570,12 @@ export function CourtBoard(props: CourtBoardProps) {
 
   const actions =
     editable && variant === 'fullscreen' ? (
+      /**
+       * Under app RTL (`dir=rtl` + plain `row`), the first child packs to the
+       * physical right. Put Save first so primary CTA stays right; Clear left.
+       * (PR #20 removed web `row-reverse` double-flip that previously masked DOM order.)
+       */
       <View style={[styles.actionRow, { flexDirection: rtlRowDirection }]}>
-        <ModalPressable
-          onPress={onClear}
-          style={[styles.actionBtn, { backgroundColor: colors.muted }]}
-          accessibilityRole="button"
-          accessibilityLabel={t('plays.clearBoard')}
-        >
-          <Text style={styles.actionBtnText}>{t('plays.clearBoard')}</Text>
-        </ModalPressable>
         <ModalPressable
           onPress={onSave}
           style={[styles.actionBtn, { backgroundColor: colors.primary }]}
@@ -586,6 +583,14 @@ export function CourtBoard(props: CourtBoardProps) {
           accessibilityLabel={t('plays.saveBoard')}
         >
           <Text style={styles.actionBtnText}>{t('plays.saveBoard')}</Text>
+        </ModalPressable>
+        <ModalPressable
+          onPress={onClear}
+          style={[styles.actionBtn, { backgroundColor: colors.muted }]}
+          accessibilityRole="button"
+          accessibilityLabel={t('plays.clearBoard')}
+        >
+          <Text style={styles.actionBtnText}>{t('plays.clearBoard')}</Text>
         </ModalPressable>
       </View>
     ) : null;
