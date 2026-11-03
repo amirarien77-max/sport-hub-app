@@ -10,8 +10,9 @@
  * כפתור יצירה: gesture-handler ב־native, RN Pressable ב־web (מונע quirks של GH).
  * Alert.alert הוא no-op ב־web → משוב inline (createError / assignFeedback).
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Keyboard,
   Platform,
@@ -23,6 +24,7 @@ import {
   View,
 } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
+import { useFocusEffect } from 'expo-router';
 import { CourtBoard, CourtEditorModal } from '@/blocks/tactical/CourtBoard';
 import { DrillOverlayPlayer } from '@/blocks/tactical/DrillOverlayPlayer';
 import { RtlSelect } from '@/blocks/ui/RtlSelect';
@@ -127,12 +129,17 @@ export function PlaysScreen() {
     cachePlayGameIq,
     cachePlayDrillOverlay,
     createAssignment,
+    refreshTactical,
     user,
     team,
     banner,
   } = useSession();
 
   const [selectedPlayId, setSelectedPlayId] = useState<string | null>(null);
+  /** Avoid false «אין תרגילים» while the first live tactical fetch is in flight. */
+  const [playsBootLoading, setPlaysBootLoading] = useState(
+    () => !isDemoMode && plays.length === 0,
+  );
   const [gameIq, setGameIq] = useState<GameIqInsight | null>(null);
   const [gameIqLoading, setGameIqLoading] = useState(false);
   const [drillOverlay, setDrillOverlay] = useState<DrillOverlayInsight | null>(null);
@@ -161,6 +168,29 @@ export function PlaysScreen() {
   const isPlayer = user?.role === 'player';
   const feedBlocked = user?.consentStatus === 'pending_parental_consent';
   const selectedPlay = plays.find((p) => p.id === selectedPlayId) ?? null;
+
+  useFocusEffect(
+    useCallback(() => {
+      if (isDemoMode || !team?.id) {
+        setPlaysBootLoading(false);
+        return;
+      }
+      let cancelled = false;
+      setPlaysBootLoading(plays.length === 0);
+      void (async () => {
+        try {
+          await refreshTactical();
+        } finally {
+          if (!cancelled) setPlaysBootLoading(false);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+      // plays.length intentionally omitted — only gate the spinner on focus entry.
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh on focus/team
+    }, [isDemoMode, refreshTactical, team?.id]),
+  );
 
   const myAssignments = useMemo(() => {
     if (!isPlayer || !user) return [] as (PlayAssignment & { playTitle: string })[];
@@ -566,7 +596,15 @@ export function PlaysScreen() {
         </Text>
       )}
 
-      {plays.length === 0 ? (
+      {playsBootLoading && plays.length === 0 ? (
+        <View style={{ marginTop: 16, alignItems: 'center' }}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={[{ color: colors.muted, marginTop: 8 }, rtlText]}>
+            {t('plays.loadingPlays')}
+          </Text>
+        </View>
+      ) : null}
+      {!playsBootLoading && plays.length === 0 ? (
         <Text style={[{ color: colors.muted, marginTop: 12 }, rtlText]}>
           {t('plays.emptyPlays')}
         </Text>
@@ -1218,8 +1256,12 @@ function PlayListRow({
 }) {
   const board = parseBoardJson(play.boardJson);
   const boardBits = board.markers.length + board.arrows.length;
+  // Same web quirk as create-play: GH Pressable often drops taps on Expo web.
+  const RowPressable = Platform.OS === 'web' ? RNPressable : Pressable;
   return (
-    <Pressable
+    <RowPressable
+      accessibilityRole="button"
+      accessibilityLabel={`${play.title} — ${t('plays.openPlay')}`}
       onPress={onOpen}
       {...rtlContainerProps}
       style={[styles.card, rtlLayout.box, { borderColor: colors.primary }]}
@@ -1234,7 +1276,7 @@ function PlayListRow({
       <Text style={[{ color: colors.primary, fontWeight: '700', marginTop: 8 }, rtlText]}>
         {t('plays.openPlay')} ←
       </Text>
-    </Pressable>
+    </RowPressable>
   );
 }
 

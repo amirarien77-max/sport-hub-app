@@ -501,6 +501,7 @@ export const he = {
     pinned: 'מוצמד: {message}',
     listTitle: 'תרגילים',
     emptyPlays: 'אין תרגילים עדיין.',
+    loadingPlays: 'טוענים תרגילים…',
     backToList: 'חזרה לרשימה',
     openPlay: 'פתיחה',
     createPlay: 'תרגיל חדש',
