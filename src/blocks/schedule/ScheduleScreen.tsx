@@ -124,14 +124,19 @@ export function ScheduleScreen() {
   const showOffer = canOfferCarpool(user?.role);
 
   // Keep selected offer event in sync with the schedule list (hint: «בחרו אירוע»).
+  // Prefer the next upcoming event — events are ordered ascending by starts_at,
+  // so events[0] is often a past practice and a poor carpool default for parents.
   useEffect(() => {
     if (!events.length) {
       setOfferEventId(null);
       return;
     }
-    setOfferEventId((prev) =>
-      prev && events.some((e) => e.id === prev) ? prev : events[0].id,
-    );
+    setOfferEventId((prev) => {
+      if (prev && events.some((e) => e.id === prev)) return prev;
+      const now = Date.now();
+      const upcoming = events.find((e) => Date.parse(e.startsAt) >= now);
+      return upcoming?.id ?? events[events.length - 1]?.id ?? events[0].id;
+    });
   }, [events]);
 
   // Parent calendar Dual-Ack dots: resolve linked child when possible.
