@@ -7,7 +7,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { t, translateAttendanceMark } from '@/i18n';
 import { isAttendanceCoach } from '@/lib/roles';
 import { useSession } from '@/session/SessionContext';
-import { layout, rtlContainerProps, rtlRowDirection, rtlText, useTheme } from '@/theme/ThemeContext';
+import { layout, rtlContainerProps, rtlLayout, rtlText, useTheme } from '@/theme/ThemeContext';
 import type { AttendanceMark } from '@/types';
 
 const MARK_COLORS: Record<Exclude<AttendanceMark, null>, string> = {
@@ -58,14 +58,14 @@ export function AttendanceScreen() {
         </Text>
       ) : null}
 
-      <View style={styles.grid}>
+      <View style={[rtlLayout.wrapRow, styles.grid]}>
         {rows.map((row) => {
           const bg = row.mark ? MARK_COLORS[row.mark] : '#E2E8F0';
           return (
             <Pressable
               key={row.playerId}
               onPress={() => eventId && void cycleAttendance(row.playerId, eventId)}
-              style={[styles.cell, { backgroundColor: bg }]}
+              style={[styles.cell, rtlLayout.box, { backgroundColor: bg }]}
             >
               <Text style={styles.cellName}>{row.playerName}</Text>
               <Text style={styles.cellMark}>{translateAttendanceMark(row.mark)}</Text>
@@ -102,8 +102,6 @@ export function AttendanceScreen() {
 const styles = StyleSheet.create({
   grid: {
     marginTop: 20,
-    flexDirection: rtlRowDirection,
-    flexWrap: 'wrap',
     gap: 12,
   },
   cell: {
@@ -112,7 +110,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 12,
     justifyContent: 'space-between',
-    writingDirection: 'rtl',
   },
   cellName: { color: '#fff', fontWeight: '800', fontSize: 16, ...rtlText },
   cellMark: {

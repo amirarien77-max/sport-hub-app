@@ -13,7 +13,7 @@ import {
   type OverlayKeyframe,
 } from '@/lib/drill-overlay';
 import { t } from '@/i18n';
-import { rtlText, useTheme } from '@/theme/ThemeContext';
+import { rtlRowDirection, rtlText, useTheme } from '@/theme/ThemeContext';
 
 type Props = {
   mediaUrl?: string;
@@ -199,7 +199,7 @@ function StageShell({
             {t('plays.drillOverlayDemoClock')}
           </Text>
         )}
-        <Text style={{ color: colors.muted, fontVariant: ['tabular-nums'] }}>
+        <Text style={[rtlText, { color: colors.muted, fontVariant: ['tabular-nums'] }]}>
           {clock.toFixed(1)}s / {durationSec}s
         </Text>
       </View>
@@ -356,11 +356,12 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
   controls: {
-    flexDirection: 'row',
+    flexDirection: rtlRowDirection,
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 8,
     gap: 10,
+    writingDirection: 'rtl',
   },
   ctrlBtn: {
     paddingHorizontal: 14,
@@ -372,5 +373,6 @@ const styles = StyleSheet.create({
   ctrlText: {
     color: '#fff',
     fontWeight: '700',
+    ...rtlText,
   },
 });

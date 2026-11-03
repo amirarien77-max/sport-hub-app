@@ -7,25 +7,26 @@ import { I18nManager, Platform, StyleSheet, type TextStyle, type ViewStyle } fro
  * Hebrew-only app must use physical `right` (+ `writingDirection: 'rtl'`) for
  * consistent right-edge alignment on web and native.
  *
- * Layout boxes: native Yoga flips flex-start when `I18nManager` is RTL, so plain
- * `row` is correct. On web, `dir="rtl"` alone often does **not** reverse flex
- * rows in RNW — use `row-reverse` so chips/headers/actions pack from the right.
+ * Layout rows: use plain `flexDirection: 'row'`. Native Yoga (I18nManager RTL)
+ * and RNW with root/`dir="rtl"` both map flex-start to the **right**. Using
+ * `row-reverse` under `dir="rtl"` **double-flips** and puts the first column on
+ * the left — wrong for Hebrew tables/calendars.
  *
  * Court / coordinate surfaces must opt out (see CourtBoard) and force LTR.
  *
  * Do not reverse Hebrew string content — only layout/alignment.
+ * Do not force-align intentionally centered UI (logos, empty CTAs, calendar
+ * weekday letters, button labels) to the right.
  */
 
 export const isAppRtl = (): boolean =>
   Platform.OS === 'web' ? true : I18nManager.isRTL;
 
 /**
- * Horizontal rows (chips, split CTAs, attendance grid).
- * Native + I18nManager RTL → `row` (start already on the right).
- * Web / when isRTL is false → `row-reverse` (physical right-first).
+ * Horizontal rows (chips, split CTAs, attendance grid, table columns).
+ * Plain `row` — flex-start is already the reading start (right) under app RTL.
  */
-export const rtlRowDirection: 'row' | 'row-reverse' =
-  Platform.OS !== 'web' && I18nManager.isRTL ? 'row' : 'row-reverse';
+export const rtlRowDirection: 'row' | 'row-reverse' = 'row';
 
 /** Body / labels / titles — physical right + Hebrew writing direction. */
 export const rtlText: TextStyle = {
@@ -82,6 +83,41 @@ export const rtlLayout = StyleSheet.create({
   chip: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  /**
+   * Data tables / schedule grids — outer shell.
+   * Pair with `tableRow` so the first column sits on the right.
+   */
+  table: {
+    writingDirection: 'rtl',
+    alignItems: 'stretch',
+    overflow: 'hidden',
+  },
+  /** Header or body row: columns pack from the right (first DOM child = rightmost). */
+  tableRow: {
+    flexDirection: rtlRowDirection,
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+  },
+  /** Header cell — bold, right-aligned. */
+  th: {
+    fontWeight: '800',
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
+  /** Body cell — right-aligned. */
+  td: {
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
+  /**
+   * Wrapping grids (month calendar days, attendance tiles).
+   * Same direction as `row` so chrome headers and cells stay in sync.
+   */
+  wrapRow: {
+    flexDirection: rtlRowDirection,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
   },
 });
 

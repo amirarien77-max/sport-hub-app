@@ -176,13 +176,29 @@ export function WeeklyScheduleScreen() {
 
       <View
         {...rtlContainerProps}
-        style={[styles.table, rtlLayout.box, { borderColor: colors.primary + '33', backgroundColor: colors.surface }]}
+        style={[
+          styles.table,
+          rtlLayout.table,
+          { borderColor: colors.primary + '33', backgroundColor: colors.surface },
+        ]}
       >
-        <View style={[styles.headerRow, rtlLayout.row, { borderBottomColor: colors.primary + '22' }]}>
-          <Text style={[styles.th, styles.colDay, { color: colors.secondary }]}>{t('weeklySchedule.day')}</Text>
-          <Text style={[styles.th, styles.colHours, { color: colors.secondary }]}>{t('weeklySchedule.hours')}</Text>
-          <Text style={[styles.th, styles.colLoc, { color: colors.secondary }]}>{t('weeklySchedule.location')}</Text>
-          {canEdit ? <Text style={[styles.th, styles.colActions]} /> : null}
+        <View
+          style={[
+            styles.headerRow,
+            rtlLayout.tableRow,
+            { borderBottomColor: colors.primary + '22', alignItems: 'center' },
+          ]}
+        >
+          <Text style={[rtlLayout.th, styles.colDay, { color: colors.secondary, fontSize: 13 }]}>
+            {t('weeklySchedule.day')}
+          </Text>
+          <Text style={[rtlLayout.th, styles.colHours, { color: colors.secondary, fontSize: 13 }]}>
+            {t('weeklySchedule.hours')}
+          </Text>
+          <Text style={[rtlLayout.th, styles.colLoc, { color: colors.secondary, fontSize: 13 }]}>
+            {t('weeklySchedule.location')}
+          </Text>
+          {canEdit ? <Text style={[rtlLayout.th, styles.colActions]} /> : null}
         </View>
 
         {sorted.length === 0 ? (
@@ -191,26 +207,29 @@ export function WeeklyScheduleScreen() {
           sorted.map((slot) => (
             <View
               key={slot.id}
-              style={[styles.dataRow, rtlLayout.row, { borderBottomColor: colors.primary + '14' }]}
+              style={[styles.dataRow, rtlLayout.tableRow, { borderBottomColor: colors.primary + '14' }]}
             >
-              <Text style={[styles.td, styles.colDay, { color: colors.text }]}>
+              <Text style={[rtlLayout.td, styles.colDay, { color: colors.text, fontSize: 14, lineHeight: 20 }]}>
                 {translateWeekDay(slot.dayOfWeek)}
               </Text>
-              <Text style={[styles.td, styles.colHours, { color: colors.text }]}>
+              <Text style={[rtlLayout.td, styles.colHours, { color: colors.text, fontSize: 14, lineHeight: 20 }]}>
                 {slot.startTime}–{slot.endTime}
               </Text>
-              <Text style={[styles.td, styles.colLoc, { color: colors.text }]} numberOfLines={2}>
+              <Text
+                style={[rtlLayout.td, styles.colLoc, { color: colors.text, fontSize: 14, lineHeight: 20 }]}
+                numberOfLines={2}
+              >
                 {slot.location}
               </Text>
               {canEdit ? (
                 <View style={[styles.colActions, rtlLayout.row]}>
                   <Pressable onPress={() => openEdit(slot)} accessibilityRole="button">
-                    <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13 }}>
+                    <Text style={[{ color: colors.primary, fontWeight: '700', fontSize: 13 }, rtlText]}>
                       {t('weeklySchedule.editRow')}
                     </Text>
                   </Pressable>
                   <Pressable onPress={() => onDelete(slot)} accessibilityRole="button">
-                    <Text style={{ color: colors.danger, fontWeight: '700', fontSize: 13 }}>
+                    <Text style={[{ color: colors.danger, fontWeight: '700', fontSize: 13 }, rtlText]}>
                       {t('weeklySchedule.deleteRow')}
                     </Text>
                   </Pressable>
@@ -347,34 +366,22 @@ const styles = StyleSheet.create({
     marginTop: 16,
     borderWidth: 1,
     borderRadius: 12,
-    overflow: 'hidden',
   },
   headerRow: {
     paddingHorizontal: 10,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    alignItems: 'center',
   },
   dataRow: {
     paddingHorizontal: 10,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    alignItems: 'flex-start',
-  },
-  th: {
-    fontWeight: '800',
-    fontSize: 13,
-    ...rtlText,
-  },
-  td: {
-    fontSize: 14,
-    lineHeight: 20,
-    ...rtlText,
   },
   colDay: { width: '22%' },
   colHours: { width: '28%' },
   colLoc: { flex: 1, minWidth: '28%' },
-  colActions: { width: '22%', gap: 6, justifyContent: 'flex-end' },
+  /** Actions sit on the far-left column in RTL; pack chips from the reading start. */
+  colActions: { width: '22%', gap: 6, justifyContent: 'flex-start' },
   dayChip: {
     paddingHorizontal: 10,
     paddingVertical: 8,
