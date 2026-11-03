@@ -52,6 +52,11 @@ import {
 } from '@/lib/contacts-live';
 import { normalizeInviteCode } from '@/lib/invite-codes';
 import {
+  clearPendingInvite,
+  loadPendingInvite,
+  savePendingInvite,
+} from '@/lib/pending-invite';
+import {
   fetchHealthBundle,
   insertPainLive,
   upsertReadinessLive,
@@ -156,6 +161,8 @@ type SessionContextValue = {
     role: UserProfile['role'];
     dateOfBirth?: string;
     parentPhone?: string;
+    /** When join screen still needs a code (skipped invite / hydrate wipe). */
+    inviteCode?: string;
   }) => Promise<OkOrError> | OkOrError;
   signIn: (email: string, password: string) => Promise<OkOrError>;
   signUp: (email: string, password: string) => Promise<OkOrError>;
@@ -527,11 +534,42 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (!profile) {
-          // New account still needs invite/profile — clear local identity.
-          // Do not wipe on transient fetch errors (handled above via warn).
+          // New account still needs invite/profile — clear local user only.
+          // Keep / restore pending invite so TOKEN_REFRESHED mid-onboarding does
+          // not wipe redeemInvite and leave ProfileSetup with «הזינו קוד הזמנה קודם».
           setUser(null);
-          setTeam(null);
-          setInviteOk(false);
+
+          const pending = await loadPendingInvite(uid);
+          if (myHydrate !== hydrateGenRef.current) return;
+
+          if (pending) {
+            const { data: pendingTeam } = await supabase
+              .from('teams')
+              .select('*')
+              .eq('id', pending.teamId)
+              .maybeSingle();
+
+            if (myHydrate !== hydrateGenRef.current) return;
+
+            if (pendingTeam) {
+              const mappedPending = mapTeamRow(pendingTeam);
+              setTeam(mappedPending);
+              setInviteOk(true);
+              const { data: pendingClub } = await supabase
+                .from('clubs')
+                .select('*')
+                .eq('id', mappedPending.clubId)
+                .maybeSingle();
+              if (myHydrate !== hydrateGenRef.current) return;
+              if (pendingClub) setBrand(mapClubRow(pendingClub));
+              setAuthReady(true);
+              return;
+            }
+            await clearPendingInvite(uid);
+          }
+
+          // No durable pending invite: leave in-memory redeem intact if present
+          // (same session after Invite → Profile before AsyncStorage flush).
           setAuthReady(true);
           return;
         }
@@ -556,6 +594,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setUser(mapped);
         setTeam(mappedTeam);
         setInviteOk(Boolean(mappedTeam));
+        if (mappedTeam) {
+          void clearPendingInvite(uid);
+        }
         setAuthReady(true);
 
         const { data: clubRow } = await supabase
@@ -710,6 +751,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const mappedTeam = mapTeamRow(teamRow);
       setTeam(mappedTeam);
       setInviteOk(true);
+      await savePendingInvite(authUserId, {
+        inviteCode: normalized,
+        teamId: mappedTeam.id,
+      });
 
       const { data: clubRow } = await supabase
         .from('clubs')
@@ -730,8 +775,38 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       role: UserProfile['role'];
       dateOfBirth?: string;
       parentPhone?: string;
+      inviteCode?: string;
     }): Promise<OkOrError> => {
-      if (!inviteOk || !team) {
+      // Inline redeem when join screen still needs a code (skipped invite / hydrate wipe).
+      if ((!inviteOk || !team) && input.inviteCode?.trim()) {
+        const redeemed = await redeemInvite(input.inviteCode);
+        if (!redeemed.ok) return redeemed;
+      }
+
+      // redeemInvite setState is async — resolve the team from the code for this call.
+      let activeTeam = team;
+      if ((!inviteOk || !activeTeam) && input.inviteCode?.trim()) {
+        if (isDemoMode || !supabase) {
+          const brandResolved = resolveInvite(normalizeInviteCode(input.inviteCode));
+          if (!brandResolved) {
+            return { ok: false, error: t('errors.redeemInviteFirst') };
+          }
+          activeTeam = demoTeam;
+        } else {
+          const normalized = normalizeInviteCode(input.inviteCode);
+          const { data: teamRow } = await supabase
+            .from('teams')
+            .select('*')
+            .eq('invite_code', normalized)
+            .maybeSingle();
+          if (!teamRow) {
+            return { ok: false, error: t('errors.redeemInviteFirst') };
+          }
+          activeTeam = mapTeamRow(teamRow);
+        }
+      }
+
+      if (!activeTeam) {
         return { ok: false, error: t('errors.redeemInviteFirst') };
       }
       if (!input.fullName.trim()) {
@@ -747,8 +822,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           id: `user-local-${Date.now()}`,
           fullName: input.fullName.trim(),
           role: input.role,
-          teamId: team.id,
-          clubId: team.clubId,
+          teamId: activeTeam.id,
+          clubId: activeTeam.clubId,
           dateOfBirth: input.dateOfBirth,
           parentPhone: input.parentPhone,
           consentStatus: under13 ? 'pending_parental_consent' : 'active',
@@ -759,7 +834,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           const sms = await requestParentalConsentSms({
             client: null,
             playerId: profile.id,
-            teamId: team.id,
+            teamId: activeTeam.id,
             parentPhone: input.parentPhone.trim(),
             playerName: profile.fullName,
             clubName: brand.name,
@@ -779,8 +854,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
       const payload = {
         auth_id: authUserId,
-        club_id: team.clubId,
-        team_id: team.id,
+        club_id: activeTeam.clubId,
+        team_id: activeTeam.id,
         full_name: input.fullName.trim(),
         role: input.role,
         date_of_birth: input.dateOfBirth || null,
@@ -791,17 +866,19 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase.from('users').insert(payload).select('*').single();
       if (error) return { ok: false, error: error.message };
 
+      await clearPendingInvite(authUserId);
+
       const mappedUser = mapUserRow(data);
       setUser(mappedUser);
-      await refreshSchedule(team.id);
-      await refreshHealthFor(mappedUser, team.id);
-      await refreshTacticalFor(team.id);
+      await refreshSchedule(activeTeam.id);
+      await refreshHealthFor(mappedUser, activeTeam.id);
+      await refreshTacticalFor(activeTeam.id);
 
       // Refresh team flags after role insert (fitness/physio trigger).
       const { data: freshTeam } = await supabase
         .from('teams')
         .select('*')
-        .eq('id', team.id)
+        .eq('id', activeTeam.id)
         .maybeSingle();
       if (freshTeam) setTeam(mapTeamRow(freshTeam));
 
@@ -810,7 +887,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         const sms = await requestParentalConsentSms({
           client: supabase,
           playerId: mappedUser.id,
-          teamId: team.id,
+          teamId: activeTeam.id,
           parentPhone: mappedUser.parentPhone,
           playerName: mappedUser.fullName,
           clubName: brand.name,
@@ -824,7 +901,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
       return { ok: true, note };
     },
-    [authUserId, brand.name, inviteOk, refreshHealthFor, refreshSchedule, refreshTacticalFor, team],
+    [
+      authUserId,
+      brand.name,
+      inviteOk,
+      redeemInvite,
+      refreshHealthFor,
+      refreshSchedule,
+      refreshTacticalFor,
+      team,
+      setBrand,
+    ],
   );
 
   const refreshPendingConsent = useCallback(async (): Promise<PendingConsentPlayer[]> => {
@@ -2015,10 +2102,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(() => {
+    const prevAuthId = authUserId;
     setUser(null);
     setTeam(null);
     setInviteOk(false);
     setAuthUserId(null);
+    if (prevAuthId) {
+      void clearPendingInvite(prevAuthId);
+    }
     if (!isDemoMode) {
       setEvents([]);
       setAcks([]);
@@ -2039,7 +2130,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (!isDemoMode && supabase) {
       void supabase.auth.signOut();
     }
-  }, [clearBrand]);
+  }, [authUserId, clearBrand]);
 
   const value = useMemo<SessionContextValue>(
     () => ({
