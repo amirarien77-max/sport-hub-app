@@ -2,7 +2,7 @@
  * מסך לו״ז (מודול 2): אירועים, Dual-Ack (שחקן/הורה), carpool, באנר דחוף.
  * PRD v1.1: תצוגת חודש + רשימה; כתובת אולם + טלפון למשחקים. מאמן עורך; שחקן/הורה קריאה.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -14,10 +14,19 @@ import {
   View,
 } from 'react-native';
 import { MonthCalendar, canEditCalendar } from '@/blocks/schedule/MonthCalendar';
+import { RtlSelect } from '@/blocks/ui/RtlSelect';
 import { router } from 'expo-router';
 import { t, translateAbsenceReason, translateRsvp } from '@/i18n';
 import { dualAckConflict } from '@/lib/demo-data';
-import { canClaimCarpool, canOfferCarpool, canSubmitRsvp, isAttendanceCoach } from '@/lib/roles';
+import {
+  canClaimCarpool,
+  canOfferCarpool,
+  canSubmitRsvp,
+  isAttendanceCoach,
+  isHeadCoach,
+} from '@/lib/roles';
+import { ensureParentPlayerLink } from '@/lib/schedule-live';
+import { isDemoMode, supabase } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
 import type { SessionEvent } from '@/types';
 import {
@@ -98,18 +107,51 @@ export function ScheduleScreen() {
   const [sheetEventId, setSheetEventId] = useState<string | null>(null);
   const [claimingOfferId, setClaimingOfferId] = useState<string | null>(null);
   const [offerSeats, setOfferSeats] = useState(3);
+  const [offerEventId, setOfferEventId] = useState<string | null>(null);
   const [offering, setOffering] = useState(false);
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [editorBusy, setEditorBusy] = useState(false);
   const [editorNote, setEditorNote] = useState<string | null>(null);
+  const [hintPlayerId, setHintPlayerId] = useState<string | undefined>();
 
   const coachView = isAttendanceCoach(user?.role);
   const calendarEdit = canEditCalendar(user?.role);
   const showRsvp = canSubmitRsvp(user?.role);
   const showClaim = canClaimCarpool(user?.role);
   const showOffer = canOfferCarpool(user?.role);
-  const offerEventId = events[0]?.id ?? null;
+
+  // Keep selected offer event in sync with the schedule list (hint: «בחרו אירוע»).
+  useEffect(() => {
+    if (!events.length) {
+      setOfferEventId(null);
+      return;
+    }
+    setOfferEventId((prev) =>
+      prev && events.some((e) => e.id === prev) ? prev : events[0].id,
+    );
+  }, [events]);
+
+  // Parent calendar Dual-Ack dots: resolve linked child when possible.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!user || user.role !== 'parent') {
+        if (!cancelled) setHintPlayerId(undefined);
+        return;
+      }
+      if (isDemoMode || !supabase) {
+        // Demo seed: Parent Cohen ↔ Roi
+        if (!cancelled) setHintPlayerId('user-player-roi');
+        return;
+      }
+      const linked = await ensureParentPlayerLink(supabase, user.id, user.teamId);
+      if (!cancelled) setHintPlayerId(linked ?? undefined);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const subtitle = coachView
     ? t('schedule.subtitleCoach')
@@ -199,8 +241,12 @@ export function ScheduleScreen() {
     }
   };
 
+  // Head coach composes + tracks ack elsewhere — never show urgent banners on their לו״ז.
   const pendingBanner =
-    banner.requiresAck && user && !banner.acknowledgedBy.includes(user.id);
+    !isHeadCoach(user?.role) &&
+    banner.requiresAck &&
+    user &&
+    !banner.acknowledgedBy.includes(user.id);
 
   return (
     <ScrollView
@@ -319,6 +365,7 @@ export function ScheduleScreen() {
           acks={acks}
           userId={user?.id}
           role={user?.role}
+          hintPlayerId={hintPlayerId}
           canEdit={calendarEdit}
           onCreateEvent={createSessionEvent}
           onUpdateEvent={updateSessionEvent}
@@ -486,6 +533,45 @@ export function ScheduleScreen() {
             </Text>
           ) : (
             <>
+              <Text style={[{ color: colors.muted, marginTop: 10, fontWeight: '700' }, rtlText]}>
+                {t('schedule.offerPickEvent')}
+              </Text>
+              <View style={[rtlLayout.row, { marginTop: 8 }]}>
+                {events.map((event) => {
+                  const selected = event.id === offerEventId;
+                  return (
+                    <Pressable
+                      key={event.id}
+                      onPress={() => setOfferEventId(event.id)}
+                      style={[
+                        styles.seatChip,
+                        rtlLayout.chip,
+                        {
+                          borderColor: selected ? colors.secondary : colors.primary,
+                          backgroundColor: selected ? colors.secondary : '#fff',
+                          maxWidth: '100%',
+                        },
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                    >
+                      <Text
+                        style={[
+                          {
+                            fontWeight: '700',
+                            fontSize: 13,
+                            color: selected ? '#fff' : colors.primary,
+                          },
+                          rtlText,
+                        ]}
+                        numberOfLines={2}
+                      >
+                        {event.title}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
               <View style={[rtlLayout.row, { marginTop: 12, alignItems: 'center' }]}>
                 <Pressable
                   onPress={() => setOfferSeats((n) => Math.max(1, n - 1))}
@@ -601,7 +687,8 @@ export function ScheduleScreen() {
         >
           <Pressable
             onPress={(e) => e.stopPropagation()}
-            style={[styles.sheet, rtlLayout.box, { backgroundColor: colors.surface }]}
+            {...rtlContainerProps}
+            style={[styles.sheet, rtlLayout.modal, { backgroundColor: colors.surface }]}
           >
             <ScrollView
               keyboardShouldPersistTaps="handled"
@@ -651,33 +738,18 @@ export function ScheduleScreen() {
                 style={[styles.input, rtlInput, { borderColor: colors.primary, color: colors.text }]}
               />
 
-              <View style={[rtlLayout.row, { marginTop: 12 }]}>
-                {(['game', 'practice'] as const).map((type) => (
-                  <Pressable
-                    key={type}
-                    onPress={() => setEditor((e) => (e ? { ...e, type } : e))}
-                    style={[
-                      styles.chip,
-                      {
-                        borderColor: colors.primary,
-                        backgroundColor: editor?.type === type ? colors.primary : '#fff',
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        {
-                          color: editor?.type === type ? '#fff' : colors.primary,
-                          fontWeight: '700',
-                        },
-                        rtlText,
-                      ]}
-                    >
-                      {type === 'game' ? t('schedule.typeGame') : t('schedule.typePractice')}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+              <Text style={layout.label}>{t('schedule.eventType')}</Text>
+              <RtlSelect
+                testID="event-type-select"
+                options={[
+                  { value: 'game', label: t('schedule.typeGame') },
+                  { value: 'practice', label: t('schedule.typePractice') },
+                ]}
+                value={editor?.type ?? null}
+                onChange={(type) => setEditor((e) => (e ? { ...e, type } : e))}
+                placeholder={t('ui.selectPlaceholder')}
+                menuTitle={t('schedule.eventType')}
+              />
 
               {editor?.type === 'game' ? (
                 <>
@@ -759,7 +831,10 @@ function ReasonSheet({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose}>
-        <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
+        <View
+          {...rtlContainerProps}
+          style={[styles.sheet, rtlLayout.modal, { backgroundColor: colors.surface }]}
+        >
           <Text style={[layout.title, { fontSize: 20, color: colors.primary }]}>
             {t('schedule.whyAbsent')}
           </Text>
@@ -767,9 +842,13 @@ function ReasonSheet({
             <Pressable
               key={reason}
               onPress={() => onPick(reason)}
-              style={[layout.button, { backgroundColor: colors.background, marginTop: 10 }]}
+              style={[
+                styles.optionRow,
+                rtlLayout.comboOption,
+                { backgroundColor: colors.background, borderColor: colors.primary + '22' },
+              ]}
             >
-              <Text style={[layout.buttonText, { color: colors.text }]}>
+              <Text style={[{ flex: 1, color: colors.text, fontWeight: '700', fontSize: 16 }, rtlText]}>
                 {translateAbsenceReason(reason)}
               </Text>
             </Pressable>
@@ -872,12 +951,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: '#fff',
   },
-  chip: {
-    borderWidth: 1.5,
-    borderRadius: 10,
+  optionRow: {
+    marginTop: 10,
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    minHeight: 44,
-    justifyContent: 'center',
+    paddingVertical: 12,
   },
 });

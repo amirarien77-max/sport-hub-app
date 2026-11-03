@@ -9,6 +9,8 @@ import { router } from 'expo-router';
 import { EquipmentSection } from '@/blocks/profile/EquipmentSection';
 import { PlayerMeetingsSection } from '@/blocks/profile/PlayerMeetingsSection';
 import { PlayerSizesSection } from '@/blocks/profile/PlayerSizesSection';
+import { RosterSizesSection } from '@/blocks/profile/RosterSizesSection';
+import { UrgentMessagesSection } from '@/blocks/profile/UrgentMessagesSection';
 import { t, translateConsent, translateRole } from '@/i18n';
 import type { PendingConsentPlayer } from '@/lib/consent-live';
 import { isAttendanceCoach, isEquipmentManager } from '@/lib/roles';
@@ -97,8 +99,12 @@ export default function ProfileRoute() {
         {roleHint}
       </Text>
 
+      {/* EM: roster sizes first so «ריכוז מידות סגל» is above the fold */}
+      {isEquipmentManager(user?.role) ? <RosterSizesSection /> : null}
       <PlayerSizesSection />
+      <UrgentMessagesSection />
       <PlayerMeetingsSection />
+      {!isEquipmentManager(user?.role) ? <RosterSizesSection /> : null}
       <EquipmentSection />
 
       {isAttendanceCoach(user?.role) ? (
@@ -108,21 +114,21 @@ export default function ProfileRoute() {
         >
           <Text style={[styles.label, { marginTop: 0 }]}>{t('profile.pendingConsentTitle')}</Text>
           {consentNote ? (
-            <Text style={{ color: colors.success, textAlign: 'right', marginBottom: 8 }}>
+            <Text style={[{ color: colors.success, marginBottom: 8 }, rtlText]}>
               {consentNote}
             </Text>
           ) : null}
           {pending.length === 0 ? (
-            <Text style={{ color: colors.muted, textAlign: 'right' }}>
+            <Text style={[{ color: colors.muted }, rtlText]}>
               {t('profile.pendingConsentEmpty')}
             </Text>
           ) : (
             pending.map((p) => (
-              <View key={p.id} style={styles.pendingRow}>
-                <Text style={{ fontWeight: '700', textAlign: 'right', color: colors.text }}>
+              <View key={p.id} style={[styles.pendingRow, rtlLayout.box]}>
+                <Text style={[{ fontWeight: '700', color: colors.text }, rtlText]}>
                   {p.fullName}
                 </Text>
-                <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 2 }}>
+                <Text style={[{ color: colors.muted, marginTop: 2 }, rtlText]}>
                   {t('profile.pendingConsentPhone', { phone: p.parentPhone ?? '—' })}
                 </Text>
                 {consentBusyId === p.id ? (
@@ -260,8 +266,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontWeight: '800',
     color: '#334155',
-    textAlign: 'right',
-    writingDirection: 'rtl',
+    ...rtlText,
   },
   chip: {
     minHeight: 40,

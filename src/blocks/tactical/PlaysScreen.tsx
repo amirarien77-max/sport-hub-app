@@ -25,6 +25,7 @@ import {
 import { Pressable } from 'react-native-gesture-handler';
 import { CourtBoard, CourtEditorModal } from '@/blocks/tactical/CourtBoard';
 import { DrillOverlayPlayer } from '@/blocks/tactical/DrillOverlayPlayer';
+import { RtlSelect } from '@/blocks/ui/RtlSelect';
 import { t, translateSuggestionStatus } from '@/i18n';
 import {
   buildOfflineDrillOverlay,
@@ -394,14 +395,14 @@ export function PlaysScreen() {
   const renderAnswerEditor = (a: PlayAssignment, showPlayTitle?: string) => (
     <View key={a.id} style={[styles.assign, rtlLayout.box]}>
       {showPlayTitle ? (
-        <Text style={{ fontWeight: '700', color: colors.primary, textAlign: 'right' }}>
+        <Text style={[{ fontWeight: '700', color: colors.primary }, rtlText]}>
           {showPlayTitle}
         </Text>
       ) : null}
-      <Text style={{ fontWeight: '800', textAlign: 'right', marginTop: showPlayTitle ? 4 : 0 }}>
+      <Text style={[{ fontWeight: '800', marginTop: showPlayTitle ? 4 : 0 }, rtlText]}>
         {t('plays.pos', { pos: a.positionName, name: a.playerName })}
       </Text>
-      <Text style={{ color: colors.muted, marginTop: 4, textAlign: 'right' }}>
+      <Text style={[{ color: colors.muted, marginTop: 4 }, rtlText]}>
         {a.actionPromptQuestion}
       </Text>
       <TextInput
@@ -427,12 +428,9 @@ export function PlaysScreen() {
       </Pressable>
       {answerStatus[a.id] ? (
         <Text
-          style={{
-            marginTop: 6,
-            textAlign: 'right',
+          style={[{ marginTop: 6,
             fontWeight: '600',
-            color: answerStatus[a.id] === t('plays.answerSaved') ? colors.success : colors.danger,
-          }}
+            color: answerStatus[a.id] === t('plays.answerSaved') ? colors.success : colors.danger }, rtlText]}
         >
           {answerStatus[a.id]}
         </Text>
@@ -447,17 +445,17 @@ export function PlaysScreen() {
 
       {feedBlocked ? (
         <View {...rtlContainerProps} style={[styles.notice, rtlLayout.box, { backgroundColor: '#FEE2E2' }]}>
-          <Text style={{ color: colors.danger, fontWeight: '700', textAlign: 'right' }}>
+          <Text style={[{ color: colors.danger, fontWeight: '700' }, rtlText]}>
             {t('plays.feedLocked')}
           </Text>
         </View>
       ) : (
         <View {...rtlContainerProps} style={[styles.notice, rtlLayout.box, { backgroundColor: '#ECFDF5' }]}>
-          <Text style={{ color: colors.success, fontWeight: '700', textAlign: 'right' }}>
+          <Text style={[{ color: colors.success, fontWeight: '700' }, rtlText]}>
             {t('plays.feedOpen')}
           </Text>
           {banner.message ? (
-            <Text style={{ color: colors.muted, marginTop: 4, textAlign: 'right' }}>
+            <Text style={[{ color: colors.muted, marginTop: 4 }, rtlText]}>
               {t('plays.pinned', { message: banner.message })}
             </Text>
           ) : null}
@@ -467,11 +465,11 @@ export function PlaysScreen() {
       {isPlayer ? (
         <View {...rtlContainerProps} style={[styles.card, rtlLayout.box, { borderColor: colors.secondary }]}>
           <Text style={styles.playTitle}>{t('plays.myActionTasks')}</Text>
-          <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
+          <Text style={[{ color: colors.muted, marginTop: 4 }, rtlText]}>
             {t('plays.myActionTasksHint')}
           </Text>
           {myAssignments.length === 0 ? (
-            <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 10 }}>
+            <Text style={[{ color: colors.muted, marginTop: 10 }, rtlText]}>
               {t('plays.noMyAssignments')}
             </Text>
           ) : (
@@ -485,7 +483,7 @@ export function PlaysScreen() {
       {isCoach ? (
         <View {...rtlContainerProps} style={[styles.card, rtlLayout.box, { borderColor: colors.primary }]}>
           <Text style={styles.playTitle}>{t('plays.createPlay')}</Text>
-          <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
+          <Text style={[{ color: colors.muted, marginTop: 4 }, rtlText]}>
             {t('plays.createPlayHint')}
           </Text>
           <TextInput
@@ -504,12 +502,12 @@ export function PlaysScreen() {
             style={[styles.input, { borderColor: colors.primary }]}
           />
           {createError ? (
-            <Text style={{ color: colors.danger, marginTop: 8, textAlign: 'right', fontWeight: '600' }}>
+            <Text style={[{ color: colors.danger, marginTop: 8, fontWeight: '600' }, rtlText]}>
               {createError}
             </Text>
           ) : null}
           {createOk ? (
-            <Text style={{ color: colors.success, marginTop: 8, textAlign: 'right', fontWeight: '600' }}>
+            <Text style={[{ color: colors.success, marginTop: 8, fontWeight: '600' }, rtlText]}>
               {createOk}
             </Text>
           ) : null}
@@ -562,13 +560,13 @@ export function PlaysScreen() {
           )}
         </View>
       ) : (
-        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 8 }}>
+        <Text style={[{ color: colors.muted, marginTop: 8 }, rtlText]}>
           {t('plays.coachOnlyCreate')}
         </Text>
       )}
 
       {plays.length === 0 ? (
-        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 12 }}>
+        <Text style={[{ color: colors.muted, marginTop: 12 }, rtlText]}>
           {t('plays.emptyPlays')}
         </Text>
       ) : null}
@@ -594,21 +592,21 @@ export function PlaysScreen() {
   const renderDetail = (play: TacticalPlay) => (
     <>
       <Pressable onPress={() => setSelectedPlayId(null)} style={{ marginBottom: 8 }}>
-        <Text style={{ color: colors.primary, fontWeight: '700', textAlign: 'right' }}>
+        <Text style={[{ color: colors.primary, fontWeight: '700' }, rtlText]}>
           → {t('plays.backToList')}
         </Text>
       </Pressable>
 
       <Text style={[layout.title, { color: colors.primary }]}>{play.title}</Text>
       {createOk && selectedPlayId === play.id ? (
-        <Text style={{ color: colors.success, fontWeight: '700', textAlign: 'right', marginBottom: 8 }}>
+        <Text style={[{ color: colors.success, fontWeight: '700', marginBottom: 8 }, rtlText]}>
           {createOk}
         </Text>
       ) : null}
 
       <View {...rtlContainerProps} style={[styles.card, rtlLayout.box, { borderColor: colors.secondary }]}>
         <Text style={styles.playTitle}>{t('plays.drillOverlayTitle')}</Text>
-        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
+        <Text style={[{ color: colors.muted, marginTop: 4 }, rtlText]}>
           {t('plays.drillOverlayHint')}
         </Text>
         {isCoach ? (
@@ -704,18 +702,15 @@ export function PlaysScreen() {
         {drillOverlay ? (
           <View style={{ marginTop: 12 }}>
             <Text
-              style={{
-                textAlign: 'right',
-                fontWeight: '700',
-                color: drillOverlay.mode === 'openai' ? colors.success : colors.muted,
-              }}
+              style={[{ fontWeight: '700',
+                color: drillOverlay.mode === 'openai' ? colors.success : colors.muted }, rtlText]}
             >
               {drillOverlay.mode === 'openai'
                 ? t('plays.drillOverlayModeOpenAI')
                 : t('plays.drillOverlayModeOffline')}
               {play.drillOverlayJson ? ` · ${t('plays.drillOverlayCached')}` : ''}
             </Text>
-            <Text style={{ textAlign: 'right', marginTop: 8, fontWeight: '600' }}>
+            <Text style={[{ marginTop: 8, fontWeight: '600' }, rtlText]}>
               {drillOverlay.summary}
             </Text>
             <DrillOverlayPlayer
@@ -725,7 +720,7 @@ export function PlaysScreen() {
             />
           </View>
         ) : (
-          <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 10 }}>
+          <Text style={[{ color: colors.muted, marginTop: 10 }, rtlText]}>
             {t('plays.drillOverlayEmpty')}
           </Text>
         )}
@@ -733,7 +728,7 @@ export function PlaysScreen() {
 
       <View {...rtlContainerProps} style={[styles.card, rtlLayout.box, { borderColor: colors.secondary, marginTop: 14 }]}>
         <Text style={styles.playTitle}>{t('plays.gameIqTitle')}</Text>
-        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
+        <Text style={[{ color: colors.muted, marginTop: 4 }, rtlText]}>
           {t('plays.gameIqStub')}
         </Text>
         <Pressable
@@ -757,21 +752,18 @@ export function PlaysScreen() {
         {gameIq ? (
           <View style={{ marginTop: 12 }}>
             <Text
-              style={{
-                textAlign: 'right',
-                fontWeight: '700',
-                color: gameIq.mode === 'openai' ? colors.success : colors.muted,
-              }}
+              style={[{ fontWeight: '700',
+                color: gameIq.mode === 'openai' ? colors.success : colors.muted }, rtlText]}
             >
               {gameIq.mode === 'openai' ? t('plays.gameIqModeOpenAI') : t('plays.gameIqModeOffline')}
               {play.gameIqJson ? ` · ${t('plays.gameIqCached')}` : ''}
             </Text>
-            <Text style={{ textAlign: 'right', marginTop: 8, fontWeight: '600' }}>{gameIq.summary}</Text>
+            <Text style={[{ marginTop: 8, fontWeight: '600' }, rtlText]}>{gameIq.summary}</Text>
             {(isCoach || !isPlayer) && (
               <>
                 <Text style={[styles.section, { marginTop: 12 }]}>{t('plays.gameIqCoach')}</Text>
                 {gameIq.coachBullets.map((b, i) => (
-                  <Text key={`c-${i}`} style={{ textAlign: 'right', marginBottom: 4 }}>
+                  <Text key={`c-${i}`} style={[{ marginBottom: 4 }, rtlText]}>
                     • {b}
                   </Text>
                 ))}
@@ -779,13 +771,13 @@ export function PlaysScreen() {
             )}
             <Text style={[styles.section, { marginTop: 12 }]}>{t('plays.gameIqPlayer')}</Text>
             {gameIq.playerBullets.map((b, i) => (
-              <Text key={`p-${i}`} style={{ textAlign: 'right', marginBottom: 4 }}>
+              <Text key={`p-${i}`} style={[{ marginBottom: 4 }, rtlText]}>
                 • {b}
               </Text>
             ))}
           </View>
         ) : (
-          <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 10 }}>
+          <Text style={[{ color: colors.muted, marginTop: 10 }, rtlText]}>
             {t('plays.gameIqEmpty')}
           </Text>
         )}
@@ -855,11 +847,11 @@ export function PlaysScreen() {
 
       <View {...rtlContainerProps} style={[styles.card, rtlLayout.box, { borderColor: colors.primary, marginTop: 14 }]}>
         <Text style={styles.playTitle}>{t('plays.mediaStubTitle')}</Text>
-        <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
+        <Text style={[{ color: colors.muted, marginTop: 4 }, rtlText]}>
           {t('plays.mediaStubHint')}
         </Text>
         {mediaNote ? (
-          <Text style={{ color: colors.success, textAlign: 'right', marginTop: 6 }}>{mediaNote}</Text>
+          <Text style={[{ color: colors.success, marginTop: 6 }, rtlText]}>{mediaNote}</Text>
         ) : null}
         {isCoach ? (
           <>
@@ -940,7 +932,7 @@ export function PlaysScreen() {
             </Pressable>
           </>
         ) : (
-          <Text style={{ marginTop: 8, textAlign: 'right', fontWeight: '600' }}>
+          <Text style={[{ marginTop: 8, fontWeight: '600' }, rtlText]}>
             {play.mediaUrl ? `${t('plays.mediaLinked')}: ${play.mediaUrl}` : t('plays.mediaMissing')}
           </Text>
         )}
@@ -965,26 +957,23 @@ export function PlaysScreen() {
 
       <Text style={styles.section}>{t('plays.assignments')}</Text>
       {playAssignments.length === 0 ? (
-        <Text style={{ color: colors.muted, textAlign: 'right' }}>{t('plays.emptyAssignments')}</Text>
+        <Text style={[{ color: colors.muted }, rtlText]}>{t('plays.emptyAssignments')}</Text>
       ) : null}
       {playAssignments.map((a) =>
         isPlayer && user && a.playerId === user.id ? (
           renderAnswerEditor(a)
         ) : (
           <View key={a.id} style={[styles.assign, rtlLayout.box]}>
-            <Text style={{ fontWeight: '800', textAlign: 'right' }}>
+            <Text style={[{ fontWeight: '800' }, rtlText]}>
               {t('plays.pos', { pos: a.positionName, name: a.playerName })}
             </Text>
-            <Text style={{ color: colors.muted, marginTop: 4, textAlign: 'right' }}>
+            <Text style={[{ color: colors.muted, marginTop: 4 }, rtlText]}>
               {a.actionPromptQuestion}
             </Text>
             <Text
-              style={{
-                marginTop: 6,
-                textAlign: 'right',
+              style={[{ marginTop: 6,
                 fontWeight: '700',
-                color: a.playerAnswer?.trim() ? colors.success : colors.muted,
-              }}
+                color: a.playerAnswer?.trim() ? colors.success : colors.muted }, rtlText]}
             >
               {t('plays.answer', {
                 answer: a.playerAnswer?.trim() ? a.playerAnswer : t('plays.waiting'),
@@ -997,38 +986,27 @@ export function PlaysScreen() {
       {isCoach ? (
         <View {...rtlContainerProps} style={[styles.card, rtlLayout.box, { borderColor: colors.primary }]}>
           <Text style={styles.playTitle}>{t('plays.addAssignment')}</Text>
-          <Text style={{ color: colors.muted, textAlign: 'right', marginBottom: 6 }}>
+          <Text style={[{ color: colors.muted, marginBottom: 6 }, rtlText]}>
             {t('plays.pickPlayer')}
           </Text>
           {tacticalPlayers.length === 0 ? (
-            <Text style={{ color: colors.danger, textAlign: 'right', marginBottom: 8 }}>
+            <Text style={[{ color: colors.danger, marginBottom: 8 }, rtlText]}>
               {t('plays.noPlayersForAssign')}
             </Text>
-          ) : null}
-          <View style={[rtlLayout.row, { marginBottom: 4 }]}>
-            {tacticalPlayers.map((p) => (
-              <Pressable
-                key={p.id}
-                onPress={() => setSelectedPlayerId(p.id)}
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor:
-                      selectedPlayerId === p.id ? colors.primary : '#E2E8F0',
-                  },
-                ]}
-              >
-                <Text
-                  style={{
-                    color: selectedPlayerId === p.id ? '#fff' : colors.primary,
-                    fontWeight: '700',
-                  }}
-                >
-                  {p.fullName}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          ) : (
+            <RtlSelect
+              testID="assign-player-select"
+              style={{ marginBottom: 8 }}
+              options={tacticalPlayers.map((p) => ({
+                value: p.id,
+                label: p.fullName,
+              }))}
+              value={selectedPlayerId || null}
+              onChange={setSelectedPlayerId}
+              placeholder={t('plays.pickPlayer')}
+              menuTitle={t('plays.pickPlayer')}
+            />
+          )}
           <TextInput
             textAlign={rtlTextAlign}
             value={positionDraft}
@@ -1046,7 +1024,7 @@ export function PlaysScreen() {
             style={[styles.input, { borderColor: colors.primary }]}
           />
           {assignFeedback ? (
-            <Text style={{ color: colors.success, marginTop: 8, textAlign: 'right', fontWeight: '600' }}>
+            <Text style={[{ color: colors.success, marginTop: 8, fontWeight: '600' }, rtlText]}>
               {assignFeedback}
             </Text>
           ) : null}
@@ -1098,7 +1076,7 @@ export function PlaysScreen() {
       ) : null}
 
       {isPlayer && !play.allowSuggestions ? (
-        <Text style={{ marginTop: 10, color: colors.muted, textAlign: 'right' }}>
+        <Text style={[{ marginTop: 10, color: colors.muted }, rtlText]}>
           {t('plays.suggestionsDisabled')}
         </Text>
       ) : null}
@@ -1108,10 +1086,10 @@ export function PlaysScreen() {
           <Text style={styles.section}>{t('plays.mySuggestions')}</Text>
           {mySuggestions.map((s) => (
             <View key={s.id} style={[styles.assign, rtlLayout.box]}>
-              <Text style={{ fontWeight: '700', textAlign: 'right' }}>
+              <Text style={[{ fontWeight: '700' }, rtlText]}>
                 {translateSuggestionStatus(s.status)}
               </Text>
-              <Text style={{ marginTop: 4, textAlign: 'right' }}>{s.suggestionText}</Text>
+              <Text style={[{ marginTop: 4 }, rtlText]}>{s.suggestionText}</Text>
             </View>
           ))}
         </>
@@ -1122,10 +1100,10 @@ export function PlaysScreen() {
           <Text style={styles.section}>{t('plays.suggestionInbox')}</Text>
           {playSuggestions.map((s) => (
             <View key={s.id} style={[styles.assign, rtlLayout.box]}>
-              <Text style={{ fontWeight: '700', textAlign: 'right' }}>
+              <Text style={[{ fontWeight: '700' }, rtlText]}>
                 {s.playerName} · {translateSuggestionStatus(s.status)}
               </Text>
-              <Text style={{ marginTop: 4, textAlign: 'right' }}>{s.suggestionText}</Text>
+              <Text style={[{ marginTop: 4 }, rtlText]}>{s.suggestionText}</Text>
               {s.status === 'pending' ? (
                 <View style={[rtlLayout.splitRow, { marginTop: 10, gap: 8 }]}>
                   <Pressable
@@ -1182,13 +1160,13 @@ function PlayListRow({
       style={[styles.card, rtlLayout.box, { borderColor: colors.primary }]}
     >
       <Text style={styles.playTitle}>{play.title}</Text>
-      <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 4 }}>
+      <Text style={[{ color: colors.muted, marginTop: 4 }, rtlText]}>
         {play.allowSuggestions ? t('plays.suggestionsOn') : t('plays.suggestionsOff')}
         {boardBits > 0 ? ` · ${boardBits}` : ''}
         {assignmentHint > 0 ? ` · ${t('plays.assignmentCount', { count: assignmentHint })}` : ''}
         {play.mediaUrl ? ` · ${t('plays.mediaLinked')}` : ''}
       </Text>
-      <Text style={{ color: colors.primary, fontWeight: '700', textAlign: 'right', marginTop: 8 }}>
+      <Text style={[{ color: colors.primary, fontWeight: '700', marginTop: 8 }, rtlText]}>
         {t('plays.openPlay')} ←
       </Text>
     </Pressable>

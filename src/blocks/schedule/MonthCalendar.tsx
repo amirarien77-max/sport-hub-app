@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { RtlSelect } from '@/blocks/ui/RtlSelect';
 import { t } from '@/i18n';
 import { dualAckConflict } from '@/lib/demo-data';
 import { isAttendanceCoach } from '@/lib/roles';
@@ -60,6 +61,7 @@ function hintForDay(
   acks: DualAck[],
   userId: string | undefined,
   role: string | undefined,
+  hintPlayerId?: string,
 ): RsvpDayHint {
   const dayEvents = events.filter((e) => sameDay(new Date(e.startsAt), day));
   if (!dayEvents.length || !userId) return 'none';
@@ -71,14 +73,22 @@ function hintForDay(
   for (const event of dayEvents) {
     const related = acks.filter((a) => a.eventId === event.id);
     for (const ack of related) {
-      if (dualAckConflict(ack)) conflict = true;
+      // Parents: prefer linked child when hintPlayerId is set; else only rows with parentChoice.
+      // Never paint every family's Dual-Ack onto one parent's calendar.
       const mine =
         role === 'parent'
-          ? ack
+          ? hintPlayerId
+            ? ack.playerId === hintPlayerId
+              ? ack
+              : null
+            : ack.parentChoice != null
+              ? ack
+              : null
           : ack.playerId === userId
             ? ack
             : null;
       if (!mine) continue;
+      if (dualAckConflict(mine)) conflict = true;
       const choice = role === 'parent' ? mine.parentChoice : mine.playerChoice;
       if (choice === 'attending') attending = true;
       if (choice === 'not_attending') notAttending = true;
@@ -96,6 +106,8 @@ type Props = {
   acks: DualAck[];
   userId?: string;
   role?: string;
+  /** Parent Dual-Ack calendar dots: linked child player id when known. */
+  hintPlayerId?: string;
   canEdit: boolean;
   onCreateEvent: (input: {
     title: string;
@@ -121,6 +133,7 @@ export function MonthCalendar({
   events,
   acks,
   userId,
+  hintPlayerId,
   role,
   canEdit,
   onCreateEvent,
@@ -280,7 +293,7 @@ export function MonthCalendar({
         </Pressable>
       </View>
 
-      <View style={[rtlLayout.row, styles.weekHeader]}>
+      <View style={[rtlLayout.wrapRow, styles.weekHeader]}>
         {WEEKDAYS_HE.map((label) => (
           <Text key={label} style={[styles.weekday, { color: colors.muted }]}>
             {label}
@@ -288,13 +301,13 @@ export function MonthCalendar({
         ))}
       </View>
 
-      <View style={styles.grid}>
+      <View style={rtlLayout.wrapRow}>
         {cells.map((day, idx) => {
           if (!day) {
             return <View key={`e-${idx}`} style={styles.cell} />;
           }
           const dayEvents = events.filter((e) => sameDay(new Date(e.startsAt), day));
-          const hint = hintForDay(day, events, acks, userId, role);
+          const hint = hintForDay(day, events, acks, userId, role, hintPlayerId);
           const selected = selectedDay ? sameDay(selectedDay, day) : false;
           const hintColor =
             hint === 'attending'
@@ -311,8 +324,8 @@ export function MonthCalendar({
               onLongPress={() => openCreate(day)}
               style={[
                 styles.cell,
-                styles.dayCell,
                 rtlLayout.box,
+                styles.dayCell,
                 {
                   borderColor: selected ? colors.secondary : colors.primary,
                   backgroundColor: selected ? '#FFF5F5' : '#fff',
@@ -361,23 +374,49 @@ export function MonthCalendar({
           {selectedEvents.length === 0 ? (
             <Text style={[{ color: colors.muted }, rtlText]}>{t('calendar.noEventsDay')}</Text>
           ) : (
-            selectedEvents.map((event) => (
-              <Pressable
-                key={event.id}
-                onPress={() => openEdit(event)}
-                style={[styles.eventRow, { borderColor: colors.secondary }]}
-              >
-                <Text style={[{ fontWeight: '800' }, rtlText]}>{event.title}</Text>
-                <Text style={[{ color: colors.muted }, rtlText]}>
-                  {new Date(event.startsAt).toLocaleTimeString('he-IL', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}{' '}
-                  · {event.location || '—'} ·{' '}
-                  {event.type === 'game' ? t('calendar.typeGame') : t('calendar.typePractice')}
-                </Text>
-              </Pressable>
-            ))
+            selectedEvents.map((event) => {
+              const isGame = event.type === 'game';
+              const showVenue = isGame && Boolean(event.hallAddress || event.contactPhone);
+              return (
+                <Pressable
+                  key={event.id}
+                  onPress={() => openEdit(event)}
+                  style={[styles.eventRow, { borderColor: colors.secondary }]}
+                >
+                  <Text style={[{ fontWeight: '800' }, rtlText]}>{event.title}</Text>
+                  <Text style={[{ color: colors.muted }, rtlText]}>
+                    {new Date(event.startsAt).toLocaleTimeString('he-IL', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}{' '}
+                    · {event.location || '—'} ·{' '}
+                    {isGame ? t('calendar.typeGame') : t('calendar.typePractice')}
+                  </Text>
+                  {showVenue ? (
+                    <View
+                      {...rtlContainerProps}
+                      style={[styles.venueBox, rtlLayout.box, { borderColor: colors.secondary }]}
+                    >
+                      {event.hallAddress ? (
+                        <Text style={[{ color: colors.text }, rtlText]}>
+                          {t('calendar.hallAddress')}: {event.hallAddress}
+                        </Text>
+                      ) : null}
+                      {event.contactPhone ? (
+                        <Text
+                          style={[
+                            { color: colors.text, marginTop: event.hallAddress ? 4 : 0 },
+                            rtlText,
+                          ]}
+                        >
+                          {t('calendar.contactPhone')}: {event.contactPhone}
+                        </Text>
+                      ) : null}
+                    </View>
+                  ) : null}
+                </Pressable>
+              );
+            })
           )}
           {canEdit ? (
             <Pressable
@@ -396,7 +435,8 @@ export function MonthCalendar({
         <Pressable style={styles.sheetBackdrop} onPress={() => !busy && setEditor(null)}>
           <Pressable
             onPress={(e) => e.stopPropagation()}
-            style={[styles.sheet, rtlLayout.box, { backgroundColor: colors.surface }]}
+            {...rtlContainerProps}
+            style={[styles.sheet, rtlLayout.modal, { backgroundColor: colors.surface }]}
           >
             <Text style={[layout.title, { fontSize: 20, color: colors.primary }]}>
               {editor?.mode === 'edit' ? t('calendar.editEvent') : t('calendar.addEvent')}
@@ -433,33 +473,18 @@ export function MonthCalendar({
               placeholderTextColor={colors.muted}
               style={[styles.input, rtlInput, { borderColor: colors.primary, color: colors.text }]}
             />
-            <View style={[rtlLayout.row, { marginTop: 12 }]}>
-              {(['practice', 'game'] as const).map((type) => (
-                <Pressable
-                  key={type}
-                  onPress={() => setEditor((e) => (e ? { ...e, type } : e))}
-                  style={[
-                    styles.chip,
-                    {
-                      borderColor: colors.primary,
-                      backgroundColor: editor?.type === type ? colors.secondary : '#fff',
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      {
-                        color: editor?.type === type ? '#fff' : colors.primary,
-                        fontWeight: '700',
-                      },
-                      rtlText,
-                    ]}
-                  >
-                    {type === 'game' ? t('calendar.typeGame') : t('calendar.typePractice')}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            <Text style={layout.label}>{t('schedule.eventType')}</Text>
+            <RtlSelect
+              testID="calendar-event-type-select"
+              options={[
+                { value: 'game', label: t('calendar.typeGame') },
+                { value: 'practice', label: t('calendar.typePractice') },
+              ]}
+              value={editor?.type ?? null}
+              onChange={(type) => setEditor((e) => (e ? { ...e, type } : e))}
+              placeholder={t('ui.selectPlaceholder')}
+              menuTitle={t('schedule.eventType')}
+            />
             {editor?.type === 'game' ? (
               <>
                 <Text style={layout.label}>{t('calendar.hallAddress')}</Text>
@@ -534,14 +559,11 @@ const styles = StyleSheet.create({
   weekHeader: { marginBottom: 4 },
   weekday: {
     width: `${100 / 7}%`,
+    /** Calendar chrome: day letters stay centered by design. */
     textAlign: 'center',
     fontSize: 12,
     fontWeight: '700',
     writingDirection: 'rtl',
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
   },
   cell: {
     width: `${100 / 7}%`,
@@ -552,6 +574,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     padding: 4,
+    /** Content hugs the reading-start edge (right in RTL). */
     alignItems: 'flex-start',
   },
   dot: {
@@ -581,6 +604,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     backgroundColor: '#F8FAFC',
   },
+  venueBox: {
+    marginTop: 8,
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
   sheetBackdrop: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -598,13 +627,5 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: 12,
     backgroundColor: '#fff',
-  },
-  chip: {
-    minHeight: 40,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

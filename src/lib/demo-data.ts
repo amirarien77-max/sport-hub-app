@@ -78,6 +78,14 @@ export const demoUsers: UserProfile[] = [
     clubId: demoClub.id,
     consentStatus: 'active',
   },
+  {
+    id: 'user-equipment',
+    fullName: 'אחראי ציוד יובל',
+    role: 'equipment_manager',
+    teamId: demoTeam.id,
+    clubId: demoClub.id,
+    consentStatus: 'active',
+  },
 ];
 
 export const demoEvents: SessionEvent[] = [

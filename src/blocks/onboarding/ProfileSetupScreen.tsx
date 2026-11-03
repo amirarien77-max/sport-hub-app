@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { RtlSelect } from '@/blocks/ui/RtlSelect';
 import { router } from 'expo-router';
 import { t, translateRole } from '@/i18n';
 import type { Role } from '@/types';
@@ -29,6 +30,10 @@ import {
 
 /** Coach roles first so live testers don't miss מאמן when picking a persona. */
 const ROLE_VALUES: Role[] = ['head_coach', 'assistant_coach', 'player', 'parent'];
+const ROLE_OPTIONS = ROLE_VALUES.map((value) => ({
+  value,
+  label: translateRole(value),
+}));
 
 export function ProfileSetupScreen() {
   const { colors, brand } = useTheme();
@@ -87,25 +92,14 @@ export function ProfileSetupScreen() {
       />
 
       <Text style={layout.label}>{t('profileSetup.role')}</Text>
-      <View style={rtlLayout.row}>
-        {ROLE_VALUES.map((value) => (
-          <Pressable
-            key={value}
-            onPress={() => setRole(value)}
-            style={[
-              styles.chip,
-              {
-                backgroundColor: role === value ? colors.primary : '#fff',
-                borderColor: colors.primary,
-              },
-            ]}
-          >
-            <Text style={[{ color: role === value ? '#fff' : colors.primary, fontWeight: '700' }, rtlText]}>
-              {translateRole(value)}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+      <RtlSelect
+        testID="profile-role-select"
+        options={ROLE_OPTIONS}
+        value={role}
+        onChange={setRole}
+        placeholder={t('ui.selectPlaceholder')}
+        menuTitle={t('profileSetup.role')}
+      />
 
       {role === 'player' ? (
         <>
@@ -133,7 +127,7 @@ export function ProfileSetupScreen() {
         <Text style={[{ color: colors.danger, marginTop: 8 }, rtlText]}>{error}</Text>
       ) : null}
       {note ? (
-        <Text style={{ color: colors.success, marginTop: 8, textAlign: 'right' }}>{note}</Text>
+        <Text style={[{ color: colors.success, marginTop: 8 }, rtlText]}>{note}</Text>
       ) : null}
 
       {busy ? (

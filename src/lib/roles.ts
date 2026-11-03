@@ -9,6 +9,11 @@ export function normalizeRole(role: Role | string | undefined | null): string {
   return (role ?? '').toString().trim().toLowerCase();
 }
 
+/** Head coach only (urgent compose / hide self-banner on לו״ז). */
+export function isHeadCoach(role: Role | undefined | null): boolean {
+  return normalizeRole(role) === 'head_coach';
+}
+
 /** Court attendance + lock — head/assistant coach and admin. */
 export function isAttendanceCoach(role: Role | undefined | null): boolean {
   const r = normalizeRole(role);

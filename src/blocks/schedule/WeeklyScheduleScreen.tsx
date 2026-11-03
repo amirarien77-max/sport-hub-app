@@ -14,6 +14,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { RtlSelect } from '@/blocks/ui/RtlSelect';
 import { router } from 'expo-router';
 import { t, translateWeekDay } from '@/i18n';
 import { isAttendanceCoach } from '@/lib/roles';
@@ -30,6 +31,10 @@ import {
 import type { WeekDayIndex, WeeklyScheduleSlot } from '@/types';
 
 const DAY_ORDER: WeekDayIndex[] = [0, 1, 2, 3, 4, 5, 6];
+const DAY_OPTIONS = DAY_ORDER.map((d) => ({
+  value: String(d),
+  label: translateWeekDay(d),
+}));
 
 const TIME_RE = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 
@@ -176,13 +181,29 @@ export function WeeklyScheduleScreen() {
 
       <View
         {...rtlContainerProps}
-        style={[styles.table, rtlLayout.box, { borderColor: colors.primary + '33', backgroundColor: colors.surface }]}
+        style={[
+          styles.table,
+          rtlLayout.table,
+          { borderColor: colors.primary + '33', backgroundColor: colors.surface },
+        ]}
       >
-        <View style={[styles.headerRow, rtlLayout.row, { borderBottomColor: colors.primary + '22' }]}>
-          <Text style={[styles.th, styles.colDay, { color: colors.secondary }]}>{t('weeklySchedule.day')}</Text>
-          <Text style={[styles.th, styles.colHours, { color: colors.secondary }]}>{t('weeklySchedule.hours')}</Text>
-          <Text style={[styles.th, styles.colLoc, { color: colors.secondary }]}>{t('weeklySchedule.location')}</Text>
-          {canEdit ? <Text style={[styles.th, styles.colActions]} /> : null}
+        <View
+          style={[
+            styles.headerRow,
+            rtlLayout.tableRow,
+            { borderBottomColor: colors.primary + '22', alignItems: 'center' },
+          ]}
+        >
+          <Text style={[rtlLayout.th, styles.colDay, { color: colors.secondary, fontSize: 13 }]}>
+            {t('weeklySchedule.day')}
+          </Text>
+          <Text style={[rtlLayout.th, styles.colHours, { color: colors.secondary, fontSize: 13 }]}>
+            {t('weeklySchedule.hours')}
+          </Text>
+          <Text style={[rtlLayout.th, styles.colLoc, { color: colors.secondary, fontSize: 13 }]}>
+            {t('weeklySchedule.location')}
+          </Text>
+          {canEdit ? <Text style={[rtlLayout.th, styles.colActions]} /> : null}
         </View>
 
         {sorted.length === 0 ? (
@@ -191,26 +212,29 @@ export function WeeklyScheduleScreen() {
           sorted.map((slot) => (
             <View
               key={slot.id}
-              style={[styles.dataRow, rtlLayout.row, { borderBottomColor: colors.primary + '14' }]}
+              style={[styles.dataRow, rtlLayout.tableRow, { borderBottomColor: colors.primary + '14' }]}
             >
-              <Text style={[styles.td, styles.colDay, { color: colors.text }]}>
+              <Text style={[rtlLayout.td, styles.colDay, { color: colors.text, fontSize: 14, lineHeight: 20 }]}>
                 {translateWeekDay(slot.dayOfWeek)}
               </Text>
-              <Text style={[styles.td, styles.colHours, { color: colors.text }]}>
+              <Text style={[rtlLayout.td, styles.colHours, { color: colors.text, fontSize: 14, lineHeight: 20 }]}>
                 {slot.startTime}–{slot.endTime}
               </Text>
-              <Text style={[styles.td, styles.colLoc, { color: colors.text }]} numberOfLines={2}>
+              <Text
+                style={[rtlLayout.td, styles.colLoc, { color: colors.text, fontSize: 14, lineHeight: 20 }]}
+                numberOfLines={2}
+              >
                 {slot.location}
               </Text>
               {canEdit ? (
                 <View style={[styles.colActions, rtlLayout.row]}>
                   <Pressable onPress={() => openEdit(slot)} accessibilityRole="button">
-                    <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13 }}>
+                    <Text style={[{ color: colors.primary, fontWeight: '700', fontSize: 13 }, rtlText]}>
                       {t('weeklySchedule.editRow')}
                     </Text>
                   </Pressable>
                   <Pressable onPress={() => onDelete(slot)} accessibilityRole="button">
-                    <Text style={{ color: colors.danger, fontWeight: '700', fontSize: 13 }}>
+                    <Text style={[{ color: colors.danger, fontWeight: '700', fontSize: 13 }, rtlText]}>
                       {t('weeklySchedule.deleteRow')}
                     </Text>
                   </Pressable>
@@ -239,42 +263,25 @@ export function WeeklyScheduleScreen() {
         <View style={styles.modalBackdrop}>
           <View
             {...rtlContainerProps}
-            style={[styles.modalCard, rtlLayout.box, { backgroundColor: colors.surface }]}
+            style={[styles.modalCard, rtlLayout.modal, { backgroundColor: colors.surface }]}
           >
             <Text style={[layout.title, { fontSize: 22, color: colors.primary }]}>
               {editor?.slotId ? t('weeklySchedule.editRow') : t('weeklySchedule.addRow')}
             </Text>
 
             <Text style={layout.label}>{t('weeklySchedule.pickDay')}</Text>
-            <View style={[rtlLayout.row, { gap: 6 }]}>
-              {DAY_ORDER.map((d) => {
-                const selected = editor?.dayOfWeek === d;
-                return (
-                  <Pressable
-                    key={d}
-                    onPress={() => setEditor((e) => (e ? { ...e, dayOfWeek: d } : e))}
-                    style={[
-                      styles.dayChip,
-                      rtlLayout.chip,
-                      {
-                        backgroundColor: selected ? colors.primary : colors.accent,
-                        borderColor: colors.secondary,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={{
-                        color: selected ? '#fff' : colors.secondary,
-                        fontWeight: '700',
-                        fontSize: 13,
-                      }}
-                    >
-                      {translateWeekDay(d)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <RtlSelect
+              testID="weekly-day-select"
+              options={DAY_OPTIONS}
+              value={editor ? String(editor.dayOfWeek) : null}
+              onChange={(v) =>
+                setEditor((e) =>
+                  e ? { ...e, dayOfWeek: Number(v) as WeekDayIndex } : e,
+                )
+              }
+              placeholder={t('weeklySchedule.pickDay')}
+              menuTitle={t('weeklySchedule.pickDay')}
+            />
 
             <Text style={layout.label}>{t('weeklySchedule.startTime')}</Text>
             <TextInput
@@ -347,40 +354,22 @@ const styles = StyleSheet.create({
     marginTop: 16,
     borderWidth: 1,
     borderRadius: 12,
-    overflow: 'hidden',
   },
   headerRow: {
     paddingHorizontal: 10,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    alignItems: 'center',
   },
   dataRow: {
     paddingHorizontal: 10,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    alignItems: 'flex-start',
-  },
-  th: {
-    fontWeight: '800',
-    fontSize: 13,
-    ...rtlText,
-  },
-  td: {
-    fontSize: 14,
-    lineHeight: 20,
-    ...rtlText,
   },
   colDay: { width: '22%' },
   colHours: { width: '28%' },
   colLoc: { flex: 1, minWidth: '28%' },
-  colActions: { width: '22%', gap: 6, justifyContent: 'flex-end' },
-  dayChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
+  /** Actions sit on the far-left column in RTL; pack chips from the reading start. */
+  colActions: { width: '22%', gap: 6, justifyContent: 'flex-start' },
   input: {
     borderWidth: 1.5,
     borderRadius: 12,

@@ -69,6 +69,76 @@ export async function fetchTeamPlayerProfile(
   return mapTeamPlayerRow(data as TeamPlayerRow);
 }
 
+export type RosterSizeRow = TeamPlayerProfile & {
+  fullName: string;
+  teamName?: string;
+};
+
+/**
+ * Equipment manager rollup: all players' sizes in the club (or team fallback).
+ * Joins users for names; RLS limits rows for non-EM roles.
+ */
+export async function fetchRosterSizesRollup(
+  client: SupabaseClient,
+  opts?: { teamId?: string; clubId?: string },
+): Promise<RosterSizeRow[]> {
+  let playersQuery = client
+    .from('users')
+    .select('id, full_name, team_id')
+    .eq('role', 'player')
+    .order('full_name', { ascending: true });
+
+  if (opts?.teamId) {
+    playersQuery = playersQuery.eq('team_id', opts.teamId);
+  }
+
+  const { data: players, error: playersErr } = await playersQuery;
+  if (playersErr) throw new Error(playersErr.message);
+  const roster = players ?? [];
+  if (roster.length === 0) return [];
+
+  const playerIds = roster.map((p) => p.id as string);
+  const teamIds = [...new Set(roster.map((p) => p.team_id as string))];
+
+  const [{ data: sizeRows, error: sizeErr }, { data: teams }] = await Promise.all([
+    client
+      .from('team_players')
+      .select('player_id, team_id, height_cm, shirt_size, shorts_size, shoe_size, updated_at')
+      .in('player_id', playerIds),
+    client.from('teams').select('id, name, club_id').in('id', teamIds),
+  ]);
+
+  if (sizeErr) throw new Error(sizeErr.message);
+
+  const sizesByPlayer = new Map(
+    ((sizeRows as TeamPlayerRow[] | null) ?? []).map((r) => [r.player_id, mapTeamPlayerRow(r)]),
+  );
+  const teamNameById = new Map(
+    (teams ?? [])
+      .filter((t) => !opts?.clubId || (t.club_id as string) === opts.clubId)
+      .map((t) => [t.id as string, t.name as string]),
+  );
+
+  return roster
+    .filter((p) => !opts?.clubId || teamNameById.has(p.team_id as string))
+    .map((p) => {
+      const id = p.id as string;
+      const teamId = p.team_id as string;
+      const sizes = sizesByPlayer.get(id);
+      return {
+        playerId: id,
+        teamId,
+        fullName: p.full_name as string,
+        teamName: teamNameById.get(teamId),
+        heightCm: sizes?.heightCm ?? null,
+        shirtSize: sizes?.shirtSize ?? null,
+        shortsSize: sizes?.shortsSize ?? null,
+        shoeSize: sizes?.shoeSize ?? null,
+        updatedAt: sizes?.updatedAt ?? '',
+      };
+    });
+}
+
 /**
  * Upsert height + clothing sizes on team_players.
  * Pass null to clear a field; omit a key to leave unchanged on update

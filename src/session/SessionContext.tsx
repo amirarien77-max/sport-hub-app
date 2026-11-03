@@ -55,7 +55,9 @@ import {
   claimCarpoolSeatLive,
   createCarpoolOfferLive,
   createEventLive,
+  createUrgentBannerLive,
   ensureParentPlayerLink,
+  fetchLinkedChildIds,
   fetchScheduleBundle,
   lockAttendanceRecords,
   updateEventLive,
@@ -207,6 +209,8 @@ type SessionContextValue = {
   ) => Promise<OkOrError> | OkOrError;
   deleteWeeklySlot: (slotId: string) => Promise<OkOrError> | OkOrError;
   acknowledgeBanner: () => void | Promise<void>;
+  /** Head coach: compose urgent team message + refresh ack roster source. */
+  composeUrgentBanner: (message: string) => Promise<OkOrError>;
   switchDemoRole: (role: UserProfile['role']) => void;
   /** Demo-only: flip team fitness/physio flags to test head-coach inheritance. */
   toggleDemoMedicalStaff: (kind: 'fitness' | 'physio') => void;
@@ -385,16 +389,35 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const refreshHealthFor = useCallback(async (profile: UserProfile, teamId: string) => {
     if (isDemoMode || !supabase) return;
 
-    // Parents must not load other players' medical data (Checkpoint 3).
-    if (profile.role === 'parent') {
-      setReadiness([]);
-      setPain([]);
-      setHealthPlayers([]);
-      return;
-    }
-
     const gen = ++healthGen.current;
     try {
+      // Parent: only linked child(ren) — never other players (Checkpoint 3).
+      if (profile.role === 'parent') {
+        let childIds = await fetchLinkedChildIds(supabase, profile.id);
+        if (childIds.length === 0) {
+          const linked = await ensureParentPlayerLink(supabase, profile.id, teamId);
+          childIds = linked ? [linked] : [];
+        }
+        if (childIds.length === 0) {
+          if (gen !== healthGen.current) return;
+          setReadiness([]);
+          setPain([]);
+          setHealthPlayers([]);
+          return;
+        }
+        const bundle = await fetchHealthBundle(supabase, {
+          teamId,
+          asStaff: false,
+          playerIds: childIds,
+        });
+        if (gen !== healthGen.current) return;
+        const allowed = new Set(childIds);
+        setReadiness(bundle.readiness.filter((r) => allowed.has(r.playerId)));
+        setPain(bundle.pain.filter((p) => allowed.has(p.playerId)));
+        setHealthPlayers(bundle.players.filter((p) => allowed.has(p.id)));
+        return;
+      }
+
       const asStaff = isHealthStaff(profile.role);
       const bundle = await fetchHealthBundle(supabase, { teamId, asStaff });
       if (gen !== healthGen.current) return;
@@ -1575,6 +1598,42 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
   }, [banner.id, user]);
 
+  const composeUrgentBanner = useCallback(
+    async (message: string): Promise<OkOrError> => {
+      if (!user || !team) return { ok: false, error: t('urgent.sendError') };
+      const body = message.trim();
+      if (!body) return { ok: false, error: t('urgent.messageRequired') };
+
+      if (isDemoMode || !supabase) {
+        const next = {
+          id: `banner-demo-${Date.now()}`,
+          teamId: team.id,
+          message: body,
+          requiresAck: true,
+          acknowledgedBy: [] as string[],
+        };
+        setBanner(next);
+        return { ok: true };
+      }
+
+      try {
+        const next = await createUrgentBannerLive(supabase, {
+          teamId: team.id,
+          authorId: user.id,
+          message: body,
+        });
+        setBanner(next);
+        return { ok: true };
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : t('urgent.sendError'),
+        };
+      }
+    },
+    [team, user],
+  );
+
   const upsertWeeklySlot = useCallback(
     async (input: WeeklySlotInput & { id?: string }): Promise<OkOrError> => {
       if (!user || !team) return { ok: false, error: t('weeklySchedule.saveError') };
@@ -1690,11 +1749,29 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setWeeklySlots(demoWeeklySlots);
       setCarpools(demoCarpools);
       setBanner(demoBanner);
-      setReadiness(demoReadiness);
-      setPain(demoPain);
-      setHealthPlayers(
-        demoUsers.filter((u) => u.role === 'player').map((u) => ({ id: u.id, fullName: u.fullName })),
-      );
+      // Parent demo: Parent Cohen → Roi only (never Dan / other players).
+      if (role === 'parent') {
+        const linkedIds = new Set(['user-player-roi']);
+        setReadiness(demoReadiness.filter((r) => linkedIds.has(r.playerId)));
+        setPain(demoPain.filter((p) => linkedIds.has(p.playerId)));
+        setHealthPlayers(
+          demoUsers
+            .filter((u) => linkedIds.has(u.id))
+            .map((u) => ({ id: u.id, fullName: u.fullName })),
+        );
+      } else if (role === 'player') {
+        setReadiness(demoReadiness.filter((r) => r.playerId === match.id));
+        setPain(demoPain.filter((p) => p.playerId === match.id));
+        setHealthPlayers([{ id: match.id, fullName: match.fullName }]);
+      } else {
+        setReadiness(demoReadiness);
+        setPain(demoPain);
+        setHealthPlayers(
+          demoUsers
+            .filter((u) => u.role === 'player')
+            .map((u) => ({ id: u.id, fullName: u.fullName })),
+        );
+      }
       setPlays(demoPlays);
       setAssignments(demoAssignments);
       setSuggestions(demoSuggestions);
@@ -1791,6 +1868,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       upsertWeeklySlot,
       deleteWeeklySlot,
       acknowledgeBanner,
+      composeUrgentBanner,
       switchDemoRole,
       toggleDemoMedicalStaff,
       refreshPendingConsent,
@@ -1845,6 +1923,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       upsertWeeklySlot,
       deleteWeeklySlot,
       acknowledgeBanner,
+      composeUrgentBanner,
       switchDemoRole,
       toggleDemoMedicalStaff,
       refreshPendingConsent,

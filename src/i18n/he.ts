@@ -1,6 +1,11 @@
 /** Hebrew UI copy for Basketball Hub. Invite codes HAP-U16-2026 / MAC-U16-2026 stay Latin. */
 
 export const he = {
+  ui: {
+    selectPlaceholder: 'בחרו אפשרות',
+    selectClose: 'סגירה',
+  },
+
   tabs: {
     schedule: 'לו״ז',
     attendance: 'נוכחות',
@@ -162,6 +167,7 @@ export const he = {
     carpoolCoachHint: 'צפייה בטרמפים (שמירת מקום להורים/שחקנים).',
     offerCarpool: 'הצעת טרמפ',
     offerCarpoolHint: 'כהורה: בחרו אירוע ומספר מקומות פנויים.',
+    offerPickEvent: 'בחירת אירוע להצעה',
     offerSeats: '{n} מקומות פנויים',
     offerSeatsMinus: 'פחות',
     offerSeatsPlus: 'יותר',
@@ -190,6 +196,7 @@ export const he = {
     eventLocation: 'מיקום (קצר)',
     eventDate: 'תאריך (YYYY-MM-DD)',
     eventTime: 'שעה (HH:MM)',
+    eventType: 'סוג אירוע',
     typeGame: 'משחק',
     typePractice: 'אימון',
     titleRequired: 'יש להזין כותרת לאירוע.',
@@ -280,9 +287,12 @@ export const he = {
     subtitle:
       'רמת קושי נתפסת — כפתורים גדולים 1–10 (בלי סליידרים). לחצו על אזור בגוף כדי להתקרב לתת-אזורים.',
     subtitleCoach: 'לוח סיכון למאמן — צביעה אדום/צהוב לפי עומס וכאב כרוני.',
-    subtitleParent: 'הורים לא רואים נתונים רפואיים של שחקנים אחרים. השחקן ממלא במסך זה.',
+    subtitleParent: 'תצוגת הורה: מוכנות וכאב של הילדים המקושרים בלבד (קריאה).',
     parentBlocked:
       'אין גישה לנתוני מוכנות או מפת כאב של שחקנים. רק המאמן/כושר/פיזיו והשחקן עצמו רואים מידע רפואי.',
+    parentChildrenTitle: 'בריאות הילדים המקושרים',
+    parentChildrenHint: 'מוצגים רק ילדים שמקושרים אליכם — לא שחקנים אחרים בקבוצה.',
+    parentNoLinkedChildren: 'לא נמצא ילד מקושר, או שאין דיווחים עדיין.',
     coachBoard: 'לוח סיכון למאמן',
     access: 'גישה: {access}',
     inheritedWrite: ' · המאמן הראשי קיבל הרשאת כתיבה (אין כושר/פיזיו בצוות)',
@@ -337,7 +347,8 @@ export const he = {
     coachToolsHint: 'כמאמן: מסך נוכחות לסימון במגרש, ולוח סיכון בבריאות.',
     playerToolsHint: 'כשחקן: RSVP בלו״ז, דיווח מוכנות ומפת כאב בבריאות.',
     parentToolsHint: 'כהורה: RSVP בלו״ז ושמירת מקום בטרמפים.',
-    equipmentManagerToolsHint: 'כאחראי ציוד: עדכון סטטוס דיווחי חוסרים מהקבוצות.',
+    equipmentManagerToolsHint:
+      'כאחראי ציוד: ריכוז מידות סגל (חולצה/מכנס/נעל/גובה) למטה, ועדכון סטטוס דיווחי חוסרים.',
     pendingConsentTitle: 'אישור הורים (מתחת לגיל 13)',
     pendingConsentEmpty: 'אין שחקנים ממתינים לאישור הורה.',
     pendingConsentPhone: 'טלפון הורה: {phone}',
@@ -387,6 +398,35 @@ export const he = {
     goalsRequired: 'יש להזין בין יעד אחד לשלושה יעדים.',
     statusPublished: 'סטטוס: פורסם',
     statusDraft: 'סטטוס: טיוטה',
+    attachVideo: 'צירוף וידאו',
+    replaceVideo: 'החלפת וידאו',
+    openVideo: 'פתיחת וידאו',
+    videoUploading: 'מעלים וידאו…',
+    videoAttached: 'הווידאו צורף לשיחה.',
+    videoReady: 'וידאו מוכן לצירוף בשמירה.',
+    videoPermission: 'אין הרשאה לספריית המדיה.',
+    videoFailed: 'העלאת הווידאו נכשלה. נסו שוב.',
+  },
+
+  urgent: {
+    title: 'הודעות דחופות',
+    subtitle: 'חיבור הודעה לקבוצה ומעקב מי אישר קריאה (בסגנון Dual-Ack). לא מוצג כבאנר בלו״ז שלכם.',
+    message: 'תוכן ההודעה',
+    messagePlaceholder: 'למשל: האימון הועבר לאולם ב׳…',
+    send: 'שליחת הודעה דחופה',
+    sending: 'שולחים…',
+    sentOk: 'ההודעה נשלחה. השחקנים וההורים יראו באנר לאישור.',
+    sendError: 'שליחת ההודעה נכשלה.',
+    messageRequired: 'יש להזין תוכן להודעה.',
+    ackStatus: 'סטטוס אישור קריאה',
+    noActive: 'אין הודעה דחופה פעילה כרגע.',
+    activeMessage: 'הודעה פעילה: {message}',
+    confirmed: 'אישרו ({count})',
+    notConfirmed: 'טרם אישרו ({count})',
+    noneYet: 'עדיין אין אישורים.',
+    allConfirmed: 'כולם אישרו.',
+    ackYes: 'אושר',
+    ackNo: 'ממתין',
   },
 
   equipment: {
@@ -404,6 +444,17 @@ export const he = {
     descRequired: 'יש להזין תיאור.',
     empty: 'אין דיווחי ציוד כרגע.',
     meta: 'כמות {qty} · {team} · {status}',
+    statusLabel: 'סטטוס טיפול',
+    rosterSizesTitle: 'ריכוז מידות סגל',
+    rosterSizesSubtitle: 'חולצה / מכנס / נעל / גובה לכל שחקן — לתכנון הזמנות ציוד.',
+    rosterSizesEmpty: 'אין שחקנים או מידות עדיין.',
+    rosterSizesLine: 'חולצה {shirt} · מכנס {shorts} · נעל {shoe} · גובה {height} ס״מ',
+    rosterSizesColName: 'שחקן',
+    rosterSizesColShirt: 'חולצה',
+    rosterSizesColShorts: 'מכנס',
+    rosterSizesColShoe: 'נעל',
+    rosterSizesColHeight: 'גובה',
+    rosterSizesOpenHint: 'מוצג כאן בפרופיל אחראי ציוד — כל הסגל במקום אחד.',
     status: {
       reported: 'פתוח',
       in_progress: 'בטיפול',
