@@ -277,7 +277,8 @@ export function EquipmentSection() {
         <Pressable style={styles.sheetBackdrop} onPress={() => !saving && setSheetOpen(false)}>
           <Pressable
             onPress={(e) => e.stopPropagation()}
-            style={[styles.sheet, rtlLayout.box, { backgroundColor: colors.surface }]}
+            {...rtlContainerProps}
+            style={[styles.sheet, rtlLayout.modal, { backgroundColor: colors.surface }]}
           >
             <Text style={[layout.title, { fontSize: 20, color: colors.primary }]}>
               {t('equipment.reportCta')}

@@ -133,7 +133,7 @@ export function ProfileSetupScreen() {
         <Text style={[{ color: colors.danger, marginTop: 8 }, rtlText]}>{error}</Text>
       ) : null}
       {note ? (
-        <Text style={{ color: colors.success, marginTop: 8, textAlign: 'right' }}>{note}</Text>
+        <Text style={[{ color: colors.success, marginTop: 8 }, rtlText]}>{note}</Text>
       ) : null}
 
       {busy ? (

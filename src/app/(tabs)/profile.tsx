@@ -112,21 +112,21 @@ export default function ProfileRoute() {
         >
           <Text style={[styles.label, { marginTop: 0 }]}>{t('profile.pendingConsentTitle')}</Text>
           {consentNote ? (
-            <Text style={{ color: colors.success, textAlign: 'right', marginBottom: 8 }}>
+            <Text style={[{ color: colors.success, marginBottom: 8 }, rtlText]}>
               {consentNote}
             </Text>
           ) : null}
           {pending.length === 0 ? (
-            <Text style={{ color: colors.muted, textAlign: 'right' }}>
+            <Text style={[{ color: colors.muted }, rtlText]}>
               {t('profile.pendingConsentEmpty')}
             </Text>
           ) : (
             pending.map((p) => (
-              <View key={p.id} style={styles.pendingRow}>
-                <Text style={{ fontWeight: '700', textAlign: 'right', color: colors.text }}>
+              <View key={p.id} style={[styles.pendingRow, rtlLayout.box]}>
+                <Text style={[{ fontWeight: '700', color: colors.text }, rtlText]}>
                   {p.fullName}
                 </Text>
-                <Text style={{ color: colors.muted, textAlign: 'right', marginTop: 2 }}>
+                <Text style={[{ color: colors.muted, marginTop: 2 }, rtlText]}>
                   {t('profile.pendingConsentPhone', { phone: p.parentPhone ?? '—' })}
                 </Text>
                 {consentBusyId === p.id ? (
@@ -264,8 +264,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontWeight: '800',
     color: '#334155',
-    textAlign: 'right',
-    writingDirection: 'rtl',
+    ...rtlText,
   },
   chip: {
     minHeight: 40,

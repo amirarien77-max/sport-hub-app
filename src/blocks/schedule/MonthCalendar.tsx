@@ -422,7 +422,8 @@ export function MonthCalendar({
         <Pressable style={styles.sheetBackdrop} onPress={() => !busy && setEditor(null)}>
           <Pressable
             onPress={(e) => e.stopPropagation()}
-            style={[styles.sheet, rtlLayout.box, { backgroundColor: colors.surface }]}
+            {...rtlContainerProps}
+            style={[styles.sheet, rtlLayout.modal, { backgroundColor: colors.surface }]}
           >
             <Text style={[layout.title, { fontSize: 20, color: colors.primary }]}>
               {editor?.mode === 'edit' ? t('calendar.editEvent') : t('calendar.addEvent')}

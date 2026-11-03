@@ -108,6 +108,22 @@ export function enableHebrewRtl(): void {
     if (document.body) {
       document.body.setAttribute('dir', 'rtl');
     }
+    // Safety net for portal/modal hosts that miss `{...rtlContainerProps}`:
+    // prefer physical right for body copy; buttons stay intentionally centered.
+    if (!document.getElementById('sport-hub-rtl-base')) {
+      const style = document.createElement('style');
+      style.id = 'sport-hub-rtl-base';
+      style.textContent = `
+html[dir="rtl"] body {
+  text-align: right;
+}
+html[dir="rtl"] [role="button"],
+html[dir="rtl"] button {
+  text-align: center;
+}
+`;
+      document.head.appendChild(style);
+    }
   }
 }
 

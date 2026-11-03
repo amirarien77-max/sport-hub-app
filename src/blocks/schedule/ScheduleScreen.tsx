@@ -611,7 +611,8 @@ export function ScheduleScreen() {
         >
           <Pressable
             onPress={(e) => e.stopPropagation()}
-            style={[styles.sheet, rtlLayout.box, { backgroundColor: colors.surface }]}
+            {...rtlContainerProps}
+            style={[styles.sheet, rtlLayout.modal, { backgroundColor: colors.surface }]}
           >
             <ScrollView
               keyboardShouldPersistTaps="handled"
@@ -769,7 +770,10 @@ function ReasonSheet({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose}>
-        <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
+        <View
+          {...rtlContainerProps}
+          style={[styles.sheet, rtlLayout.modal, { backgroundColor: colors.surface }]}
+        >
           <Text style={[layout.title, { fontSize: 20, color: colors.primary }]}>
             {t('schedule.whyAbsent')}
           </Text>
