@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { RtlSelect } from '@/blocks/ui/RtlSelect';
 import { t } from '@/i18n';
 import { fetchTeamPlayerProfile, updatePlayerSizes } from '@/lib/profile-live';
 import { ensureParentPlayerLink } from '@/lib/schedule-live';
@@ -27,6 +28,7 @@ import {
 } from '@/theme/ThemeContext';
 
 const CLOTHING_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'] as const;
+const CLOTHING_OPTIONS = CLOTHING_SIZES.map((size) => ({ value: size, label: size }));
 
 async function resolvePlayerId(
   role: string,
@@ -138,62 +140,24 @@ export function PlayerSizesSection() {
       {loading ? <ActivityIndicator color={colors.primary} /> : null}
 
       <Text style={layout.label}>{t('profile.shirtSize')}</Text>
-      <View style={rtlLayout.row}>
-        {CLOTHING_SIZES.map((size) => (
-          <Pressable
-            key={`shirt-${size}`}
-            onPress={() => setShirtSize(size)}
-            style={[
-              styles.chip,
-              {
-                borderColor: colors.primary,
-                backgroundColor: shirtSize === size ? colors.secondary : '#fff',
-              },
-            ]}
-          >
-            <Text
-              style={[
-                {
-                  color: shirtSize === size ? '#fff' : colors.primary,
-                  fontWeight: '700',
-                },
-                rtlText,
-              ]}
-            >
-              {size}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+      <RtlSelect
+        testID="shirt-size-select"
+        options={CLOTHING_OPTIONS}
+        value={shirtSize}
+        onChange={setShirtSize}
+        placeholder={t('ui.selectPlaceholder')}
+        menuTitle={t('profile.shirtSize')}
+      />
 
       <Text style={layout.label}>{t('profile.shortsSize')}</Text>
-      <View style={rtlLayout.row}>
-        {CLOTHING_SIZES.map((size) => (
-          <Pressable
-            key={`shorts-${size}`}
-            onPress={() => setShortsSize(size)}
-            style={[
-              styles.chip,
-              {
-                borderColor: colors.primary,
-                backgroundColor: shortsSize === size ? colors.secondary : '#fff',
-              },
-            ]}
-          >
-            <Text
-              style={[
-                {
-                  color: shortsSize === size ? '#fff' : colors.primary,
-                  fontWeight: '700',
-                },
-                rtlText,
-              ]}
-            >
-              {size}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+      <RtlSelect
+        testID="shorts-size-select"
+        options={CLOTHING_OPTIONS}
+        value={shortsSize}
+        onChange={setShortsSize}
+        placeholder={t('ui.selectPlaceholder')}
+        menuTitle={t('profile.shortsSize')}
+      />
 
       <Text style={layout.label}>{t('profile.shoeSize')}</Text>
       <TextInput
@@ -262,15 +226,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     ...rtlText,
-  },
-  chip: {
-    minHeight: 40,
-    minWidth: 44,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   input: {
     borderWidth: 1.5,

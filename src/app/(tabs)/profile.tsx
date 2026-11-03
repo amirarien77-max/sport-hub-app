@@ -99,10 +99,12 @@ export default function ProfileRoute() {
         {roleHint}
       </Text>
 
+      {/* EM: roster sizes first so «ריכוז מידות סגל» is above the fold */}
+      {isEquipmentManager(user?.role) ? <RosterSizesSection /> : null}
       <PlayerSizesSection />
       <UrgentMessagesSection />
       <PlayerMeetingsSection />
-      <RosterSizesSection />
+      {!isEquipmentManager(user?.role) ? <RosterSizesSection /> : null}
       <EquipmentSection />
 
       {isAttendanceCoach(user?.role) ? (

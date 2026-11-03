@@ -121,6 +121,18 @@ html[dir="rtl"] [role="button"],
 html[dir="rtl"] button {
   text-align: center;
 }
+/* Native / web select + option lists (ynet-style RTL combos). */
+html[dir="rtl"] select,
+html[dir="rtl"] option {
+  direction: rtl;
+  text-align: right;
+  text-align-last: right;
+}
+html[dir="rtl"] [data-rtl-select="trigger"],
+html[dir="rtl"] [data-rtl-select="option"] {
+  direction: rtl;
+  text-align: right;
+}
 `;
       document.head.appendChild(style);
     }

@@ -130,6 +130,32 @@ export const rtlLayout = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'flex-start',
   },
+  /**
+   * Combo / select trigger row (ynet-style).
+   * Under `dir=rtl`, first child (label) packs to the physical right;
+   * chevron follows toward the left.
+   */
+  comboTrigger: {
+    flexDirection: rtlRowDirection,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    writingDirection: 'rtl',
+    width: '100%',
+    gap: 8,
+  },
+  /** Dropdown / modal option list shell. */
+  comboMenu: {
+    writingDirection: 'rtl',
+    alignItems: 'stretch',
+  },
+  /** One option row: label on the right, checkmark toward the left. */
+  comboOption: {
+    flexDirection: rtlRowDirection,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    writingDirection: 'rtl',
+    width: '100%',
+  },
 });
 
 /** TextInput / Text `textAlign` prop — physical right for Hebrew. */

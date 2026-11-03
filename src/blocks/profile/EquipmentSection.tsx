@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { RtlSelect } from '@/blocks/ui/RtlSelect';
 import { t } from '@/i18n';
 import {
   createEquipmentReport,
@@ -235,35 +236,18 @@ export function EquipmentSection() {
             })}
           </Text>
           {manager ? (
-            <View style={[rtlLayout.row, { marginTop: 8 }]}>
-              {EQUIPMENT_STATUSES.map((status) => (
-                <Pressable
-                  key={status}
-                  disabled={saving || r.status === status}
-                  onPress={() => void setStatus(r, status)}
-                  style={[
-                    styles.statusChip,
-                    {
-                      borderColor: colors.primary,
-                      backgroundColor: r.status === status ? colors.primary : '#fff',
-                      opacity: saving ? 0.7 : 1,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      {
-                        color: r.status === status ? '#fff' : colors.primary,
-                        fontWeight: '700',
-                        fontSize: 12,
-                      },
-                      rtlText,
-                    ]}
-                  >
-                    {statusLabel(status)}
-                  </Text>
-                </Pressable>
-              ))}
+            <View style={{ marginTop: 8 }}>
+              <RtlSelect
+                testID={`equipment-status-${r.id}`}
+                options={EQUIPMENT_STATUSES.map((status) => ({
+                  value: status,
+                  label: statusLabel(status),
+                }))}
+                value={r.status}
+                disabled={saving}
+                onChange={(status) => void setStatus(r, status)}
+                menuTitle={t('equipment.statusLabel')}
+              />
             </View>
           ) : (
             <Text style={[{ marginTop: 6, color: colors.primary, fontWeight: '700' }, rtlText]}>
@@ -344,13 +328,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     backgroundColor: '#F8FAFC',
-  },
-  statusChip: {
-    minHeight: 34,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    justifyContent: 'center',
   },
   sheetBackdrop: {
     flex: 1,
