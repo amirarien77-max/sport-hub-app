@@ -70,6 +70,41 @@ Without Twilio, the app **simulates** send (logs Hebrew payload) and coaches can
 
 Enable **Email** auth under Authentication → Providers if it is not already on.
 
+## 2b. Authentication → URL Configuration (required for email confirm)
+
+If Site URL / Redirect URLs are wrong, the confirmation email opens **localhost** or Chrome shows **«לא ניתן לגשת ל-null»**.
+
+In the Supabase dashboard go to **Authentication → URL Configuration** and set:
+
+| Field | Recommended value |
+|-------|-------------------|
+| **Site URL** | Dev: `http://localhost:8081` (Expo web). Prod: your real HTTPS origin. |
+| **Redirect URLs** | Allow-list every URL the app may pass as `emailRedirectTo` (see below). |
+
+Add **all** of these Redirect URLs that you use (wildcards allowed per Supabase docs):
+
+```
+http://localhost:8081
+http://localhost:8081/**
+http://127.0.0.1:8081
+http://127.0.0.1:8081/**
+basketballhub://
+basketballhub://*
+exp://**
+```
+
+Plus your production web origin when you have one, e.g. `https://your-app.example.com/**`.
+
+The app sets `emailRedirectTo` via `getAuthEmailRedirectTo()` (`src/lib/auth-redirect.ts`):
+
+1. `EXPO_PUBLIC_AUTH_REDIRECT_URL` if set (use this for production)
+2. Else `Linking.createURL('/')` with scheme `basketballhub` (web → current origin; Expo Go → `exp://…`; native → `basketballhub://`)
+3. Else web `window.location.origin` / fallback `basketballhub://`
+
+Never leave Site URL empty. Never rely on an undefined redirect — that produced the null / localhost failures.
+
+**Confirm email toggle:** Authentication → Providers → Email → **Confirm email**. While ON, `signUp` returns no session until the user clicks the mail link (or an admin sets `email_confirmed_at`). For local-only testing you can turn Confirm email OFF.
+
 ## 3. Restart Expo
 
 Env vars are read at bundler start:

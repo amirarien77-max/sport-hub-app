@@ -29,15 +29,22 @@ export function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const run = async (mode: 'in' | 'up') => {
     setBusy(true);
     setError(null);
+    setNote(null);
     const result = mode === 'in' ? await signIn(email, password) : await signUp(email, password);
     setBusy(false);
     if (!result.ok) {
       setError(result.error);
+      return;
+    }
+    // Signup with confirm-email: stay here and show check-inbox note.
+    if (result.note) {
+      setNote(result.note);
       return;
     }
     router.replace('/');
@@ -77,6 +84,10 @@ export function AuthScreen() {
 
       {error ? (
         <Text style={[{ color: colors.danger, marginTop: 8 }, rtlText]}>{error}</Text>
+      ) : null}
+
+      {note ? (
+        <Text style={[{ color: colors.text, marginTop: 8 }, rtlText]}>{note}</Text>
       ) : null}
 
       {busy ? (

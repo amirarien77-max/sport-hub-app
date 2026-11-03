@@ -7,6 +7,7 @@
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -22,6 +23,8 @@ export const supabase: SupabaseClient | null = isDemoMode
         storage: AsyncStorage,
         autoRefreshToken: true,
         persistSession: true,
-        detectSessionInUrl: false,
+        // Web: pick up tokens from the email-confirm redirect URL.
+        // Native: deep-link session handling is separate; avoid false positives.
+        detectSessionInUrl: Platform.OS === 'web',
       },
     });
